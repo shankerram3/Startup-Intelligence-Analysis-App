@@ -233,7 +233,15 @@ def run_pipeline(
         print("="*80 + "\n")
         
         try:
-            from fix_mentioned_in import GraphCleaner
+            import sys
+            from pathlib import Path
+            
+            # Add utils directory to path
+            utils_dir = Path(__file__).parent / "utils"
+            if utils_dir.exists():
+                sys.path.insert(0, str(utils_dir))
+            
+            from graph_cleanup import GraphCleaner
             
             cleaner = GraphCleaner(neo4j_uri, neo4j_user, neo4j_password)
             
@@ -244,8 +252,9 @@ def run_pipeline(
             finally:
                 cleaner.close()
                 
-        except ImportError:
-            print("⚠️  Graph cleanup script not found, skipping...")
+        except ImportError as e:
+            print(f"⚠️  Graph cleanup utility not found: {e}")
+            print("Skipping graph cleanup...")
         except Exception as e:
             print(f"⚠️  Graph cleanup failed: {e}")
             # Don't fail pipeline if cleanup fails

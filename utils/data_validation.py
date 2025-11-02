@@ -113,6 +113,13 @@ def validate_extraction(extraction: Dict) -> tuple[bool, List[str]]:
                           "PRODUCT", "FUNDING_ROUND", "LOCATION", "EVENT"]
             if entity_type not in valid_types:
                 errors.append(f"Entity {i} has invalid type: {entity_type}")
+            
+            # Filter out TechCrunch/Disrupt related entities
+            entity_name = entity.get("name", "")
+            if entity_name:
+                from .filter_techcrunch import is_techcrunch_related
+                if is_techcrunch_related(entity_name):
+                    errors.append(f"Entity {i} ('{entity_name}') is TechCrunch/TechCrunch Disrupt related and should not be added to graph")
     
     # Validate relationships
     if not isinstance(relationships, list):
@@ -134,14 +141,25 @@ def validate_extraction(extraction: Dict) -> tuple[bool, List[str]]:
             rel_type = rel.get("type", "")
             valid_types = ["FUNDED_BY", "FOUNDED_BY", "WORKS_AT", "ACQUIRED", 
                           "PARTNERS_WITH", "COMPETES_WITH", "USES_TECHNOLOGY", 
-                          "LOCATED_IN", "ANNOUNCED_AT", "MENTIONED_IN"]
-            if rel_type not in valid_types:
+                          "LOCATED_IN", "ANNOUNCED_AT"]
+            # MENTIONED_IN is not a valid relationship type - use properties instead
+            if rel_type == "MENTIONED_IN":
+                errors.append(f"Relationship {i} uses MENTIONED_IN - this should be handled via properties, not relationships")
+            elif rel_type not in valid_types:
                 errors.append(f"Relationship {i} has invalid type: {rel_type}")
             
             # Validate strength
             strength = rel.get("strength", 0)
             if not isinstance(strength, int) or strength < 0 or strength > 10:
                 errors.append(f"Relationship {i} has invalid strength: {strength}")
+            
+            # Filter out relationships involving TechCrunch/Disrupt entities
+            source = rel.get("source", "")
+            target = rel.get("target", "")
+            if source or target:
+                from .filter_techcrunch import is_techcrunch_related
+                if is_techcrunch_related(source) or is_techcrunch_related(target):
+                    errors.append(f"Relationship {i} involves TechCrunch/Disrupt entity: {source} -> {target}")
     
     return len(errors) == 0, errors
 

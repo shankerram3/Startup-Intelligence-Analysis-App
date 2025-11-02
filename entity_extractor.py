@@ -22,6 +22,7 @@ from utils.checkpoint import CheckpointManager
 from utils.retry import retry_with_backoff
 from utils.entity_normalization import normalize_entity_name
 from utils.progress_tracker import ProgressTracker
+from utils.filter_techcrunch import filter_techcrunch_entities, filter_techcrunch_relationship
 
 
 class TechCrunchEntityExtractor:
@@ -53,7 +54,8 @@ For each pair of related entities, extract the following information:
 - target_entity: name of the target entity, as identified in step 1
 - relationship_description: explanation as to why you think the source entity and the target entity are related to each other
 - relationship_strength: a numeric score indicating strength of the relationship between the source entity and target entity
-- relationship_type: One of: [FUNDED_BY, FOUNDED_BY, WORKS_AT, ACQUIRED, PARTNERS_WITH, COMPETES_WITH, USES_TECHNOLOGY, LOCATED_IN, ANNOUNCED_AT, MENTIONED_IN]
+- relationship_type: One of: [FUNDED_BY, FOUNDED_BY, WORKS_AT, ACQUIRED, PARTNERS_WITH, COMPETES_WITH, USES_TECHNOLOGY, LOCATED_IN, ANNOUNCED_AT]
+Note: Do NOT create MENTIONED_IN relationships - entity-to-article relationships are handled separately
 
 Format each relationship as ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_type>{tuple_delimiter}<relationship_strength>)
 
@@ -171,6 +173,12 @@ Output:
         # Parse the result
         entities, relationships = self._parse_extraction_result(result)
         
+        # Filter out TechCrunch/Disrupt entities (additional check)
+        filtered_entities, filtered_names = filter_techcrunch_entities(entities)
+        if filtered_names:
+            print(f"  ⚠️  Filtered out {len(filtered_names)} TechCrunch/Disrupt entities: {', '.join(filtered_names[:5])}{'...' if len(filtered_names) > 5 else ''}")
+        entities = filtered_entities
+        
         # Normalize entity names
         entities = self._normalize_entities(entities)
         
@@ -206,12 +214,30 @@ Output:
             if record.startswith('("entity"'):
                 entity = self._parse_entity(record)
                 if entity:
+                    # Filter out TechCrunch/Disrupt related entities
+                    from utils.filter_techcrunch import filter_techcrunch_entity
+                    should_filter, reason = filter_techcrunch_entity(entity)
+                    if should_filter:
+                        print(f"  ⚠️  Filtered out TechCrunch/Disrupt entity: {entity.get('name', '?')}")
+                        continue
                     entities.append(entity)
             
             # Parse relationship
             elif record.startswith('("relationship"'):
                 relationship = self._parse_relationship(record)
                 if relationship:
+                    # Filter out MENTIONED_IN relationships at parse time
+                    rel_type = relationship.get("type", "")
+                    if rel_type == "MENTIONED_IN":
+                        print(f"  ⚠️  Filtered out MENTIONED_IN relationship from {relationship.get('source', '?')} to {relationship.get('target', '?')}")
+                        continue  # Skip MENTIONED_IN relationships
+                    
+                    # Filter out relationships involving TechCrunch/Disrupt entities
+                    should_filter, reason = filter_techcrunch_relationship(relationship)
+                    if should_filter:
+                        print(f"  ⚠️  Filtered out TechCrunch/Disrupt relationship: {reason}")
+                        continue
+                    
                     relationships.append(relationship)
         
         return entities, relationships

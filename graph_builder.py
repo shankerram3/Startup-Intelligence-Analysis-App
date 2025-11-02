@@ -88,6 +88,13 @@ class TechCrunchGraphBuilder:
         name = entity["name"]
         description = entity["description"]
         
+        # Filter out TechCrunch/Disrupt related entities
+        from utils.filter_techcrunch import filter_techcrunch_entity
+        should_filter, reason = filter_techcrunch_entity(entity)
+        if should_filter:
+            print(f"  ⚠️  Skipping TechCrunch/Disrupt entity: {name}")
+            return None
+        
         # Generate consistent ID
         entity_id = self.generate_entity_id(name, entity_type)
         
@@ -173,6 +180,26 @@ class TechCrunchGraphBuilder:
         description = relationship["description"]
         strength = relationship.get("strength", 5)
         
+        # STRICT: Skip MENTIONED_IN relationships - these are handled via properties
+        # This should never happen if extraction is correct, but double-check here
+        if rel_type == "MENTIONED_IN":
+            print(f"  ⚠️  WARNING: Attempted to create MENTIONED_IN relationship from {source_name} to {target_name}. Skipped.")
+            return
+        
+        # STRICT: Skip relationships involving TechCrunch/Disrupt entities
+        from utils.filter_techcrunch import is_techcrunch_related
+        if is_techcrunch_related(source_name) or is_techcrunch_related(target_name):
+            print(f"  ⚠️  WARNING: Attempted to create relationship involving TechCrunch/Disrupt entity: {source_name} -> {target_name}. Skipped.")
+            return
+        
+        # Validate relationship type
+        valid_types = ["FUNDED_BY", "FOUNDED_BY", "WORKS_AT", "ACQUIRED", 
+                      "PARTNERS_WITH", "COMPETES_WITH", "USES_TECHNOLOGY", 
+                      "LOCATED_IN", "ANNOUNCED_AT"]
+        if rel_type not in valid_types:
+            print(f"  ⚠️  WARNING: Invalid relationship type '{rel_type}' from {source_name} to {target_name}. Skipped.")
+            return
+        
         # Generate entity IDs (we need to find the actual entities)
         with self.driver.session() as session:
             # Find source entity
@@ -206,6 +233,11 @@ class TechCrunchGraphBuilder:
             target_id = target_record["id"]
             source_label = source_record["label"]
             target_label = target_record["label"]
+            
+            # Double-check: MENTIONED_IN should never reach here, but check again
+            if rel_type == "MENTIONED_IN":
+                print(f"  ❌ ERROR: MENTIONED_IN relationship reached create_relationship. This should never happen!")
+                return
             
             # Create typed relationship
             query = f"""
@@ -241,18 +273,50 @@ class TechCrunchGraphBuilder:
         self.create_article_node(extraction["article_metadata"])
         print(f"  ✓ Created article node")
         
-        # Create entity nodes
+        # Create entity nodes (filter out TechCrunch/Disrupt)
         entity_count = 0
-        for entity in extraction["entities"]:
-            self.create_entity_node(entity, article_id)
-            entity_count += 1
+        skipped_count = 0
+        from utils.filter_techcrunch import filter_techcrunch_entities
+        
+        filtered_entities, filtered_names = filter_techcrunch_entities(extraction["entities"])
+        skipped_count = len(filtered_names)
+        
+        for entity in filtered_entities:
+            result = self.create_entity_node(entity, article_id)
+            if result:  # Only count if node was actually created
+                entity_count += 1
+        
+        if skipped_count > 0:
+            print(f"  ⚠️  Skipped {skipped_count} TechCrunch/Disrupt entities")
         print(f"  ✓ Created {entity_count} entity nodes")
         
-        # Create relationships
+        # Create relationships (filter out MENTIONED_IN and TechCrunch/Disrupt related)
         rel_count = 0
+        skipped_mentioned = 0
+        skipped_techcrunch = 0
+        
+        from utils.filter_techcrunch import filter_techcrunch_relationship
+        
         for relationship in extraction["relationships"]:
+            rel_type = relationship.get("type", "")
+            # Skip MENTIONED_IN relationships - these should never be created
+            if rel_type == "MENTIONED_IN":
+                skipped_mentioned += 1
+                continue
+            
+            # Skip relationships involving TechCrunch/Disrupt entities
+            should_filter, reason = filter_techcrunch_relationship(relationship)
+            if should_filter:
+                skipped_techcrunch += 1
+                continue
+            
             self.create_relationship(relationship, article_id)
             rel_count += 1
+        
+        if skipped_mentioned > 0:
+            print(f"  ⚠️  Skipped {skipped_mentioned} MENTIONED_IN relationships (use properties instead)")
+        if skipped_techcrunch > 0:
+            print(f"  ⚠️  Skipped {skipped_techcrunch} TechCrunch/Disrupt related relationships")
         print(f"  ✓ Created {rel_count} relationships")
     
     def get_statistics(self) -> Dict:
