@@ -1,0 +1,50 @@
+# TechCrunch Knowledge Graph Pipeline - Complete Requirements
+# Install with: pip install -r requirements.txt --break-system-packages
+
+# ============================================================================
+# PHASE 1: Web Scraping
+# ============================================================================
+# Core scraping framework (installs most dependencies automatically)
+crawl4ai==0.7.6
+
+# HTML parsing
+beautifulsoup4==4.12.3
+lxml>=5.3.0
+
+# Data validation
+pydantic>=2.10.0
+
+# Async file operations
+aiofiles>=24.1.0
+
+# ============================================================================
+# PHASE 2: Entity Extraction (LLM-based)
+# ============================================================================
+# LangChain for LLM integration
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
+
+# OpenAI API
+openai>=1.0.0
+
+# ============================================================================
+# PHASE 3: Knowledge Graph Construction
+# ============================================================================
+# Neo4j Python driver
+neo4j>=5.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# ============================================================================
+# PHASE 4: Graph RAG (Optional - for future implementation)
+# ============================================================================
+# Vector embeddings
+# sentence-transformers>=2.0.0
+
+# Graph algorithms
+# networkx>=3.0
+
+# Vector database (if using hybrid approach)
+# chromadb>=0.4.0

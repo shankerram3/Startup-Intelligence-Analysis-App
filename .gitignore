@@ -1,0 +1,17 @@
+.env
+
+data/
+data processing/
+data articles/
+data raw_data/
+data metadata/
+data extracted_entities/
+data graphs/
+data reports/
+data logs/
+data tests/
+data docs/
+data notebooks/
+data models/
+delete_nodes.py
+delete_techcrunch_disrupt.cypher
