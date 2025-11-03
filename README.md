@@ -128,7 +128,7 @@ SWM Project/
 │   └── neo4j_queries.cypher
 ├── integrate_new_features.py  # Feature integration script
 ├── delete_techcrunch.py       # Remove TechCrunch nodes
-├── force_cleanup.py           # Force cleanup MENTIONED_IN
+
 └── requirements.txt          # Python dependencies
 ```
 
@@ -351,7 +351,7 @@ python integrate_new_features.py
 python delete_techcrunch.py --confirm
 
 # Force cleanup MENTIONED_IN relationships
-python force_cleanup.py
+python -m utils.graph_cleanup
 ```
 
 ---
@@ -868,7 +868,7 @@ The pipeline automatically:
 python delete_techcrunch.py --confirm
 
 # Force cleanup MENTIONED_IN relationships
-python force_cleanup.py
+python -m utils.graph_cleanup
 
 # Check for remaining issues
 # Run queries from: check_mentioned_in.cypher
@@ -1089,7 +1089,7 @@ python integrate_new_features.py
 **Solution**:
 ```bash
 # Force cleanup
-python force_cleanup.py
+python -m utils.graph_cleanup
 ```
 
 #### 7. TechCrunch/Disrupt Nodes Still Appearing
