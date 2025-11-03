@@ -237,7 +237,7 @@ def run_pipeline(
         
         try:
             import sys
-            from pathlib import Path
+            
             
             # Add utils directory to path
             utils_dir = Path(__file__).parent / "utils"
@@ -270,7 +270,7 @@ def run_pipeline(
         
         try:
             import sys
-            from pathlib import Path
+            
             
             # Add utils directory to path
             utils_dir = Path(__file__).parent / "utils"
