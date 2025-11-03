@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 import json
 from dotenv import load_dotenv
+from neo4j import GraphDatabase
 
 # Load environment variables from .env file
 load_dotenv()
@@ -76,7 +77,8 @@ def run_pipeline(
     scrape_max_pages: int = None,
     resume_extraction: bool = True,
     validate_data: bool = True,
-    auto_cleanup_graph: bool = True
+    auto_cleanup_graph: bool = True,
+    run_advanced_features: bool = False
 ):
     """
     Run the complete pipeline
@@ -93,6 +95,7 @@ def run_pipeline(
         resume_extraction: Resume extraction from checkpoint
         validate_data: Validate articles and extractions
         auto_cleanup_graph: Automatically clean up graph (fix MENTIONED_IN relationships)
+        run_advanced_features: Run advanced post-processing features (deduplication, scoring, etc.)
     """
     
     print("\n" + "="*80)
@@ -259,6 +262,82 @@ def run_pipeline(
             print(f"⚠️  Graph cleanup failed: {e}")
             # Don't fail pipeline if cleanup fails
     
+    # Phase 4: Advanced Features (Optional)
+    if not skip_graph_building and run_advanced_features:
+        print("\n" + "="*80)
+        print("PHASE 4: ADVANCED FEATURES")
+        print("="*80 + "\n")
+        
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Add utils directory to path
+            utils_dir = Path(__file__).parent / "utils"
+            if utils_dir.exists():
+                sys.path.insert(0, str(utils_dir))
+            
+            # Add parent directory to path for utils imports
+            parent_dir = Path(__file__).parent
+            if parent_dir not in sys.path:
+                sys.path.insert(0, str(parent_dir))
+            
+            from utils.entity_resolver import EntityResolver
+            from utils.relationship_scorer import RelationshipScorer
+            from utils.community_detector import CommunityDetector
+            from utils.embedding_generator import EmbeddingGenerator
+            
+            # Get Neo4j connection
+            driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+            
+            try:
+                # 1. Entity Deduplication
+                print("1. Entity Deduplication")
+                print("-" * 80)
+                resolver = EntityResolver(driver)
+                merge_stats = resolver.merge_all_duplicates(dry_run=False, threshold=0.85)
+                print(f"   ✓ Merged {merge_stats.get('merged', 0)} duplicate entities\n")
+                
+                # 2. Relationship Strength Calculation
+                print("2. Relationship Strength Calculation")
+                print("-" * 80)
+                scorer = RelationshipScorer(driver)
+                update_stats = scorer.update_relationship_strengths()
+                print(f"   ✓ Updated {update_stats.get('updated', 0)} relationship strengths\n")
+                
+                # 3. Community Detection
+                print("3. Community Detection")
+                print("-" * 80)
+                detector = CommunityDetector(driver)
+                communities = detector.detect_communities(min_community_size=3)
+                print(f"   ✓ Detected {communities.get('total_communities', 0)} communities\n")
+                
+                # 4. Embedding Generation (optional - requires API key)
+                print("4. Embedding Generation")
+                print("-" * 80)
+                if openai_api_key:
+                    generator = EmbeddingGenerator(driver, embedding_model="openai")
+                    embed_stats = generator.generate_embeddings_for_all_entities()
+                    print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings\n")
+                else:
+                    print("   ⚠️  Skipped (OPENAI_API_KEY not set)\n")
+                
+                print("="*80)
+                print("✅ ADVANCED FEATURES COMPLETE!")
+                print("="*80 + "\n")
+                
+            finally:
+                driver.close()
+                
+        except ImportError as e:
+            print(f"⚠️  Advanced features not available: {e}")
+            print("Skipping advanced features...")
+        except Exception as e:
+            print(f"⚠️  Advanced features failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Don't fail pipeline if advanced features fail
+    
     # Success!
     print("\n" + "="*80)
     print("✅ PIPELINE COMPLETE!")
@@ -393,6 +472,12 @@ def main():
     )
     
     parser.add_argument(
+        "--advanced-features",
+        action="store_true",
+        help="Run advanced post-processing features (deduplication, scoring, community detection, embeddings)"
+    )
+    
+    parser.add_argument(
         "--help-extended",
         action="store_true",
         help="Show extended help"
@@ -416,7 +501,8 @@ def main():
         scrape_max_pages=args.scrape_max_pages,
         resume_extraction=not args.no_resume,
         validate_data=not args.no_validation,
-        auto_cleanup_graph=not args.no_cleanup
+        auto_cleanup_graph=not args.no_cleanup,
+        run_advanced_features=args.advanced_features
     )
     
     sys.exit(0 if success else 1)

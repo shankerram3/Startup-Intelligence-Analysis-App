@@ -126,8 +126,7 @@ SWM Project/
 │   └── processing/          # Extractions & checkpoints
 ├── cypher queries/          # Query examples
 │   └── neo4j_queries.cypher
-├── integrate_new_features.py  # Feature integration script
-├── delete_techcrunch.py       # Remove TechCrunch nodes
+├── integrate_new_features.py  # Optional: Feature integration script
 └── requirements.txt          # Python dependencies
 ```
 
@@ -339,18 +338,22 @@ python demo_scraper.py
 python -m graph_builder
 ```
 
-#### Integrate New Features
+#### Run Pipeline with Advanced Features
 ```bash
+# Run complete pipeline with advanced post-processing
+python pipeline.py --advanced-features
+
+# Or run advanced features separately
 python integrate_new_features.py
 ```
 
 #### Cleanup Scripts
 ```bash
-# Delete TechCrunch/Disrupt nodes
-python delete_techcrunch.py --confirm
-
 # Cleanup MENTIONED_IN relationships (using utils)
 python -m utils.graph_cleanup
+
+# Note: TechCrunch nodes are automatically filtered by the pipeline
+# (8 layers of protection prevent them from entering the graph)
 ```
 
 ---
@@ -863,8 +866,7 @@ The pipeline automatically:
 ### Manual Cleanup
 
 ```bash
-# Delete TechCrunch/Disrupt nodes
-python delete_techcrunch.py --confirm
+# TechCrunch nodes are automatically filtered by the pipeline (8 layers of protection)
 
 # Cleanup MENTIONED_IN relationships
 python -m utils.graph_cleanup
@@ -1096,10 +1098,7 @@ python -m utils.graph_cleanup
 **Issue**: Some TechCrunch/Disrupt nodes exist in graph
 
 **Solution**:
-```bash
-# Delete all TechCrunch/Disrupt nodes
-python delete_techcrunch.py --confirm
-```
+TechCrunch nodes are automatically filtered by the pipeline (8 layers of protection). If you have existing TechCrunch nodes from old data, you can manually delete them using Cypher queries.
 
 ---
 
@@ -1313,6 +1312,10 @@ LIMIT 20;
 
 4. **Post-Process** (optional)
    ```bash
+   # Option 1: Run as part of pipeline
+   python pipeline.py --advanced-features
+   
+   # Option 2: Run separately
    python integrate_new_features.py
    ```
    - Entity deduplication
