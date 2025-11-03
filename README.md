@@ -128,7 +128,6 @@ SWM Project/
 │   └── neo4j_queries.cypher
 ├── integrate_new_features.py  # Feature integration script
 ├── delete_techcrunch.py       # Remove TechCrunch nodes
-
 └── requirements.txt          # Python dependencies
 ```
 
@@ -350,7 +349,7 @@ python integrate_new_features.py
 # Delete TechCrunch/Disrupt nodes
 python delete_techcrunch.py --confirm
 
-# Force cleanup MENTIONED_IN relationships
+# Cleanup MENTIONED_IN relationships (using utils)
 python -m utils.graph_cleanup
 ```
 
@@ -867,7 +866,7 @@ The pipeline automatically:
 # Delete TechCrunch/Disrupt nodes
 python delete_techcrunch.py --confirm
 
-# Force cleanup MENTIONED_IN relationships
+# Cleanup MENTIONED_IN relationships
 python -m utils.graph_cleanup
 
 # Check for remaining issues
@@ -1088,7 +1087,7 @@ python integrate_new_features.py
 
 **Solution**:
 ```bash
-# Force cleanup
+# Cleanup MENTIONED_IN relationships
 python -m utils.graph_cleanup
 ```
 
