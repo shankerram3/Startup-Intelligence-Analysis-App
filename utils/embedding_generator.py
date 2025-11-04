@@ -6,14 +6,24 @@ Generate vector embeddings for entities and enable semantic search
 from typing import Dict, List, Optional, Tuple
 from neo4j import GraphDatabase
 import numpy as np
+import os as _os
+
+# Avoid Hugging Face tokenizers parallelism warning after fork
+_os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
 class EmbeddingGenerator:
     """Generate embeddings for entities"""
     
-    def __init__(self, driver: GraphDatabase, embedding_model: str = "openai"):
+    def __init__(
+        self,
+        driver: GraphDatabase,
+        embedding_model: str = "openai",
+        sentence_model_name: Optional[str] = None,
+    ):
         self.driver = driver
         self.embedding_model = embedding_model
+        self.sentence_model_name = sentence_model_name
         self.embedding_function = None
         
         # Initialize embedding function based on model
@@ -21,7 +31,8 @@ class EmbeddingGenerator:
     
     def _initialize_embedding_function(self):
         """Initialize embedding function based on model"""
-        if self.embedding_model == "openai":
+        model_key = (self.embedding_model or "").lower().replace("-", "_")
+        if model_key == "openai":
             try:
                 from openai import OpenAI
                 import os
@@ -42,10 +53,14 @@ class EmbeddingGenerator:
                 print(f"⚠️  Error initializing OpenAI embeddings: {e}")
                 self.embedding_function = None
         
-        elif self.embedding_model == "sentence_transformers":
+        elif model_key == "sentence_transformers":
             try:
                 from sentence_transformers import SentenceTransformer
-                model = SentenceTransformer('all-MiniLM-L6-v2')
+                import os as _os
+                model_name = self.sentence_model_name or _os.getenv(
+                    'SENTENCE_TRANSFORMERS_MODEL', 'all-MiniLM-L6-v2'
+                )
+                model = SentenceTransformer(model_name)
                 
                 def st_embed(text: str) -> List[float]:
                     return model.encode(text).tolist()
@@ -103,7 +118,7 @@ class EmbeddingGenerator:
                 query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
-                    RETURN e.id as id, e.name as name, e.type as type, 
+                    RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
                            e.description as description
                 """
             else:
@@ -179,7 +194,7 @@ class EmbeddingGenerator:
             result = session.run("""
                 MATCH (e)
                 WHERE NOT e:Article AND e.embedding IS NOT NULL
-                RETURN e.id as id, e.name as name, e.type as type,
+                RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
                        e.description as description, e.embedding as embedding
             """)
             

@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Dict, List, Optional, Tuple
 
 from neo4j import GraphDatabase, Driver
+try:
+    from neo4j.exceptions import ServiceUnavailable as Neo4jServiceUnavailable
+except Exception:  # pragma: no cover
+    Neo4jServiceUnavailable = Exception
 
 from utils.embedding_generator import EmbeddingGenerator
 from rag import vector_index
@@ -42,14 +47,41 @@ class HybridRAG:
         neo4j_user: str,
         neo4j_password: str,
         articles_dir: str = "data/articles",
-        embedding_model: str = "openai",
+        embedding_backend: str = "openai",
+        sentence_model_name: Optional[str] = None,
+        index_max_files: Optional[int] = None,
+        index_max_chunks_per_file: Optional[int] = None,
+        index_chunk_progress_every: int = 50,
+        resume_index: bool = False,
     ):
         self.driver: Driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
-        self.embedding = EmbeddingGenerator(self.driver, embedding_model=embedding_model)
+        self.embedding = EmbeddingGenerator(
+            self.driver,
+            embedding_model=(embedding_backend or "openai"),
+            sentence_model_name=sentence_model_name,
+        )
+        self.verbose = False
+        # Backward-compatible: allow passing via env RAG_VERBOSE=1
+        try:
+            import os as _os
+            self.verbose = _os.getenv("RAG_VERBOSE", "0") == "1"
+        except Exception:
+            self.verbose = False
         # Ensure vector index exists
         if self.embedding.embedding_function is None:
             raise RuntimeError("Embedding function is not initialized. Configure OpenAI or sentence-transformers.")
-        vector_index.ensure_index(articles_dir, self.embedding.embedding_function)
+        t0 = perf_counter()
+        vector_index.ensure_index(
+            articles_dir,
+            self.embedding.embedding_function,
+            verbose=self.verbose,
+            max_files=index_max_files,
+            max_chunks_per_file=index_max_chunks_per_file,
+            chunk_progress_every=index_chunk_progress_every,
+            resume=resume_index,
+        )
+        if self.verbose:
+            print(f"[HybridRAG] Vector index ready in {perf_counter() - t0:.2f}s")
 
     def close(self):
         self.driver.close()
@@ -63,7 +95,12 @@ class HybridRAG:
             - relationship triples for context [{source, type, target}]
             - related article_ids (strings)
         """
+        if self.verbose:
+            print(f"[HybridRAG] Finding similar entities (top={top_k_entities})...")
+        t0 = perf_counter()
         similar = self.embedding.find_similar_entities(query, limit=top_k_entities)
+        if self.verbose:
+            print(f"[HybridRAG] Found {len(similar)} entities in {perf_counter() - t0:.2f}s")
         entities: List[RetrievedEntity] = [
             RetrievedEntity(
                 id=e.get("id", ""),
@@ -83,6 +120,9 @@ class HybridRAG:
         article_ids: List[str] = []
         with self.driver.session() as s:
             # Neighbor relationships
+            if self.verbose:
+                print(f"[HybridRAG] Expanding neighbors (hops={neighbor_hops}) and collecting relationships...")
+            t1 = perf_counter()
             result = s.run(
                 f"""
                 MATCH (e) WHERE e.id IN $entity_ids
@@ -103,8 +143,13 @@ class HybridRAG:
                         "target": f"{r['tname']} ({r['tlabel']})",
                     }
                 )
+            if self.verbose:
+                print(f"[HybridRAG] Relationships collected: {len(rels)} in {perf_counter() - t1:.2f}s")
 
             # Source articles from entities
+            if self.verbose:
+                print("[HybridRAG] Gathering source articles from entities...")
+            t2 = perf_counter()
             result2 = s.run(
                 """
                 MATCH (e) WHERE e.id IN $entity_ids AND e.source_articles IS NOT NULL
@@ -116,13 +161,20 @@ class HybridRAG:
             )
             for r in result2:
                 article_ids.append(r["article_id"])
+            if self.verbose:
+                print(f"[HybridRAG] Article IDs collected: {len(article_ids)} in {perf_counter() - t2:.2f}s")
 
         return entities, rels, article_ids
 
     def _get_vector_docs(self, query: str, top_k_docs: int = 5) -> List[RetrievedDoc]:
         if self.embedding.embedding_function is None:
             return []
+        if self.verbose:
+            print(f"[HybridRAG] Vector search (top={top_k_docs})...")
+        t0 = perf_counter()
         docs = vector_index.search(query, self.embedding.embedding_function, top_k=top_k_docs)
+        if self.verbose:
+            print(f"[HybridRAG] Vector search returned {len(docs)} in {perf_counter() - t0:.2f}s")
         return [
             RetrievedDoc(
                 score=d["score"],
@@ -140,10 +192,25 @@ class HybridRAG:
         top_k_entities: int = 5,
         top_k_docs: int = 5,
         neighbor_hops: int = 1,
+        vector_only: bool = False,
     ) -> Dict:
-        entities, rels, graph_article_ids = self._get_graph_context(
-            question, top_k_entities=top_k_entities, neighbor_hops=neighbor_hops
-        )
+        if self.verbose:
+            print("[HybridRAG] Starting hybrid retrieval...")
+        t0 = perf_counter()
+        entities: List[RetrievedEntity] = []
+        rels: List[Dict] = []
+        graph_article_ids: List[str] = []
+        if not vector_only:
+            try:
+                entities, rels, graph_article_ids = self._get_graph_context(
+                    question, top_k_entities=top_k_entities, neighbor_hops=neighbor_hops
+                )
+            except Neo4jServiceUnavailable as e:
+                if self.verbose:
+                    print(f"[HybridRAG] Neo4j unavailable, falling back to vector-only: {e}")
+            except Exception as e:
+                if self.verbose:
+                    print(f"[HybridRAG] Graph context error, continuing vector-only: {e}")
         vector_docs = self._get_vector_docs(question, top_k_docs=top_k_docs)
 
         # Pull best chunks for graph-derived articles from vector index to include text
@@ -187,6 +254,10 @@ class HybridRAG:
                 merged[key(d)] = d
 
         final_docs = sorted(merged.values(), key=lambda x: x.score, reverse=True)[: top_k_docs]
+        if self.verbose:
+            print(
+                f"[HybridRAG] Fusion complete in {perf_counter() - t0:.2f}s | entities={len(entities)} rels={len(rels)} docs={len(final_docs)}"
+            )
 
         # Prepare a compact graph context string
         graph_facts = []
@@ -249,15 +320,57 @@ def main():
     parser.add_argument("--entities", type=int, default=5)
     parser.add_argument("--docs", type=int, default=5)
     parser.add_argument("--hops", type=int, default=1)
+    parser.add_argument("--verbose", action="store_true", help="Print progress and timings")
+    parser.add_argument("--max-files", type=int, default=None, help="Limit number of files for index build")
+    parser.add_argument("--max-chunks-per-file", type=int, default=None, help="Limit chunks per file during index build")
+    parser.add_argument("--chunk-progress-every", type=int, default=50, help="Chunk progress print frequency")
+    parser.add_argument("--vector-only", action="store_true", help="Skip graph step and use vector retrieval only")
+    parser.add_argument("--resume-index", action="store_true", help="Resume/append to existing vector index if present")
+    parser.add_argument(
+        "--embedding-backend",
+        choices=["openai", "sentence-transformers"],
+        default=os.getenv("RAG_EMBEDDING_BACKEND", "openai"),
+        help="Embedding backend to use",
+    )
+    parser.add_argument(
+        "--st-model",
+        type=str,
+        default=os.getenv("SENTENCE_TRANSFORMERS_MODEL", None),
+        help="Sentence-Transformers model name (e.g., BAAI/bge-small-en-v1.5)",
+    )
     args = parser.parse_args()
 
     neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     neo4j_user = os.getenv("NEO4J_USER", "neo4j")
     neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
 
-    rag = HybridRAG(neo4j_uri, neo4j_user, neo4j_password)
+    # Allow --verbose to force progress output
+    if args.verbose:
+        import os as _os
+        _os.environ["RAG_VERBOSE"] = "1"
+
+    if args.resume_index:
+        os.environ["RAG_RESUME_INDEX"] = "1"
+
+    rag = HybridRAG(
+        neo4j_uri,
+        neo4j_user,
+        neo4j_password,
+        embedding_backend=args.embedding_backend,
+        sentence_model_name=args.st_model,
+        index_max_files=args.max_files,
+        index_max_chunks_per_file=args.max_chunks_per_file,
+        index_chunk_progress_every=args.chunk_progress_every,
+        resume_index=os.getenv("RAG_RESUME_INDEX", "0") == "1",
+    )
     try:
-        payload = rag.query(args.question, top_k_entities=args.entities, top_k_docs=args.docs, neighbor_hops=args.hops)
+        payload = rag.query(
+            args.question,
+            top_k_entities=args.entities,
+            top_k_docs=args.docs,
+            neighbor_hops=args.hops,
+            vector_only=args.vector_only,
+        )
         print("===== Hybrid Retrieval Context =====\n")
         print(_format_answer_input(payload))
         print("\n===== Answer =====\n")
