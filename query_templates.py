@@ -183,15 +183,16 @@ class QueryTemplates:
                 result = session.run("""
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                     WHERE toLower(c.description) CONTAINS toLower($keyword)
+                      AND c.source_articles IS NOT NULL
 
-                    OPTIONAL MATCH (c)-[:ANNOUNCED_AT]->(a:Article)
+                    // Use source_articles property to find related articles
+                    WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
+                    UNWIND c.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
                     WHERE a.published_date IS NOT NULL
                       AND datetime(a.published_date) > datetime() - duration({days: $days})
 
-                    WITH c,
-                         collect(DISTINCT i.name) as investors,
-                         count(DISTINCT i) as investor_count,
-                         max(a.published_date) as latest_announcement
+                    WITH c, investors, investor_count, max(a.published_date) as latest_announcement
                     WHERE investor_count > 0
 
                     RETURN c.id as id, c.name as name, c.description as description,
@@ -203,14 +204,16 @@ class QueryTemplates:
             else:
                 result = session.run("""
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
-                    OPTIONAL MATCH (c)-[:ANNOUNCED_AT]->(a:Article)
+                    WHERE c.source_articles IS NOT NULL
+                    
+                    // Use source_articles property to find related articles
+                    WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
+                    UNWIND c.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
                     WHERE a.published_date IS NOT NULL
                       AND datetime(a.published_date) > datetime() - duration({days: $days})
 
-                    WITH c,
-                         collect(DISTINCT i.name) as investors,
-                         count(DISTINCT i) as investor_count,
-                         max(a.published_date) as latest_announcement
+                    WITH c, investors, investor_count, max(a.published_date) as latest_announcement
                     WHERE investor_count > 0
 
                     RETURN c.id as id, c.name as name, c.description as description,
