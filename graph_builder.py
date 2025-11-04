@@ -193,9 +193,13 @@ class TechCrunchGraphBuilder:
             return
         
         # Validate relationship type
-        valid_types = ["FUNDED_BY", "FOUNDED_BY", "WORKS_AT", "ACQUIRED", 
-                      "PARTNERS_WITH", "COMPETES_WITH", "USES_TECHNOLOGY", 
-                      "LOCATED_IN", "ANNOUNCED_AT"]
+        valid_types = [
+            "FUNDED_BY", "FOUNDED_BY", "WORKS_AT", "ACQUIRED", 
+            "PARTNERS_WITH", "COMPETES_WITH", "USES_TECHNOLOGY", 
+            "LOCATED_IN", "ANNOUNCED_AT",
+            "REGULATES", "OPPOSES", "SUPPORTS", "COLLABORATES_WITH",
+            "INVESTS_IN", "ADVISES", "LEADS"
+        ]
         if rel_type not in valid_types:
             print(f"  ⚠️  WARNING: Invalid relationship type '{rel_type}' from {source_name} to {target_name}. Skipped.")
             return
