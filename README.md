@@ -67,6 +67,16 @@ This pipeline transforms TechCrunch articles into a structured knowledge graph b
 - ✅ **Entity Classification**: Confidence scores and type refinement
 - ✅ **Coreference Resolution**: Pronoun and reference resolution
 
+### Graph RAG (Phase 4) - ✨ NEW!
+- ✅ **RAG Query Module**: Natural language question answering
+- ✅ **Semantic Search**: Vector similarity-based entity retrieval
+- ✅ **Hybrid Search**: Combined semantic + keyword search
+- ✅ **Query Templates**: 30+ pre-built Cypher patterns
+- ✅ **REST API**: 40+ FastAPI endpoints
+- ✅ **Multi-hop Reasoning**: Complex graph traversal
+- ✅ **Entity Comparison**: Compare companies, investors, etc.
+- ✅ **LLM Generation**: AI-powered answer generation
+
 ---
 
 ## 🏗️ Architecture
@@ -100,6 +110,10 @@ SWM Project/
 ├── pipeline.py              # Main pipeline orchestrator
 ├── entity_extractor.py      # LLM-based entity extraction
 ├── graph_builder.py         # Neo4j graph construction
+├── rag_query.py            # ✨ GraphRAG query module (NEW!)
+├── query_templates.py      # ✨ Cypher query library (NEW!)
+├── api.py                  # ✨ REST API server (NEW!)
+├── api_client_example.py   # ✨ API client examples (NEW!)
 ├── scraper/                 # Web scraping module
 │   ├── techcrunch_scraper.py
 │   ├── run_scraper.py
@@ -126,8 +140,11 @@ SWM Project/
 │   └── processing/          # Extractions & checkpoints
 ├── cypher queries/          # Query examples
 │   └── neo4j_queries.cypher
-├── integrate_new_features.py  # Optional: Feature integration script
-└── requirements.txt          # Python dependencies
+├── integrate_new_features.py      # Feature integration script
+├── RAG_DOCUMENTATION.md           # ✨ Complete API reference (NEW!)
+├── GETTING_STARTED.md             # ✨ Quick start guide (NEW!)
+├── IMPROVEMENTS_AND_RECOMMENDATIONS.md  # ✨ Enhancement guide (NEW!)
+└── requirements.txt               # Python dependencies
 ```
 
 ---
@@ -1149,11 +1166,15 @@ TechCrunch nodes are automatically filtered by the pipeline (8 layers of protect
 
 ### Future Enhancements
 
-- [ ] Graph RAG implementation
-- [ ] Web interface for queries
-- [ ] Real-time article updates
+- [x] ~~Graph RAG implementation~~ ✅ COMPLETE!
+- [ ] Web UI for queries (React/Vue dashboard)
+- [ ] Real-time article updates (streaming)
 - [ ] Multi-source support (other news sites)
 - [ ] Advanced analytics dashboard
+- [ ] Authentication & user management
+- [ ] Query caching & performance optimization
+- [ ] Graph visualization interface
+- [ ] Export functionality (PDF reports, CSV)
 
 ---
 
@@ -1327,51 +1348,138 @@ LIMIT 20;
    - Use Neo4j Browser or Cypher queries
    - Implement Graph RAG for natural language queries
 
-### Graph RAG Implementation (Phase 4 - Future)
+### Graph RAG Implementation (Phase 4 - ✅ COMPLETE!)
 
 **What is Graph RAG?**
 - **Graph RAG**: Retrieval-Augmented Generation using knowledge graphs
 - Combines structured graph queries with LLM generation
 - More accurate than vector-only RAG for structured data
 
-**Implementation Steps:**
+**✅ IMPLEMENTED COMPONENTS:**
 
-#### A. Create Graph RAG Module (`graph_rag.py`)
-```python
-class GraphRAG:
-    """Graph RAG system for querying knowledge graph"""
-    
-    def __init__(self, neo4j_uri, neo4j_user, neo4j_password, llm):
-        # Connect to Neo4j
-        # Initialize LLM
-    
-    def query(self, question: str) -> str:
-        # 1. Parse question to extract entities/relationships
-        # 2. Generate Cypher query
-        # 3. Execute query
-        # 4. Format results
-        # 5. Generate natural language answer
+#### 1. RAG Query Module (`rag_query.py`)
+Complete GraphRAG implementation with:
+- Natural language question answering
+- Semantic search using embeddings
+- Hybrid search (semantic + keyword)
+- Query intent classification and routing
+- Multi-hop reasoning
+- Entity comparison
+- LLM-based answer generation
+
+#### 2. Query Templates (`query_templates.py`)
+Pre-built Cypher query patterns:
+- Entity queries (by name, ID, type)
+- Company queries (profile, funding, sector, competitive landscape)
+- Investor queries (portfolio, top investors)
+- Person queries (profile, affiliations)
+- Relationship queries (connections, paths)
+- Community queries (detected communities)
+- Analytics queries (statistics, importance scores)
+- Technology queries (adoption, trends)
+- Temporal queries (recent entities, timelines)
+
+#### 3. REST API (`api.py`)
+FastAPI server with 40+ endpoints:
+- `/query` - Natural language questions
+- `/search/semantic` - Vector similarity search
+- `/search/hybrid` - Combined semantic + keyword
+- `/entity/*` - Entity operations
+- `/company/*` - Company information
+- `/investor/*` - Investor portfolios
+- `/person/*` - Person profiles
+- `/relationships/*` - Graph traversal
+- `/community/*` - Community detection
+- `/analytics/*` - Graph analytics
+- `/technology/*` - Technology trends
+- `/temporal/*` - Time-based queries
+
+#### 4. Documentation & Examples
+- **RAG_DOCUMENTATION.md** - Complete API reference
+- **GETTING_STARTED.md** - Quick start guide
+- **api_client_example.py** - Python client examples
+- **IMPROVEMENTS_AND_RECOMMENDATIONS.md** - Enhancement suggestions
+
+**🚀 USAGE:**
+
+```bash
+# Start the GraphRAG API
+python api.py
+
+# View API documentation
+open http://localhost:8000/docs
+
+# Try Python client examples
+python api_client_example.py
+
+# Read documentation
+cat RAG_DOCUMENTATION.md
+cat GETTING_STARTED.md
 ```
 
-#### B. Query Types to Support:
-1. **Entity Lookup**: "Tell me about OpenAI"
-2. **Relationship Queries**: "Who funded Anthropic?"
-3. **Path Queries**: "What's the connection between X and Y?"
-4. **Aggregation**: "Which companies got the most funding?"
+**Query Examples:**
 
-#### C. Optional: Add Vector Embeddings
-- Add embeddings to nodes for semantic search
-- Hybrid approach: Graph structure + semantic similarity
-- Use `sentence-transformers` or `openai` embeddings
+```python
+from rag_query import create_rag_query
 
-**Graph RAG Resources:**
-- Microsoft GraphRAG: https://github.com/microsoft/graphrag
-- Neo4j + LangChain: https://python.langchain.com/docs/integrations/graphs/neo4j
-- Knowledge Graph RAG: https://neo4j.com/developer/knowledge-graphs/graph-rag/
+# Create RAG instance
+rag = create_rag_query()
+
+# Ask natural language questions
+result = rag.query("What AI startups raised funding?")
+print(result['answer'])
+
+# Semantic search
+entities = rag.semantic_search("artificial intelligence", top_k=5)
+
+# Company comparison
+comparison = rag.compare_entities("OpenAI", "Anthropic")
+
+# Multi-hop reasoning
+result = rag.multi_hop_reasoning(
+    "What technologies are used by companies funded by top investors?"
+)
+
+rag.close()
+```
+
+**Supported Query Types:**
+1. ✅ **Entity Lookup**: "Tell me about OpenAI"
+2. ✅ **Relationship Queries**: "Who funded Anthropic?"
+3. ✅ **Path Queries**: "What's the connection between X and Y?"
+4. ✅ **Aggregation**: "Which companies got the most funding?"
+5. ✅ **Competitive Analysis**: "Who are Anthropic's competitors?"
+6. ✅ **Technology Trends**: "What technologies are trending?"
+7. ✅ **Insights**: "Give me insights about AI startups"
+
+**Features:**
+- ✅ Vector embeddings for semantic search
+- ✅ Hybrid search (graph structure + semantic similarity)
+- ✅ Query intent classification
+- ✅ Multi-hop graph traversal
+- ✅ LLM-based answer generation
+- ✅ REST API with 40+ endpoints
+- ✅ OpenAPI documentation
+- ✅ Python client library
+
+**See Also:**
+- Complete documentation: `RAG_DOCUMENTATION.md`
+- Quick start: `GETTING_STARTED.md`
+- Code examples: `api_client_example.py`
+- Improvements: `IMPROVEMENTS_AND_RECOMMENDATIONS.md`
 
 ### Implementation History
 
-**All Missing Steps Implemented:**
+**Phase 4 (Graph RAG) - ✨ NEW!**
+
+9. ✅ **RAG Query Module** (`rag_query.py`) - Natural language question answering
+10. ✅ **Query Template Library** (`query_templates.py`) - 30+ pre-built Cypher patterns
+11. ✅ **REST API** (`api.py`) - 40+ FastAPI endpoints for querying
+12. ✅ **API Client Examples** (`api_client_example.py`) - Usage examples
+13. ✅ **Complete Documentation** - RAG_DOCUMENTATION.md, GETTING_STARTED.md
+14. ✅ **Code Review & Recommendations** - IMPROVEMENTS_AND_RECOMMENDATIONS.md
+
+**Phase 3 (Advanced Features) - Previously Implemented:**
 
 1. ✅ **Entity Resolution & Deduplication** - Fuzzy matching and merging
 2. ✅ **Enhanced Data Validation** - Funding amounts, dates, entity names
@@ -1382,7 +1490,7 @@ class GraphRAG:
 7. ✅ **Community Detection** - Graph-based community identification
 8. ✅ **Embedding Generation** - Vector embeddings for semantic search
 
-**Previously Implemented:**
+**Phase 0-2 (Core Pipeline) - Foundation:**
 - ✅ Checkpointing/Resume Capability
 - ✅ Data Validation
 - ✅ Error Handling & Retry Logic

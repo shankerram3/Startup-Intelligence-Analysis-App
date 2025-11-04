@@ -345,7 +345,10 @@ def run_pipeline(
     print("\nNext steps:")
     print("1. Open Neo4j Browser: http://localhost:7474")
     print("2. Run Cypher queries to explore the graph")
-    print("3. Implement Graph RAG for querying")
+    print("3. Start GraphRAG API: python api.py")
+    print("4. View API docs: http://localhost:8000/docs")
+    print("5. Query with Python: python api_client_example.py")
+    print("6. Read documentation: RAG_DOCUMENTATION.md")
     print("="*80 + "\n")
     
     return True
