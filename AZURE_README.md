@@ -26,17 +26,117 @@ I've created comprehensive guides for your Azure deployment:
    - **Includes**: Let's Encrypt setup, Nginx configuration, custom domains
    - **Use this when**: You need HTTPS for production or custom domain
 
-### 4. **azure_setup.sh** 🤖
-   - **For**: Automated one-command setup
-   - **Best for**: Scripted deployment
-   - **Includes**: Complete system setup automation
-   - **Use this when**: You want automated installation
+### 4. **AURA_DB_SETUP.md** ☁️ (RECOMMENDED FOR SPOT VM!)
+   - **For**: Using Neo4j Aura DB (managed cloud database)
+   - **Best for**: Spot VM deployments - data stays safe even if VM is evicted
+   - **Includes**: Complete Aura setup, no Docker needed, saves 1-2GB RAM
+   - **Use this when**: You want maximum data safety and minimal VM resources
+
+### 5. **azure_setup.sh** 🤖
+   - **For**: Automated setup with self-hosted Neo4j (Docker)
+   - **Best for**: Scripted deployment with local database
+   - **Includes**: Complete system setup with Docker Neo4j
+   - **Use this when**: You want everything on your VM
+
+### 6. **azure_setup_aura.sh** 🤖☁️ (NEW!)
+   - **For**: Automated setup with Neo4j Aura DB
+   - **Best for**: Quick setup with cloud database (no Docker!)
+   - **Includes**: System setup + Aura DB connection
+   - **Use this when**: You want managed database with automated setup
+
+---
+
+## ☁️ Database Choice: Self-Hosted vs Aura DB
+
+**IMPORTANT**: Choose your database deployment strategy:
+
+### Option 1: Neo4j Aura DB ☁️ (RECOMMENDED for Spot VM)
+
+**Pros:**
+- ✅ **Data survives VM eviction** - Your knowledge graph is safe in the cloud
+- ✅ **No Docker needed** - Saves 1-2GB RAM, 5-10GB disk
+- ✅ **Automatic backups** - Daily backups on Professional tier
+- ✅ **Fully managed** - No database maintenance
+- ✅ **Free tier available** - 50MB storage, 200k nodes (good for 100-500 articles)
+
+**Cons:**
+- 💰 Professional tier costs ~$65/month (after free tier)
+- 🌐 Requires internet connectivity
+- ⏱️ Slightly higher latency than local
+
+**When to use:**
+- ✅ Spot VM (can be evicted)
+- ✅ Limited VM resources (2-4GB RAM)
+- ✅ Want managed backups
+- ✅ Testing/development (free tier)
+
+**Setup:** See [AURA_DB_SETUP.md](AURA_DB_SETUP.md) or run `bash azure_setup_aura.sh`
+
+### Option 2: Self-Hosted Neo4j (Docker) 🐳
+
+**Pros:**
+- ✅ **Lower cost** - Only VM cost (~$15-30/month)
+- ✅ **Full control** - Complete database access
+- ✅ **No external dependencies** - Everything local
+- ✅ **Lower latency** - Direct local access
+
+**Cons:**
+- ⚠️ **Data at risk** - Lost if VM is evicted
+- 📦 **Uses VM resources** - 1-2GB RAM, 5-10GB disk
+- 🔧 **Manual maintenance** - Updates, backups, monitoring
+- 💾 **Manual backups required** - Must setup backup scripts
+
+**When to use:**
+- ✅ Regular VM (not Spot)
+- ✅ Sufficient resources (8GB+ RAM)
+- ✅ Want full control
+- ✅ Need offline capability
+
+**Setup:** See [QUICKSTART_AZURE.md](QUICKSTART_AZURE.md) or run `bash azure_setup.sh`
+
+### Quick Comparison
+
+| Feature | Self-Hosted (Docker) | Aura DB (Cloud) |
+|---------|---------------------|-----------------|
+| **VM Memory** | 1-2GB used | 0GB used ✅ |
+| **VM Disk** | 5-10GB used | 0GB used ✅ |
+| **Data Safety (Spot VM)** | ⚠️ At risk | ✅ Safe in cloud |
+| **Backups** | Manual setup | ✅ Automatic |
+| **Cost** | VM only (~$15-30) | VM + Aura (~$80-95) |
+| **Maintenance** | Manual | ✅ Managed |
+| **Free tier** | N/A | ✅ Available |
+
+**Recommendation for your Spot VM:** Use **Aura DB** to protect your data from eviction!
 
 ---
 
 ## 🚀 Quick Start (Choose Your Path)
 
-### Path A: Automated Setup (Recommended for Beginners)
+### Path A: Aura DB Setup ☁️ (Recommended for Spot VM!)
+
+```bash
+# 1. Create Neo4j Aura DB instance
+# Go to: https://neo4j.com/cloud/aura/
+# Create free account and database
+# Save credentials: URI, username, password
+
+# 2. SSH into your Azure VM
+ssh azureuser@<your-vm-ip>
+
+# 3. Clone this repository
+git clone https://github.com/shankerram3/Startup-Intelligence-Analysis-App.git
+cd Startup-Intelligence-Analysis-App
+
+# 4. Run Aura DB setup script
+bash azure_setup_aura.sh
+
+# 5. Enter your Aura DB credentials when prompted
+# The script will guide you through the rest!
+```
+
+**Benefits:** No Docker, saves 1-2GB RAM, data safe from VM eviction!
+
+### Path B: Self-Hosted Setup 🐳 (Local Database)
 
 ```bash
 # 1. SSH into your Azure VM
@@ -46,16 +146,18 @@ ssh azureuser@<your-vm-ip>
 git clone https://github.com/shankerram3/Startup-Intelligence-Analysis-App.git
 cd Startup-Intelligence-Analysis-App
 
-# 3. Run automated setup
+# 3. Run self-hosted setup script
 bash azure_setup.sh
 
 # 4. Follow the on-screen instructions
-# The script will guide you through the rest!
+# Installs Docker + Neo4j locally
 ```
 
-### Path B: Manual Setup (Recommended for Advanced Users)
+**Benefits:** Lower cost, full control, no external dependencies.
 
-Follow **QUICKSTART_AZURE.md** for a guided manual setup.
+### Path C: Manual Setup (Advanced Users)
+
+Follow **QUICKSTART_AZURE.md** or **AURA_DB_SETUP.md** for guided manual setup.
 
 ---
 
