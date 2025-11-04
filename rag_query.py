@@ -1,0 +1,648 @@
+"""
+GraphRAG Query Module
+Combines semantic search with graph traversal and LLM generation
+"""
+
+import os
+from typing import Dict, List, Optional, Any, Tuple
+from neo4j import GraphDatabase, Driver
+import json
+
+from utils.embedding_generator import EmbeddingGenerator
+from query_templates import QueryTemplates
+
+
+class GraphRAGQuery:
+    """
+    Main GraphRAG Query interface
+    Combines semantic search, graph traversal, and LLM generation
+    """
+
+    def __init__(
+        self,
+        neo4j_uri: str,
+        neo4j_user: str,
+        neo4j_password: str,
+        openai_api_key: Optional[str] = None,
+        embedding_model: str = "openai"
+    ):
+        """
+        Initialize GraphRAG Query system
+
+        Args:
+            neo4j_uri: Neo4j connection URI
+            neo4j_user: Neo4j username
+            neo4j_password: Neo4j password
+            openai_api_key: OpenAI API key (for embeddings and generation)
+            embedding_model: Embedding model to use (openai or sentence_transformers)
+        """
+        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+        self.embedding_generator = EmbeddingGenerator(self.driver, embedding_model)
+        self.query_templates = QueryTemplates(self.driver)
+
+        # Initialize LLM for answer generation
+        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        self.llm = None
+        if self.openai_api_key:
+            self._initialize_llm()
+
+    def _initialize_llm(self):
+        """Initialize LLM for answer generation"""
+        try:
+            from langchain_openai import ChatOpenAI
+            self.llm = ChatOpenAI(
+                temperature=0.7,
+                model="gpt-4o",
+                api_key=self.openai_api_key
+            )
+        except ImportError:
+            print("⚠️  LangChain not installed. Install with: pip install langchain-openai")
+        except Exception as e:
+            print(f"⚠️  Error initializing LLM: {e}")
+
+    def close(self):
+        """Close Neo4j connection"""
+        self.driver.close()
+
+    # =========================================================================
+    # SEMANTIC SEARCH
+    # =========================================================================
+
+    def semantic_search(
+        self,
+        query: str,
+        top_k: int = 10,
+        entity_type: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Perform semantic search using embeddings
+
+        Args:
+            query: Search query
+            top_k: Number of results to return
+            entity_type: Optional entity type filter
+
+        Returns:
+            List of similar entities with similarity scores
+        """
+        similar_entities = self.embedding_generator.find_similar_entities(query, limit=top_k)
+
+        # Filter by entity type if specified
+        if entity_type:
+            similar_entities = [
+                e for e in similar_entities
+                if e.get("type", "").lower() == entity_type.lower()
+            ]
+
+        return similar_entities
+
+    def hybrid_search(
+        self,
+        query: str,
+        top_k: int = 10,
+        semantic_weight: float = 0.7
+    ) -> List[Dict]:
+        """
+        Hybrid search combining semantic similarity and keyword matching
+
+        Args:
+            query: Search query
+            top_k: Number of results
+            semantic_weight: Weight for semantic search (0-1)
+
+        Returns:
+            Combined search results
+        """
+        # Semantic search
+        semantic_results = self.semantic_search(query, top_k=top_k * 2)
+
+        # Keyword search
+        keyword_results = self.query_templates.search_entities_full_text(query, limit=top_k * 2)
+
+        # Combine and re-rank
+        combined = {}
+
+        for result in semantic_results:
+            entity_id = result["id"]
+            combined[entity_id] = {
+                **result,
+                "score": result["similarity"] * semantic_weight
+            }
+
+        for result in keyword_results:
+            entity_id = result["id"]
+            if entity_id in combined:
+                # Boost entities found in both searches
+                combined[entity_id]["score"] += (1 - semantic_weight)
+            else:
+                combined[entity_id] = {
+                    **result,
+                    "score": (1 - semantic_weight)
+                }
+
+        # Sort by score
+        ranked_results = sorted(
+            combined.values(),
+            key=lambda x: x["score"],
+            reverse=True
+        )
+
+        return ranked_results[:top_k]
+
+    # =========================================================================
+    # CONTEXT RETRIEVAL
+    # =========================================================================
+
+    def get_entity_context(
+        self,
+        entity_id: str,
+        max_hops: int = 2,
+        max_entities: int = 20
+    ) -> Dict:
+        """
+        Get rich context around an entity (subgraph)
+
+        Args:
+            entity_id: Entity ID
+            max_hops: Maximum relationship hops
+            max_entities: Maximum entities to include
+
+        Returns:
+            Entity context with relationships
+        """
+        return self.query_templates.get_entity_relationships(entity_id, max_hops=max_hops)
+
+    def get_multi_entity_context(
+        self,
+        entity_ids: List[str],
+        max_hops: int = 2
+    ) -> Dict:
+        """
+        Get context for multiple entities and their connections
+
+        Args:
+            entity_ids: List of entity IDs
+            max_hops: Maximum relationship hops
+
+        Returns:
+            Combined context for all entities
+        """
+        contexts = []
+        for entity_id in entity_ids:
+            context = self.get_entity_context(entity_id, max_hops=max_hops)
+            if context:
+                contexts.append(context)
+
+        return {
+            "entities": contexts,
+            "entity_count": len(contexts)
+        }
+
+    # =========================================================================
+    # QUERY ROUTING
+    # =========================================================================
+
+    def classify_query_intent(self, query: str) -> Dict:
+        """
+        Classify query intent to route to appropriate handlers
+
+        Args:
+            query: User query
+
+        Returns:
+            Intent classification with confidence
+        """
+        query_lower = query.lower()
+
+        # Company-related queries
+        if any(word in query_lower for word in ["company", "startup", "firm", "business"]):
+            if any(word in query_lower for word in ["competitor", "compete", "vs", "compared to"]):
+                return {"intent": "competitive_analysis", "confidence": 0.9}
+            elif any(word in query_lower for word in ["funding", "raised", "invested", "series"]):
+                return {"intent": "funding_info", "confidence": 0.9}
+            elif any(word in query_lower for word in ["founder", "founded", "ceo", "team"]):
+                return {"intent": "company_leadership", "confidence": 0.8}
+            else:
+                return {"intent": "company_info", "confidence": 0.7}
+
+        # Investor queries
+        elif any(word in query_lower for word in ["investor", "vc", "venture capital", "fund"]):
+            if any(word in query_lower for word in ["portfolio", "invested in", "backed"]):
+                return {"intent": "investor_portfolio", "confidence": 0.9}
+            else:
+                return {"intent": "investor_info", "confidence": 0.7}
+
+        # Person queries
+        elif any(word in query_lower for word in ["who is", "person", "founder", "ceo", "executive"]):
+            return {"intent": "person_info", "confidence": 0.8}
+
+        # Technology queries
+        elif any(word in query_lower for word in ["technology", "tech", "ai", "ml", "blockchain"]):
+            return {"intent": "technology_info", "confidence": 0.8}
+
+        # Trend queries
+        elif any(word in query_lower for word in ["trend", "popular", "growing", "emerging"]):
+            return {"intent": "trend_analysis", "confidence": 0.8}
+
+        # Relationship queries
+        elif any(word in query_lower for word in ["connection", "related", "link", "relationship"]):
+            return {"intent": "relationship_query", "confidence": 0.8}
+
+        # General search
+        else:
+            return {"intent": "general_search", "confidence": 0.5}
+
+    def route_query(self, query: str, intent: Dict) -> Any:
+        """
+        Route query to appropriate handler based on intent
+
+        Args:
+            query: User query
+            intent: Intent classification
+
+        Returns:
+            Query results
+        """
+        intent_type = intent["intent"]
+
+        if intent_type == "company_info":
+            # Extract company name from query
+            results = self.semantic_search(query, top_k=1, entity_type="Company")
+            if results:
+                company = results[0]
+                return self.query_templates.get_company_profile(company["name"])
+
+        elif intent_type == "competitive_analysis":
+            results = self.semantic_search(query, top_k=1, entity_type="Company")
+            if results:
+                company = results[0]
+                return self.query_templates.get_competitive_landscape(company["name"])
+
+        elif intent_type == "funding_info":
+            results = self.semantic_search(query, top_k=1, entity_type="Company")
+            if results:
+                company = results[0]
+                return self.query_templates.get_funding_timeline(company["name"])
+
+        elif intent_type == "investor_portfolio":
+            results = self.semantic_search(query, top_k=1, entity_type="Investor")
+            if results:
+                investor = results[0]
+                return self.query_templates.get_investor_portfolio(investor["name"])
+
+        elif intent_type == "person_info":
+            results = self.semantic_search(query, top_k=1, entity_type="Person")
+            if results:
+                person = results[0]
+                return self.query_templates.get_person_profile(person["name"])
+
+        elif intent_type == "technology_info":
+            results = self.semantic_search(query, top_k=5, entity_type="Technology")
+            return results
+
+        elif intent_type == "trend_analysis":
+            return self.query_templates.get_trending_technologies(limit=10)
+
+        else:
+            # General semantic search
+            return self.hybrid_search(query, top_k=10)
+
+    # =========================================================================
+    # LLM GENERATION
+    # =========================================================================
+
+    def generate_answer(
+        self,
+        query: str,
+        context: Any,
+        temperature: float = 0.7
+    ) -> str:
+        """
+        Generate natural language answer using LLM and context
+
+        Args:
+            query: User question
+            context: Retrieved context from graph
+            temperature: LLM temperature
+
+        Returns:
+            Generated answer
+        """
+        if not self.llm:
+            return "LLM not initialized. Please provide OpenAI API key."
+
+        # Format context for LLM
+        context_str = self._format_context_for_llm(context)
+
+        # Create prompt
+        prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
+
+Context from Knowledge Graph:
+{context_str}
+
+User Question: {query}
+
+Instructions:
+1. Answer the question based ONLY on the provided context
+2. Be specific and cite entity names when possible
+3. If the context doesn't contain enough information, say so
+4. Provide insights by connecting related information
+5. Keep the answer concise but informative (2-4 paragraphs max)
+
+Answer:"""
+
+        try:
+            response = self.llm.invoke(prompt)
+            return response.content
+        except Exception as e:
+            return f"Error generating answer: {e}"
+
+    def _format_context_for_llm(self, context: Any) -> str:
+        """Format context dictionary/list for LLM consumption"""
+        if isinstance(context, dict):
+            return json.dumps(context, indent=2, default=str)
+        elif isinstance(context, list):
+            return json.dumps(context, indent=2, default=str)
+        else:
+            return str(context)
+
+    # =========================================================================
+    # MAIN QUERY INTERFACE
+    # =========================================================================
+
+    def query(
+        self,
+        question: str,
+        return_context: bool = False,
+        use_llm: bool = True
+    ) -> Dict:
+        """
+        Main query interface - handles end-to-end RAG pipeline
+
+        Args:
+            question: User question
+            return_context: Whether to return raw context
+            use_llm: Whether to generate LLM answer
+
+        Returns:
+            Query results with answer and/or context
+        """
+        # Step 1: Classify intent
+        intent = self.classify_query_intent(question)
+
+        # Step 2: Route to appropriate handler and get context
+        context = self.route_query(question, intent)
+
+        # Step 3: Generate answer if LLM enabled
+        answer = None
+        if use_llm and context:
+            answer = self.generate_answer(question, context)
+
+        # Prepare response
+        response = {
+            "question": question,
+            "intent": intent,
+            "answer": answer
+        }
+
+        if return_context:
+            response["context"] = context
+
+        return response
+
+    # =========================================================================
+    # ADVANCED QUERY METHODS
+    # =========================================================================
+
+    def multi_hop_reasoning(
+        self,
+        question: str,
+        max_hops: int = 3
+    ) -> Dict:
+        """
+        Perform multi-hop reasoning across the graph
+
+        Args:
+            question: Complex question requiring multiple reasoning steps
+            max_hops: Maximum relationship hops
+
+        Returns:
+            Answer with reasoning chain
+        """
+        # Find relevant starting entities
+        entities = self.semantic_search(question, top_k=3)
+
+        if not entities:
+            return {"error": "No relevant entities found"}
+
+        # Get extended context for top entity
+        main_entity = entities[0]
+        context = self.get_entity_context(main_entity["id"], max_hops=max_hops)
+
+        # Generate answer with reasoning
+        answer = self.generate_answer(question, context)
+
+        return {
+            "question": question,
+            "starting_entity": main_entity,
+            "reasoning_hops": max_hops,
+            "answer": answer,
+            "context": context
+        }
+
+    def compare_entities(
+        self,
+        entity1_name: str,
+        entity2_name: str
+    ) -> Dict:
+        """
+        Compare two entities
+
+        Args:
+            entity1_name: First entity name
+            entity2_name: Second entity name
+
+        Returns:
+            Comparison analysis
+        """
+        # Get both entities
+        entity1_results = self.semantic_search(entity1_name, top_k=1)
+        entity2_results = self.semantic_search(entity2_name, top_k=1)
+
+        if not entity1_results or not entity2_results:
+            return {"error": "One or both entities not found"}
+
+        entity1 = entity1_results[0]
+        entity2 = entity2_results[0]
+
+        # Get contexts
+        context1 = self.get_entity_context(entity1["id"], max_hops=2)
+        context2 = self.get_entity_context(entity2["id"], max_hops=2)
+
+        # Find connections
+        connections = self.query_templates.find_connection_path(
+            entity1_name, entity2_name, max_hops=4
+        )
+
+        # Generate comparison
+        comparison_context = {
+            "entity1": context1,
+            "entity2": context2,
+            "connections": connections
+        }
+
+        question = f"Compare {entity1_name} and {entity2_name}"
+        answer = self.generate_answer(question, comparison_context)
+
+        return {
+            "entity1": entity1,
+            "entity2": entity2,
+            "connections": connections,
+            "comparison": answer
+        }
+
+    def get_insights(self, topic: str, limit: int = 5) -> Dict:
+        """
+        Get insights about a topic using graph analytics
+
+        Args:
+            topic: Topic to analyze
+            limit: Number of insights
+
+        Returns:
+            Key insights
+        """
+        # Find relevant entities
+        entities = self.semantic_search(topic, top_k=limit)
+
+        # Get importance scores
+        important_entities = self.query_templates.get_entity_importance_scores(limit=limit)
+
+        # Generate insights
+        insights_context = {
+            "relevant_entities": entities,
+            "important_entities": important_entities,
+            "topic": topic
+        }
+
+        question = f"What are the key insights about {topic}?"
+        insights = self.generate_answer(question, insights_context)
+
+        return {
+            "topic": topic,
+            "insights": insights,
+            "key_entities": entities[:3],
+            "supporting_data": insights_context
+        }
+
+    # =========================================================================
+    # BATCH QUERIES
+    # =========================================================================
+
+    def batch_query(self, questions: List[str]) -> List[Dict]:
+        """
+        Process multiple queries in batch
+
+        Args:
+            questions: List of questions
+
+        Returns:
+            List of query results
+        """
+        results = []
+        for question in questions:
+            result = self.query(question)
+            results.append(result)
+
+        return results
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS
+# =============================================================================
+
+def create_rag_query(
+    neo4j_uri: Optional[str] = None,
+    neo4j_user: Optional[str] = None,
+    neo4j_password: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
+    embedding_model: str = "openai"
+) -> GraphRAGQuery:
+    """
+    Create GraphRAG query instance with defaults from environment
+
+    Args:
+        neo4j_uri: Neo4j URI (defaults to env NEO4J_URI)
+        neo4j_user: Neo4j user (defaults to env NEO4J_USER)
+        neo4j_password: Neo4j password (defaults to env NEO4J_PASSWORD)
+        openai_api_key: OpenAI key (defaults to env OPENAI_API_KEY)
+        embedding_model: Embedding model to use
+
+    Returns:
+        GraphRAGQuery instance
+    """
+    neo4j_uri = neo4j_uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    neo4j_user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
+    neo4j_password = neo4j_password or os.getenv("NEO4J_PASSWORD")
+    openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+
+    return GraphRAGQuery(
+        neo4j_uri=neo4j_uri,
+        neo4j_user=neo4j_user,
+        neo4j_password=neo4j_password,
+        openai_api_key=openai_api_key,
+        embedding_model=embedding_model
+    )
+
+
+# =============================================================================
+# MAIN - Example Usage
+# =============================================================================
+
+def main():
+    """Example usage of GraphRAG Query"""
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    # Create query instance
+    rag = create_rag_query()
+
+    try:
+        # Example 1: Simple query
+        print("="*80)
+        print("Example 1: Simple Query")
+        print("="*80)
+        result = rag.query("Tell me about AI startups that raised funding")
+        print(f"Question: {result['question']}")
+        print(f"Intent: {result['intent']}")
+        print(f"Answer: {result['answer']}\n")
+
+        # Example 2: Company comparison
+        print("="*80)
+        print("Example 2: Company Comparison")
+        print("="*80)
+        comparison = rag.compare_entities("Anthropic", "OpenAI")
+        print(f"Comparison: {comparison.get('comparison')}\n")
+
+        # Example 3: Investor portfolio
+        print("="*80)
+        print("Example 3: Investor Portfolio")
+        print("="*80)
+        result = rag.query("What companies has Sequoia Capital invested in?")
+        print(f"Answer: {result['answer']}\n")
+
+        # Example 4: Multi-hop reasoning
+        print("="*80)
+        print("Example 4: Multi-hop Reasoning")
+        print("="*80)
+        result = rag.multi_hop_reasoning(
+            "What technologies are used by companies funded by top investors?"
+        )
+        print(f"Answer: {result['answer']}\n")
+
+    finally:
+        rag.close()
+
+
+if __name__ == "__main__":
+    main()

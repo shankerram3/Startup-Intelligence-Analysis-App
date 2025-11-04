@@ -38,13 +38,21 @@ neo4j>=5.0.0
 python-dotenv>=1.0.0
 
 # ============================================================================
-# PHASE 4: Graph RAG (Optional - for future implementation)
+# PHASE 4: Graph RAG Query & API
 # ============================================================================
-# Vector embeddings
-# sentence-transformers>=2.0.0
+# Vector embeddings (now required)
+sentence-transformers>=2.0.0
 
 # Graph algorithms
-# networkx>=3.0
+networkx>=3.0
 
-# Vector database (if using hybrid approach)
-# chromadb>=0.4.0
+# API Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic-settings>=2.0.0
+
+# HTTP client for testing
+httpx>=0.25.0
+
+# Additional utilities
+numpy>=1.24.0  # For similarity calculations
