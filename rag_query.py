@@ -24,7 +24,7 @@ class GraphRAGQuery:
         neo4j_user: str,
         neo4j_password: str,
         openai_api_key: Optional[str] = None,
-        embedding_model: str = "openai"
+        embedding_model: str = "sentence_transformers"
     ):
         """
         Initialize GraphRAG Query system
@@ -298,6 +298,10 @@ class GraphRAGQuery:
 
         elif intent_type == "technology_info":
             results = self.semantic_search(query, top_k=5, entity_type="Technology")
+            if not results:
+                # Fallback to full-text search filtered to Technology type
+                ft = self.query_templates.search_entities_full_text(query, limit=10)
+                results = [e for e in ft if str(e.get("type", "")).lower() == "technology"]
             return results
 
         elif intent_type == "trend_analysis":
@@ -329,7 +333,36 @@ class GraphRAGQuery:
             Generated answer
         """
         if not self.llm:
-            return "LLM not initialized. Please provide OpenAI API key."
+            # Lightweight fallback answer without LLM
+            try:
+                if isinstance(context, list) and context:
+                    # Summarize top entities
+                    items = []
+                    for e in context[:5]:
+                        name = str(e.get("name", "Unknown")) if isinstance(e, dict) else str(e)
+                        etype = (str(e.get("type")) if isinstance(e, dict) else "").strip()
+                        sim = e.get("similarity") if isinstance(e, dict) else None
+                        part = name
+                        if etype:
+                            part += f" ({etype})"
+                        if isinstance(sim, (int, float)):
+                            part += f" · similarity {sim:.2f}"
+                        items.append(part)
+                    if items:
+                        return (
+                            "Based on the graph, related technologies include: "
+                            + "; ".join(items)
+                            + "."
+                        )
+                # Generic fallback
+                return (
+                    "No LLM configured. Context was retrieved, but cannot generate a natural language answer. "
+                    "Enable an LLM or use the semantic results displayed."
+                )
+            except Exception:
+                return (
+                    "No LLM configured. Enable an LLM to generate natural language answers."
+                )
 
         # Format context for LLM
         context_str = self._format_context_for_llm(context)
@@ -397,6 +430,10 @@ Answer:"""
         answer = None
         if use_llm and context:
             answer = self.generate_answer(question, context)
+
+        # Provide a helpful message when no answer/context
+        if not answer:
+            answer = "No relevant context found. Try a more specific query or generate embeddings first."
 
         # Prepare response
         response = {
@@ -566,7 +603,7 @@ def create_rag_query(
     neo4j_user: Optional[str] = None,
     neo4j_password: Optional[str] = None,
     openai_api_key: Optional[str] = None,
-    embedding_model: str = "openai"
+    embedding_model: str = "sentence_transformers"
 ) -> GraphRAGQuery:
     """
     Create GraphRAG query instance with defaults from environment

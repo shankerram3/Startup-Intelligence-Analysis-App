@@ -45,6 +45,12 @@ python pipeline.py --scrape-category ai --scrape-max-pages 10 --advanced-feature
 # Start API server
 python api.py
 
+# Start React frontend (in new terminal)
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:5173
+
 # Or use Python client
 python api_client_example.py
 
@@ -88,6 +94,7 @@ open http://localhost:7474
 - ✅ **Semantic Search** - Vector similarity-based retrieval
 - ✅ **Hybrid Search** - Combined semantic + keyword search
 - ✅ **REST API** - 40+ FastAPI endpoints
+- ✅ **React Frontend** - Modern web UI with chat & dashboard
 - ✅ **Multi-hop Reasoning** - Complex graph traversal
 - ✅ **Entity Comparison** - Compare companies, investors, etc.
 
@@ -189,7 +196,16 @@ API_HOST=0.0.0.0
 API_PORT=8000
 
 # Embeddings (optional)
-RAG_EMBEDDING_BACKEND=openai  # or "sentence-transformers"
+RAG_EMBEDDING_BACKEND=sentence-transformers  # or "openai"
+SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
+```
+
+### Frontend Configuration
+
+Create `frontend/.env.local`:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 ### Scraper Configuration
@@ -453,19 +469,21 @@ This is a personal project for educational purposes. Respect TechCrunch's robots
 - [x] Hybrid RAG implementation
 - [x] REST API implementation (40+ endpoints)
 - [x] GraphRAG query system
+- [x] React frontend with chat & dashboard
 - [x] Semantic search with embeddings
 - [x] Multi-hop reasoning
 - [x] Entity deduplication
 - [x] Community detection
 - [x] Relationship scoring
+- [x] Sentence-transformers support (local embeddings)
 
 ### 🎯 Planned Features
 
-**Phase 1: UI & Visualization**
-- [ ] Web UI frontend (React/Vue integration)
+**Phase 1: UI & Visualization** (In Progress)
+- [x] Web UI frontend (React + Vite)
 - [ ] Interactive graph visualization
-- [ ] Query builder interface
-- [ ] Real-time query results
+- [ ] Advanced query builder interface
+- [ ] Real-time query results & streaming
 
 **Phase 2: Enhanced Intelligence**
 - [ ] Evaluation framework and metrics
@@ -499,6 +517,7 @@ See [ARCHITECTURE.md](docs/development/ARCHITECTURE.md) and [IMPROVEMENTS.md](do
 
 ## 🔗 Quick Links
 
+- **React Frontend**: http://localhost:5173 (after `cd frontend && npm run dev`)
 - **Neo4j Browser**: http://localhost:7474
 - **API Docs (Swagger)**: http://localhost:8000/docs
 - **API Docs (ReDoc)**: http://localhost:8000/redoc

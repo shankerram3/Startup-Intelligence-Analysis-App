@@ -70,15 +70,12 @@ def integrate_features():
         communities = detector.detect_communities(min_community_size=3)
         print(f"   ✓ Detected {communities.get('total_communities', 0)} communities\n")
         
-        # 5. Embedding Generation (optional - requires API key)
+        # 5. Embedding Generation
         print("5. Embedding Generation")
         print("-" * 80)
-        if os.getenv("OPENAI_API_KEY"):
-            generator = EmbeddingGenerator(driver, embedding_model="openai")
-            embed_stats = generator.generate_embeddings_for_all_entities()
-            print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings\n")
-        else:
-            print("   ⚠️  Skipped (OPENAI_API_KEY not set)\n")
+        generator = EmbeddingGenerator(driver, embedding_model="sentence_transformers")
+        embed_stats = generator.generate_embeddings_for_all_entities()
+        print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings\n")
         
         print("="*80)
         print("✅ INTEGRATION COMPLETE!")
