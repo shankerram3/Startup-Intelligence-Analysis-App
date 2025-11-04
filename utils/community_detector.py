@@ -4,14 +4,14 @@ Detect communities of related entities using graph algorithms
 """
 
 from typing import Dict, List, Optional, Tuple
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, Driver
 import json
 
 
 class CommunityDetector:
     """Detect communities of related entities"""
     
-    def __init__(self, driver: GraphDatabase):
+    def __init__(self, driver: Driver):
         self.driver = driver
     
     def detect_communities(self, algorithm: str = "leiden", min_community_size: int = 3) -> Dict:
@@ -43,6 +43,12 @@ class CommunityDetector:
         """
         # Check if GDS is available
         try:
+            # Drop existing graph if it exists
+            try:
+                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+            except Exception:
+                pass  # Graph doesn't exist, that's fine
+            
             # Create projection
             session.run("""
                 CALL gds.graph.project(
@@ -85,7 +91,8 @@ class CommunityDetector:
             }
             
             # Store community IDs on nodes
-            self._store_communities(session, communities)
+            # Only store filtered communities (size >= min_size) to match the return value
+            self._store_communities(session, filtered_communities)
             
             return {
                 "algorithm": "leiden",
@@ -102,6 +109,12 @@ class CommunityDetector:
     def _detect_louvain_communities(self, session, min_size: int) -> Dict:
         """Detect communities using Louvain algorithm"""
         try:
+            # Drop existing graph if it exists
+            try:
+                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+            except Exception:
+                pass  # Graph doesn't exist, that's fine
+            
             session.run("""
                 CALL gds.graph.project(
                     'entity-graph',
@@ -132,7 +145,8 @@ class CommunityDetector:
                 if len(entities) >= min_size
             }
             
-            self._store_communities(session, communities)
+            # Only store filtered communities (size >= min_size) to match the return value
+            self._store_communities(session, filtered_communities)
             
             return {
                 "algorithm": "louvain",
@@ -147,6 +161,12 @@ class CommunityDetector:
     def _detect_label_propagation_communities(self, session, min_size: int) -> Dict:
         """Detect communities using Label Propagation algorithm"""
         try:
+            # Drop existing graph if it exists
+            try:
+                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+            except Exception:
+                pass  # Graph doesn't exist, that's fine
+            
             session.run("""
                 CALL gds.graph.project(
                     'entity-graph',
@@ -177,7 +197,8 @@ class CommunityDetector:
                 if len(entities) >= min_size
             }
             
-            self._store_communities(session, communities)
+            # Only store filtered communities (size >= min_size) to match the return value
+            self._store_communities(session, filtered_communities)
             
             return {
                 "algorithm": "label_propagation",
@@ -255,6 +276,10 @@ class CommunityDetector:
             if len(entities) >= min_size
         }
         
+        # Store community IDs on nodes so downstream queries can use n.community_id
+        # Only store filtered communities (size >= min_size) to match the return value
+        self._store_communities(session, filtered_communities)
+
         return {
             "algorithm": "connected_components",
             "total_communities": len(filtered_communities),
@@ -263,29 +288,15 @@ class CommunityDetector:
     
     def _store_communities(self, session, communities: Dict):
         """Store community IDs on nodes"""
-        # Convert community_id from elementId string to a numeric ID for storage
-        community_map = {}
-        for idx, (community_id, entities) in enumerate(communities.items()):
+        # Use the original community_id from the dict (not enumerate index)
+        for community_id, entities in communities.items():
             for entity_name in entities:
-                # Use entity_id if available, otherwise use name
-                result = session.run("""
-                    MATCH (e {name: $name})
-                    WHERE NOT e:Article
-                    RETURN e.id as entity_id
-                    LIMIT 1
-                """, name=entity_name)
-                record = result.single()
-                entity_id = record["entity_id"] if record else entity_name
-                
-                # Store numeric community ID
-                if entity_id not in community_map:
-                    community_map[entity_id] = idx
-                
+                # Store the original community_id from the algorithm
                 session.run("""
                     MATCH (e {name: $name})
                     WHERE NOT e:Article
                     SET e.community_id = $community_id
-                """, name=entity_name, community_id=idx)
+                """, name=entity_name, community_id=community_id)
     
     def get_community_summary(self, community_id: int) -> Dict:
         """Get summary information for a community"""

@@ -1,3 +1,14 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+
+# macOS
+.DS_Store
+
 .env
 
 data/
