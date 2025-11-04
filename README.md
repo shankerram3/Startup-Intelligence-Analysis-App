@@ -447,12 +447,73 @@ This is a personal project for educational purposes. Respect TechCrunch's robots
 
 ---
 
+## 🚀 Future Enhancements
+
+### ✅ Completed Features
+- [x] Hybrid RAG implementation
+- [x] REST API implementation (40+ endpoints)
+- [x] GraphRAG query system
+- [x] Semantic search with embeddings
+- [x] Multi-hop reasoning
+- [x] Entity deduplication
+- [x] Community detection
+- [x] Relationship scoring
+
+### 🎯 Planned Features
+
+**Phase 1: UI & Visualization**
+- [ ] Web UI frontend (React/Vue integration)
+- [ ] Interactive graph visualization
+- [ ] Query builder interface
+- [ ] Real-time query results
+
+**Phase 2: Enhanced Intelligence**
+- [ ] Evaluation framework and metrics
+- [ ] Query rewriting and expansion
+- [ ] Reranking with cross-encoders
+- [ ] Automated insight generation
+
+**Phase 3: Data & Integration**
+- [ ] Real-time article updates (streaming)
+- [ ] Multi-source support (beyond TechCrunch)
+- [ ] Custom entity types and relationships
+- [ ] Data export functionality (PDF, CSV, JSON)
+
+**Phase 4: Analytics & Scale**
+- [ ] Advanced analytics dashboard
+- [ ] Temporal trend analysis
+- [ ] Predictive analytics
+- [ ] Multi-tenant support
+- [ ] Query caching and optimization
+
+**Phase 5: Enterprise Features**
+- [ ] Authentication & authorization
+- [ ] Rate limiting and quotas
+- [ ] Audit logging
+- [ ] Webhook notifications
+- [ ] GraphQL API support
+
+See [ARCHITECTURE.md](docs/development/ARCHITECTURE.md) and [IMPROVEMENTS.md](docs/development/IMPROVEMENTS.md) for detailed roadmap.
+
+---
+
 ## 🔗 Quick Links
 
 - **Neo4j Browser**: http://localhost:7474
 - **API Docs (Swagger)**: http://localhost:8000/docs
 - **API Docs (ReDoc)**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
+
+---
+
+## 🤝 Contributing
+
+Interested in contributing? We'd love your help! Here's how:
+
+1. **Report Issues** - Found a bug? Open an issue
+2. **Suggest Features** - Have an idea? Let us know
+3. **Submit PRs** - Fork, implement, and submit a pull request
+4. **Improve Docs** - Help make the documentation better
 
 ---
 
