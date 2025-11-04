@@ -24,7 +24,7 @@ class GraphRAGQuery:
         neo4j_user: str,
         neo4j_password: str,
         openai_api_key: Optional[str] = None,
-        embedding_model: str = "sentence_transformers"
+        embedding_model: str = "openai"
     ):
         """
         Initialize GraphRAG Query system
@@ -210,19 +210,79 @@ class GraphRAGQuery:
             query: User query
 
         Returns:
-            Intent classification with confidence
+            Intent classification with confidence and extracted parameters
         """
         query_lower = query.lower()
 
+        # Detect if this is a list query (asking for multiple entities)
+        # "Which" and "What are" are strong list indicators
+        # "What" alone could be singular, so check for plural indicators
+        has_plural = any(word in query_lower for word in ["companies", "startups", "investors", "firms", "businesses"])
+        is_list_query = (
+            query_lower.startswith("which ") or
+            query_lower.startswith("what are ") or
+            query_lower.startswith("list ") or
+            query_lower.startswith("show ") or
+            (query_lower.startswith("what ") and has_plural) or
+            any(f" {word} " in f" {query_lower} " for word in ["which", "list", "show", "all"])
+        )
+
+        # Detect temporal context
+        is_recent = any(word in query_lower for word in ["recent", "recently", "latest", "new", "last"])
+
+        # Detect sector/category filters (use word boundaries to avoid partial matches)
+        sector = None
+        import re
+        for sector_keyword in ["artificial intelligence", "machine learning", "fintech", "blockchain", "crypto", "saas", "healthcare", "biotech", "ai", "ml"]:
+            # Use word boundaries for short keywords to avoid false matches
+            if len(sector_keyword) <= 2:
+                pattern = r'\b' + re.escape(sector_keyword) + r'\b'
+            else:
+                pattern = re.escape(sector_keyword)
+            if re.search(pattern, query_lower):
+                sector = sector_keyword
+                break
+
+        # Check for funding-related queries first (higher priority)
+        has_funding_keywords = any(word in query_lower for word in ["funding", "raised", "invested", "series", "investment"])
+
+        if has_funding_keywords:
+            # Check if it's asking about investor info
+            if any(word in query_lower for word in ["who funded", "which investors", "who invested"]):
+                return {"intent": "funding_info", "confidence": 0.9}
+            # Check if it's a list query asking for multiple companies
+            elif is_list_query:
+                return {
+                    "intent": "list_funded_companies",
+                    "confidence": 0.9,
+                    "filters": {
+                        "sector": sector,
+                        "recent": is_recent
+                    }
+                }
+            # Single company funding query
+            else:
+                return {"intent": "funding_info", "confidence": 0.9}
+
         # Company-related queries
-        if any(word in query_lower for word in ["company", "startup", "firm", "business"]):
+        has_company_keywords = any(word in query_lower for word in ["company", "companies", "startup", "startups", "firm", "business"])
+
+        # Check if it's a "tell me about X" or "about X" query (likely company info)
+        is_about_query = any(phrase in query_lower for phrase in ["tell me about", "about ", "what is", "who is"])
+
+        if has_company_keywords or (is_about_query and not any(word in query_lower for word in ["investor", "vc", "person", "technology"])):
             if any(word in query_lower for word in ["competitor", "compete", "vs", "compared to"]):
                 return {"intent": "competitive_analysis", "confidence": 0.9}
-            elif any(word in query_lower for word in ["funding", "raised", "invested", "series"]):
-                return {"intent": "funding_info", "confidence": 0.9}
             elif any(word in query_lower for word in ["founder", "founded", "ceo", "team"]):
                 return {"intent": "company_leadership", "confidence": 0.8}
             else:
+                # Check if asking for list of companies in a sector
+                if is_list_query and sector:
+                    return {
+                        "intent": "list_companies_in_sector",
+                        "confidence": 0.85,
+                        "filters": {"sector": sector}
+                    }
                 return {"intent": "company_info", "confidence": 0.7}
 
         # Investor queries
@@ -258,12 +318,13 @@ class GraphRAGQuery:
 
         Args:
             query: User query
-            intent: Intent classification
+            intent: Intent classification with optional filters
 
         Returns:
             Query results
         """
         intent_type = intent["intent"]
+        filters = intent.get("filters", {})
 
         if intent_type == "company_info":
             # Extract company name from query
@@ -284,6 +345,33 @@ class GraphRAGQuery:
                 company = results[0]
                 return self.query_templates.get_funding_timeline(company["name"])
 
+        elif intent_type == "list_funded_companies":
+            # Get list of companies with funding, optionally filtered by sector and recency
+            sector = filters.get("sector")
+            is_recent = filters.get("recent", False)
+
+            if is_recent:
+                # Get recently funded companies (last 90 days)
+                return self.query_templates.get_recently_funded_companies(days=90, sector_keyword=sector)
+            elif sector:
+                # Get companies in sector with funding info
+                companies = self.query_templates.get_companies_in_sector(sector)
+                # Enrich with funding information
+                funded_companies = [c for c in companies if c.get("investor_count", 0) > 0]
+                return funded_companies[:20]
+            else:
+                # Get all companies with funding
+                return self.query_templates.get_companies_by_funding(min_investors=1)
+
+        elif intent_type == "list_companies_in_sector":
+            # Get companies in a specific sector
+            sector = filters.get("sector")
+            if sector:
+                return self.query_templates.get_companies_in_sector(sector)
+            else:
+                # Fallback to general search
+                return self.hybrid_search(query, top_k=10)
+
         elif intent_type == "investor_portfolio":
             results = self.semantic_search(query, top_k=1, entity_type="Investor")
             if results:
@@ -298,10 +386,6 @@ class GraphRAGQuery:
 
         elif intent_type == "technology_info":
             results = self.semantic_search(query, top_k=5, entity_type="Technology")
-            if not results:
-                # Fallback to full-text search filtered to Technology type
-                ft = self.query_templates.search_entities_full_text(query, limit=10)
-                results = [e for e in ft if str(e.get("type", "")).lower() == "technology"]
             return results
 
         elif intent_type == "trend_analysis":
@@ -333,36 +417,7 @@ class GraphRAGQuery:
             Generated answer
         """
         if not self.llm:
-            # Lightweight fallback answer without LLM
-            try:
-                if isinstance(context, list) and context:
-                    # Summarize top entities
-                    items = []
-                    for e in context[:5]:
-                        name = str(e.get("name", "Unknown")) if isinstance(e, dict) else str(e)
-                        etype = (str(e.get("type")) if isinstance(e, dict) else "").strip()
-                        sim = e.get("similarity") if isinstance(e, dict) else None
-                        part = name
-                        if etype:
-                            part += f" ({etype})"
-                        if isinstance(sim, (int, float)):
-                            part += f" · similarity {sim:.2f}"
-                        items.append(part)
-                    if items:
-                        return (
-                            "Based on the graph, related technologies include: "
-                            + "; ".join(items)
-                            + "."
-                        )
-                # Generic fallback
-                return (
-                    "No LLM configured. Context was retrieved, but cannot generate a natural language answer. "
-                    "Enable an LLM or use the semantic results displayed."
-                )
-            except Exception:
-                return (
-                    "No LLM configured. Enable an LLM to generate natural language answers."
-                )
+            return "LLM not initialized. Please provide OpenAI API key."
 
         # Format context for LLM
         context_str = self._format_context_for_llm(context)
@@ -430,10 +485,6 @@ Answer:"""
         answer = None
         if use_llm and context:
             answer = self.generate_answer(question, context)
-
-        # Provide a helpful message when no answer/context
-        if not answer:
-            answer = "No relevant context found. Try a more specific query or generate embeddings first."
 
         # Prepare response
         response = {
@@ -603,7 +654,7 @@ def create_rag_query(
     neo4j_user: Optional[str] = None,
     neo4j_password: Optional[str] = None,
     openai_api_key: Optional[str] = None,
-    embedding_model: str = "sentence_transformers"
+    embedding_model: str = "openai"
 ) -> GraphRAGQuery:
     """
     Create GraphRAG query instance with defaults from environment

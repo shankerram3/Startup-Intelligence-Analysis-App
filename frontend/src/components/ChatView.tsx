@@ -8,6 +8,19 @@ type ChatMessage = {
   meta?: any;
 };
 
+// Polyfill for crypto.randomUUID (not available in all browsers)
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback UUID v4 generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function ChatView() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
@@ -28,7 +41,7 @@ export function ChatView() {
     const text = input.trim();
     if (!text || loading) return;
     setInput('');
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
+    const userMsg: ChatMessage = { id: generateUUID(), role: 'user', content: text };
     setMessages((prev) => [...prev, userMsg]);
 
     setLoading(true);
@@ -37,7 +50,7 @@ export function ChatView() {
       const res = await postJson<QueryRequest, QueryResponse>('/query', body);
       const answer = (res.answer && String(res.answer).trim()) || 'No answer found.';
       const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         role: 'assistant',
         content: answer,
         meta: { intent: res.intent }
@@ -46,7 +59,7 @@ export function ChatView() {
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), role: 'assistant', content: err?.message || 'Request failed' }
+        { id: generateUUID(), role: 'assistant', content: err?.message || 'Request failed' }
       ]);
     } finally {
       setLoading(false);

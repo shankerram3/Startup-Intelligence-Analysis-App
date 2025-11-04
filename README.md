@@ -1,16 +1,16 @@
 # Startup Intelligence Analysis App
 
-A comprehensive knowledge graph and GraphRAG system that extracts entities and relationships from TechCrunch articles, stores them in Neo4j, and provides intelligent querying capabilities.
+A comprehensive knowledge graph and GraphRAG system that extracts entities and relationships from TechCrunch articles, stores them in Neo4j, and provides intelligent querying capabilities with a React frontend.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 Minutes)
 
 ### 1. Prerequisites
-
 - Python 3.11+
-- Neo4j (Docker recommended)
+- Neo4j (Docker or Aura cloud)
 - OpenAI API key
+- Node.js 18+ (for frontend)
 
 ### 2. Install & Setup
 
@@ -19,65 +19,46 @@ A comprehensive knowledge graph and GraphRAG system that extracts entities and r
 pip install -r requirements.txt
 
 # Configure environment
-cp .env.example .env
-# Edit .env with your API keys
+cat > .env << 'EOF'
+OPENAI_API_KEY=sk-your-openai-api-key
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # or bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-password
+API_HOST=0.0.0.0
+API_PORT=8000
+RAG_EMBEDDING_BACKEND=sentence-transformers
+SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
+EOF
 
-# Start Neo4j
+# Start Neo4j (if using Docker)
 docker-compose up -d
-
-# Verify setup
-python -c "from neo4j import GraphDatabase; print('✓ Neo4j ready')"
 ```
 
 ### 3. Run Pipeline
 
 ```bash
-# Small test (10 articles)
-python pipeline.py --scrape-category startups --scrape-max-pages 2 --max-articles 10
-
-# Production run
-python pipeline.py --scrape-category ai --scrape-max-pages 10 --advanced-features
+# Build knowledge graph (embeddings generated automatically!)
+python pipeline.py \
+  --scrape-category startups \
+  --scrape-max-pages 2 \
+  --max-articles 10
 ```
 
-### 4. Start Querying
+This automatically runs all 4 phases:
+1. Web Scraping
+2. Entity Extraction
+3. Graph Construction
+4. Post-Processing (embeddings, deduplication, communities)
+
+### 4. Start Services
 
 ```bash
-# Start API server
-python api.py
+# Start everything
+./start_all.sh
 
-# Start React frontend (in new terminal)
-cd frontend
-npm install
-npm run dev
-# Open http://localhost:5173
-
-# Or use Python client
-python api_client_example.py
-
-# Or Neo4j Browser
-open http://localhost:7474
+# Access from local machine: http://YOUR_VM_IP:5173
+# Access locally: http://localhost:5173
 ```
-
----
-
-## 📚 Documentation
-
-### Getting Started
-- **[Getting Started Guide](docs/guides/GETTING_STARTED.md)** - Detailed setup and first steps
-- **[How to Run](docs/guides/HOW_TO_RUN.md)** - Complete workflow from scraping to querying
-
-### API & Querying
-- **[GraphRAG API Documentation](docs/api/RAG_DOCUMENTATION.md)** - Complete API reference
-- **[Query Examples](docs/api/QUERY_EXAMPLES.md)** - Common query patterns
-
-### Deployment
-- **[Azure Deployment](docs/deployment/AZURE_DEPLOYMENT.md)** - Deploy to Azure
-- **[Neo4j Aura Setup](docs/deployment/AURA_SETUP.md)** - Use Neo4j Aura cloud
-- **[SSL Setup](docs/deployment/SSL_SETUP.md)** - Configure HTTPS
-
-### Development
-- **[Improvements & Recommendations](docs/development/IMPROVEMENTS.md)** - Enhancement suggestions
-- **[Architecture](docs/development/ARCHITECTURE.md)** - System design details
 
 ---
 
@@ -85,13 +66,13 @@ open http://localhost:7474
 
 ### Core Pipeline
 - ✅ **Web Scraping** - Automated TechCrunch article extraction
-- ✅ **Entity Extraction** - LLM-based entity and relationship identification  
-- ✅ **Knowledge Graph** - Neo4j graph database construction
-- ✅ **Advanced Features** - Deduplication, validation, embeddings
+- ✅ **Entity Extraction** - GPT-4o based NER and relationship extraction  
+- ✅ **Knowledge Graph** - Neo4j graph database
+- ✅ **Auto Post-Processing** - Embeddings, deduplication, communities (automatic!)
 
 ### GraphRAG Query System
 - ✅ **Natural Language Queries** - Ask questions in plain English
-- ✅ **Semantic Search** - Vector similarity-based retrieval
+- ✅ **Semantic Search** - Vector similarity search with sentence-transformers
 - ✅ **Hybrid Search** - Combined semantic + keyword search
 - ✅ **REST API** - 40+ FastAPI endpoints
 - ✅ **React Frontend** - Modern web UI with chat & dashboard
@@ -106,118 +87,96 @@ open http://localhost:7474
 
 ---
 
-## 🏗️ Architecture
-
-```
-TechCrunch Articles
-    ↓
-[Phase 0: Web Scraping] → Raw Article JSON
-    ↓
-[Phase 1: Entity Extraction] → Entities & Relationships JSON
-    ↓
-[Phase 2: Graph Construction] → Neo4j Knowledge Graph
-    ↓
-[Phase 3: Post-Processing] → Enhanced Graph
-    ↓
-[Phase 4: GraphRAG Queries] → Natural Language Q&A
-```
-
-### Key Components
-
-- **Scraper** (`scraper/`) - TechCrunch article extraction
-- **Entity Extractor** (`entity_extractor.py`) - GPT-4o based extraction
-- **Graph Builder** (`graph_builder.py`) - Neo4j graph construction
-- **GraphRAG** (`rag_query.py`, `query_templates.py`) - Query system
-- **REST API** (`api.py`) - FastAPI server
-- **Utils** (`utils/`) - Helper modules for validation, deduplication, etc.
-
----
-
 ## 📋 Common Commands
 
-### Pipeline Operations
+### Pipeline
 
 ```bash
-# Full pipeline (scrape → extract → build graph)
+# Full pipeline (automatic embeddings!)
 python pipeline.py --scrape-category startups --scrape-max-pages 2 --max-articles 10
 
-# Skip scraping (use existing articles)
+# Use existing articles
 python pipeline.py --skip-scraping --max-articles 50
 
-# Skip scraping and extraction (use existing extractions)
+# Use existing extractions
 python pipeline.py --skip-scraping --skip-extraction
-
-# With advanced features (deduplication, embeddings, etc.)
-python pipeline.py --scrape-category ai --max-articles 20 --advanced-features
 ```
 
-### Query Operations
+### Services
 
 ```bash
-# Start REST API
+# Start all (API + Frontend in tmux)
+./start_all.sh
+
+# Start API only
 python api.py
 
-# Use Python client
-python api_client_example.py
+# Start frontend only
+cd frontend && npm run dev
 
-# Direct queries (CLI)
-python -m rag.hybrid_rag "Tell me about AI startups" --entities 5 --docs 5
+# Stop all
+tmux kill-session -t graphrag
 ```
 
-### Neo4j Operations
+### Query
 
 ```bash
-# Check graph statistics
-python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); session = driver.session(); result = session.run('MATCH (n) RETURN count(n) as count'); print(f'Nodes: {result.single()[\"count\"]}'); session.close(); driver.close()"
+# Via React UI
+open http://localhost:5173
 
-# Generate embeddings
-python -c "from neo4j import GraphDatabase; from utils.embedding_generator import EmbeddingGenerator; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); gen = EmbeddingGenerator(driver, 'openai'); gen.generate_embeddings_for_all_entities(); driver.close()"
+# Via API docs
+open http://localhost:8000/docs
+
+# Via Python
+python -c "from rag_query import create_rag_query; rag = create_rag_query(); print(rag.query('Which AI startups raised funding?')['answer']); rag.close()"
+
+# Via cURL
+curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d '{"question": "Which AI startups raised funding?", "use_llm": true}'
 ```
 
 ---
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Create a `.env` file:
+### Backend (`.env`)
 
 ```bash
-# OpenAI API (required for entity extraction)
-OPENAI_API_KEY=sk-your-openai-api-key
-
-# Neo4j Connection (required)
-NEO4J_URI=bolt://localhost:7687
+# Required
+OPENAI_API_KEY=sk-your-key
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # Aura
+# NEO4J_URI=bolt://localhost:7687  # Local Docker
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your-password
 
-# API Configuration (optional)
+# Optional
 API_HOST=0.0.0.0
 API_PORT=8000
-
-# Embeddings (optional)
-RAG_EMBEDDING_BACKEND=sentence-transformers  # or "openai"
+RAG_EMBEDDING_BACKEND=sentence-transformers
 SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
 ```
 
-### Frontend Configuration
-
-Create `frontend/.env.local`:
+### Frontend (`frontend/.env.local`)
 
 ```bash
+# Local development
 VITE_API_BASE_URL=http://localhost:8000
+
+# Azure VM
+VITE_API_BASE_URL=http://YOUR_VM_PUBLIC_IP:8000
 ```
 
-### Scraper Configuration
+---
 
-Edit `scraper/scraper_config.py`:
+## 🏗️ Architecture
 
-```python
-SCRAPER_CONFIG = {
-    "rate_limit_delay": 3.0,  # Seconds between requests
-    "max_pages": None,         # None = unlimited
-    "batch_size": 10,          # Concurrent extractions
-}
+```
+Phase 0: Web Scraping → Raw JSON
+Phase 1: Entity Extraction → Entities & Relationships  
+Phase 2: Graph Construction → Neo4j Knowledge Graph
+Phase 3: Graph Cleanup → Remove noise
+Phase 4: Post-Processing → Embeddings, Deduplication, Communities (AUTOMATIC)
+    ↓
+Ready for Queries!
 ```
 
 ---
@@ -225,205 +184,67 @@ SCRAPER_CONFIG = {
 ## 📊 Entity Types & Relationships
 
 ### Entity Types
-- **Company** - Companies and organizations
-- **Person** - People and individuals
-- **Investor** - Investment firms and VCs
-- **Technology** - Technologies and frameworks
-- **Product** - Products and services
-- **FundingRound** - Funding rounds
-- **Location** - Geographic locations
-- **Event** - Events and conferences
+Company, Person, Investor, Technology, Product, FundingRound, Location, Event
 
 ### Relationship Types
-- `FUNDED_BY` - Company ← Investor
-- `FOUNDED_BY` - Company ← Person
-- `WORKS_AT` - Person → Company
-- `ACQUIRED` - Company → Company
-- `PARTNERS_WITH` - Entity ↔ Entity
-- `COMPETES_WITH` - Company ↔ Company
-- `USES_TECHNOLOGY` - Entity → Technology
-- `LOCATED_IN` - Entity → Location
-- `REGULATES` - Government → Entity
-- `OPPOSES` - Entity ↔ Entity
-- `SUPPORTS` - Entity → Entity
-- `COLLABORATES_WITH` - Entity ↔ Entity
-- `INVESTS_IN` - Entity → Entity
-- `ADVISES` - Entity → Entity
-- `LEADS` - Person → Company
+`FUNDED_BY`, `FOUNDED_BY`, `WORKS_AT`, `ACQUIRED`, `PARTNERS_WITH`, `COMPETES_WITH`, `USES_TECHNOLOGY`, `LOCATED_IN`, `ANNOUNCED_AT`, `REGULATES`, `OPPOSES`, `SUPPORTS`, `COLLABORATES_WITH`, `INVESTS_IN`, `ADVISES`, `LEADS`
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Neo4j Connection Error
+### Queries Return "No Relevant Context"
 ```bash
-# Check if Neo4j is running
+# Check embeddings
+python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); result = driver.session().run('MATCH (n) WHERE n.embedding IS NOT NULL RETURN count(n) as count'); print(f'Embeddings: {result.single()[\"count\"]}'); driver.close()"
+
+# Generate embeddings if needed
+python -c "from neo4j import GraphDatabase; from utils.embedding_generator import EmbeddingGenerator; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); gen = EmbeddingGenerator(driver, 'sentence-transformers'); gen.generate_embeddings_for_all_entities(); driver.close()"
+```
+
+### Neo4j Connection Failed
+```bash
+# Check Neo4j
 docker ps | grep neo4j
 
-# Restart Neo4j
-docker-compose restart
+# Start Neo4j
+docker-compose up -d
+
+# Test connection
+python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); driver.verify_connectivity(); print('✓ Connected'); driver.close()"
 ```
 
-### OpenAI API Error
+### Frontend Not Accessible
 ```bash
-# Check .env file
-cat .env | grep OPENAI_API_KEY
+# Check services
+sudo netstat -tulpn | grep -E '8000|5173'
 
-# Test API key
-python -c "from openai import OpenAI; import os; from dotenv import load_dotenv; load_dotenv(); client = OpenAI(api_key=os.getenv('OPENAI_API_KEY')); print('✓ API key valid')"
+# Check firewall
+sudo ufw status | grep -E '8000|5173'
+
+# Add firewall rules
+sudo ufw allow 8000/tcp
+sudo ufw allow 5173/tcp
+
+# Add Azure NSG rules (Azure Portal → VM → Networking)
+# - Port 8000 (API)
+# - Port 5173 (Frontend)
 ```
 
-### Scraping Fails
+### Chat Not Working
 ```bash
-# Install browser dependencies
-crawl4ai-setup
-
-# Increase rate limit delay (edit scraper/scraper_config.py)
-rate_limit_delay = 5.0  # Instead of 3.0
+# Hard refresh browser: Ctrl + Shift + R
+# Check browser console (F12) for errors
+# Verify API: curl http://YOUR_VM_IP:8000/health
 ```
 
-### Entity Extraction Issues
+### Port Already in Use
 ```bash
-# Check for metadata files being processed
-find data/articles -name "*.json" | grep -E "(discovered|failed)_articles"
+# Kill existing services
+tmux kill-session -t graphrag
 
-# If found, they should be in metadata/ directory only
-```
-
----
-
-## 📈 Performance
-
-### Typical Performance
-- **Scraping**: ~15-20 articles/page, 3-5 seconds/page
-- **Extraction**: ~2-3 seconds/article (GPT-4o dependent)
-- **Graph Building**: ~0.5-1 second/article
-- **Query Response**: <1 second (with proper indexes)
-
-### Optimization Tips
-1. Process in batches (use `--max-articles`)
-2. Use checkpoint/resume for large datasets
-3. Generate embeddings once, reuse many times
-4. Use local embeddings (sentence-transformers) for faster semantic search
-5. Limit multi-hop queries to 2-3 hops
-
----
-
-## 🎯 Use Cases
-
-### 1. Competitive Intelligence
-```python
-from rag_query import create_rag_query
-rag = create_rag_query()
-
-# Get company profile
-profile = rag.get_company_profile("Anthropic")
-
-# Get competitors
-landscape = rag.get_competitive_landscape("Anthropic")
-
-# Compare
-comparison = rag.compare_entities("OpenAI", "Anthropic")
-```
-
-### 2. Investment Research
-```python
-# Find funded companies
-funded = rag.query("Which AI startups raised funding recently?")
-
-# Analyze investor
-portfolio = rag.get_investor_portfolio("Sequoia Capital")
-
-# Discover trends
-tech_trends = rag.get_trending_technologies(limit=10)
-```
-
-### 3. Market Analysis
-```python
-# Recent activity
-recent = rag.query("What are the latest AI developments?")
-
-# Semantic search
-similar = rag.semantic_search("artificial intelligence startups", top_k=10)
-
-# Multi-hop reasoning
-insights = rag.multi_hop_reasoning(
-    "What technologies are used by companies funded by top investors?"
-)
-```
-
----
-
-## 📝 API Endpoints
-
-### Query Endpoints
-- `POST /query` - Natural language questions
-- `POST /search/semantic` - Vector similarity search
-- `POST /search/hybrid` - Combined semantic + keyword
-
-### Entity Endpoints
-- `GET /entity/{name}` - Get entity by name
-- `POST /entity/compare` - Compare two entities
-- `GET /company/{name}` - Company profile
-- `GET /investor/{name}` - Investor portfolio
-- `GET /person/{name}` - Person profile
-
-### Analytics Endpoints
-- `GET /statistics` - Graph statistics
-- `GET /analytics/importance` - Entity importance scores
-- `GET /technology/trending` - Trending technologies
-- `GET /community/detect` - Detect communities
-
-See [complete API documentation](docs/api/RAG_DOCUMENTATION.md) for all 40+ endpoints.
-
----
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-├── pipeline.py              # Main orchestrator
-├── entity_extractor.py      # LLM-based extraction
-├── graph_builder.py         # Neo4j construction
-├── rag_query.py            # GraphRAG query system
-├── query_templates.py      # Cypher query library
-├── api.py                  # REST API server
-├── scraper/                # Web scraping
-│   ├── techcrunch_scraper.py
-│   ├── run_scraper.py
-│   └── scraper_config.py
-├── utils/                  # Helper modules
-│   ├── entity_resolver.py
-│   ├── embedding_generator.py
-│   ├── community_detector.py
-│   └── ...
-├── rag/                    # RAG modules
-│   ├── hybrid_rag.py
-│   └── vector_index.py
-├── data/
-│   ├── articles/           # Scraped articles
-│   └── processing/         # Extractions
-└── docs/                   # Documentation
-    ├── guides/
-    ├── api/
-    └── deployment/
-```
-
-### Running Tests
-
-```bash
-# Test Neo4j connection
-python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); driver.verify_connectivity(); print('✓ Neo4j connected'); driver.close()"
-
-# Test entity extraction
-python entity_extractor.py
-
-# Test graph building
-python graph_builder.py
-
-# Test API
-python api_client_example.py
+# Restart
+./start_all.sh
 ```
 
 ---
@@ -434,108 +255,108 @@ python api_client_example.py
 ```bash
 docker-compose up -d
 python api.py
+cd frontend && npm run dev
 ```
 
-### Production (Azure)
-See [Azure Deployment Guide](docs/deployment/AZURE_DEPLOYMENT.md)
+### Azure VM
 
-### Neo4j Cloud (Aura)
-See [Neo4j Aura Setup](docs/deployment/AURA_SETUP.md)
+```bash
+# On Azure VM
+./start_all.sh
 
-### SSL/HTTPS
-See [SSL Setup Guide](docs/deployment/SSL_SETUP.md)
+# Access from local browser
+http://YOUR_VM_PUBLIC_IP:5173
+```
 
----
+**Required Azure NSG Ports:**
+- 5173 (Frontend)
+- 8000 (API)
+- 7474 (Neo4j Browser)
+- 7687 (Neo4j Bolt)
 
-## 🤝 Contributing
-
-This is an educational project. Feel free to:
-- Explore the code
-- Suggest improvements
-- Report issues
-- Fork and extend
-
----
-
-## 📄 License
-
-This is a personal project for educational purposes. Respect TechCrunch's robots.txt and terms of service when scraping.
+**Configuration:**
+- Update `frontend/.env.local` with VM public IP
+- Frontend vite.config.ts set to `host: '0.0.0.0'`
+- API listens on `0.0.0.0`
 
 ---
 
 ## 🚀 Future Enhancements
 
-### ✅ Completed Features
+### ✅ Completed
 - [x] Hybrid RAG implementation
-- [x] REST API implementation (40+ endpoints)
-- [x] GraphRAG query system
+- [x] REST API (40+ endpoints)
 - [x] React frontend with chat & dashboard
 - [x] Semantic search with embeddings
 - [x] Multi-hop reasoning
-- [x] Entity deduplication
-- [x] Community detection
-- [x] Relationship scoring
-- [x] Sentence-transformers support (local embeddings)
+- [x] Entity deduplication (automatic)
+- [x] Community detection (automatic)
+- [x] Relationship scoring (automatic)
+- [x] Sentence-transformers support
 
-### 🎯 Planned Features
+### 🎯 Planned
 
-**Phase 1: UI & Visualization** (In Progress)
-- [x] Web UI frontend (React + Vite)
+**Phase 1: Enhanced UI**
 - [ ] Interactive graph visualization
-- [ ] Advanced query builder interface
-- [ ] Real-time query results & streaming
+- [ ] Advanced query builder
+- [ ] Real-time results streaming
 
-**Phase 2: Enhanced Intelligence**
-- [ ] Evaluation framework and metrics
-- [ ] Query rewriting and expansion
-- [ ] Reranking with cross-encoders
-- [ ] Automated insight generation
+**Phase 2: Intelligence**
+- [ ] Evaluation framework
+- [ ] Query rewriting
+- [ ] Cross-encoder reranking
+- [ ] Automated insights
 
-**Phase 3: Data & Integration**
-- [ ] Real-time article updates (streaming)
-- [ ] Multi-source support (beyond TechCrunch)
-- [ ] Custom entity types and relationships
-- [ ] Data export functionality (PDF, CSV, JSON)
+**Phase 3: Data**
+- [ ] Real-time updates
+- [ ] Multi-source support
+- [ ] Custom entity types
+- [ ] Data export (PDF, CSV)
 
-**Phase 4: Analytics & Scale**
-- [ ] Advanced analytics dashboard
+**Phase 4: Scale**
+- [ ] Analytics dashboard
 - [ ] Temporal trend analysis
 - [ ] Predictive analytics
-- [ ] Multi-tenant support
-- [ ] Query caching and optimization
+- [ ] Query caching
 
-**Phase 5: Enterprise Features**
-- [ ] Authentication & authorization
-- [ ] Rate limiting and quotas
+**Phase 5: Enterprise**
+- [ ] Authentication
+- [ ] Rate limiting
 - [ ] Audit logging
-- [ ] Webhook notifications
-- [ ] GraphQL API support
-
-See [ARCHITECTURE.md](docs/development/ARCHITECTURE.md) and [IMPROVEMENTS.md](docs/development/IMPROVEMENTS.md) for detailed roadmap.
+- [ ] Webhooks
+- [ ] GraphQL API
 
 ---
 
 ## 🔗 Quick Links
 
-- **React Frontend**: http://localhost:5173 (after `cd frontend && npm run dev`)
+- **React Frontend**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
 - **Neo4j Browser**: http://localhost:7474
-- **API Docs (Swagger)**: http://localhost:8000/docs
-- **API Docs (ReDoc)**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
+
+---
+
+## 📚 Additional Documentation
+
+- **[API Reference](docs/api/RAG_DOCUMENTATION.md)** - Complete API documentation
+- **[Query Examples](docs/api/QUERY_EXAMPLES.md)** - Query patterns
+- **[Azure Deployment](docs/deployment/AZURE_DEPLOYMENT.md)** - Azure setup
+- **[Neo4j Aura](docs/deployment/AURA_SETUP.md)** - Managed database
+- **[Architecture](docs/development/ARCHITECTURE.md)** - Technical details
+- **[Improvements](docs/development/IMPROVEMENTS.md)** - Enhancements
 
 ---
 
 ## 🤝 Contributing
 
-Interested in contributing? We'd love your help! Here's how:
-
-1. **Report Issues** - Found a bug? Open an issue
-2. **Suggest Features** - Have an idea? Let us know
-3. **Submit PRs** - Fork, implement, and submit a pull request
-4. **Improve Docs** - Help make the documentation better
+1. Report issues
+2. Suggest features
+3. Submit PRs
+4. Improve docs
 
 ---
 
-**Built with:** Python, Neo4j, FastAPI, OpenAI GPT-4o, LangChain, Sentence Transformers
+**Built with:** Python, Neo4j, FastAPI, React, OpenAI GPT-4o, LangChain, Sentence Transformers
 
 **Happy Knowledge Graph Building! 🚀**

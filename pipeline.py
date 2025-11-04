@@ -78,7 +78,7 @@ def run_pipeline(
     resume_extraction: bool = True,
     validate_data: bool = True,
     auto_cleanup_graph: bool = True,
-    run_advanced_features: bool = False
+    skip_post_processing: bool = False
 ):
     """
     Run the complete pipeline
@@ -95,7 +95,7 @@ def run_pipeline(
         resume_extraction: Resume extraction from checkpoint
         validate_data: Validate articles and extractions
         auto_cleanup_graph: Automatically clean up graph (fix MENTIONED_IN relationships)
-        run_advanced_features: Run advanced post-processing features (deduplication, scoring, etc.)
+        skip_post_processing: Skip post-processing (embeddings, deduplication, etc.) - NOT RECOMMENDED
     """
     
     print("\n" + "="*80)
@@ -262,10 +262,10 @@ def run_pipeline(
             print(f"⚠️  Graph cleanup failed: {e}")
             # Don't fail pipeline if cleanup fails
     
-    # Phase 4: Advanced Features (Optional)
-    if not skip_graph_building and run_advanced_features:
+    # Phase 4: Post-Processing (Essential for query functionality)
+    if not skip_graph_building and not skip_post_processing:
         print("\n" + "="*80)
-        print("PHASE 4: ADVANCED FEATURES")
+        print("PHASE 4: POST-PROCESSING (Embeddings, Deduplication, Communities)")
         print("="*80 + "\n")
         
         try:
@@ -320,20 +320,20 @@ def run_pipeline(
                 print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings\n")
                 
                 print("="*80)
-                print("✅ ADVANCED FEATURES COMPLETE!")
+                print("✅ POST-PROCESSING COMPLETE!")
                 print("="*80 + "\n")
                 
             finally:
                 driver.close()
                 
         except ImportError as e:
-            print(f"⚠️  Advanced features not available: {e}")
-            print("Skipping advanced features...")
+            print(f"⚠️  Post-processing not available: {e}")
+            print("Skipping post-processing...")
         except Exception as e:
-            print(f"⚠️  Advanced features failed: {e}")
+            print(f"⚠️  Post-processing failed: {e}")
             import traceback
             traceback.print_exc()
-            # Don't fail pipeline if advanced features fail
+            # Don't fail pipeline if post-processing fails
     
     # Success!
     print("\n" + "="*80)
@@ -472,9 +472,9 @@ def main():
     )
     
     parser.add_argument(
-        "--advanced-features",
+        "--skip-post-processing",
         action="store_true",
-        help="Run advanced post-processing features (deduplication, scoring, community detection, embeddings)"
+        help="Skip post-processing (embeddings, deduplication, communities) - NOT RECOMMENDED - queries won't work without embeddings"
     )
     
     parser.add_argument(
@@ -502,7 +502,7 @@ def main():
         resume_extraction=not args.no_resume,
         validate_data=not args.no_validation,
         auto_cleanup_graph=not args.no_cleanup,
-        run_advanced_features=args.advanced_features
+        skip_post_processing=args.skip_post_processing
     )
     
     sys.exit(0 if success else 1)

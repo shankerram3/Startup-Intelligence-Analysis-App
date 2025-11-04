@@ -80,7 +80,9 @@ const styles: Record<string, React.CSSProperties> = {
   tabButton: {
     padding: '8px 12px',
     borderRadius: 8,
-    border: '1px solid #cbd5e1',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#cbd5e1',
     background: '#f1f5f9',
     cursor: 'pointer'
   },

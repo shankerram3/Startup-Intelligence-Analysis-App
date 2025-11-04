@@ -5,7 +5,7 @@ Provides HTTP endpoints for querying the knowledge graph
 
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import subprocess
 import threading
@@ -34,14 +34,13 @@ class QueryRequest(BaseModel):
     return_context: bool = Field(False, description="Include raw context in response")
     use_llm: bool = Field(True, description="Generate LLM answer")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "question": "Which AI startups raised funding recently?",
-                "return_context": False,
-                "use_llm": True
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "question": "Which AI startups raised funding recently?",
+            "return_context": False,
+            "use_llm": True
         }
+    })
 
 
 class SemanticSearchRequest(BaseModel):
@@ -50,14 +49,13 @@ class SemanticSearchRequest(BaseModel):
     top_k: int = Field(10, description="Number of results", ge=1, le=50)
     entity_type: Optional[str] = Field(None, description="Filter by entity type")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "query": "artificial intelligence",
-                "top_k": 10,
-                "entity_type": "Company"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "query": "artificial intelligence",
+            "top_k": 10,
+            "entity_type": "Company"
         }
+    })
 
 
 class CompareEntitiesRequest(BaseModel):
@@ -65,29 +63,27 @@ class CompareEntitiesRequest(BaseModel):
     entity1: str = Field(..., description="First entity name")
     entity2: str = Field(..., description="Second entity name")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "entity1": "Anthropic",
-                "entity2": "OpenAI"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "entity1": "Anthropic",
+            "entity2": "OpenAI"
         }
+    })
 
 
 class BatchQueryRequest(BaseModel):
     """Request model for batch queries"""
     questions: List[str] = Field(..., description="List of questions", min_length=1, max_length=10)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "questions": [
-                    "What is Anthropic?",
-                    "Who are the top investors?",
-                    "What are trending technologies?"
-                ]
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "questions": [
+                "What is Anthropic?",
+                "Who are the top investors?",
+                "What are trending technologies?"
+            ]
         }
+    })
 
 
 class QueryResponse(BaseModel):
