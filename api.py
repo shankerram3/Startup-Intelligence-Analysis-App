@@ -277,7 +277,8 @@ pipeline_log_path: str = os.getenv("PIPELINE_LOG_PATH", "pipeline.log")
 
 
 def _build_pipeline_args(options: PipelineStartRequest) -> List[str]:
-    args: List[str] = ["python", "pipeline.py"]
+    # Use unbuffered python so stdout flushes to the log file immediately
+    args: List[str] = ["python", "-u", "pipeline.py"]
     if options.scrape_category:
         args += ["--scrape-category", options.scrape_category]
     if options.scrape_max_pages:
