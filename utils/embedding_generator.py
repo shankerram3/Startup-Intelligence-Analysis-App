@@ -96,7 +96,7 @@ class EmbeddingGenerator:
                 query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
-                    RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
+                    RETURN e.id as id, e.name as name, labels(e)[0] as type,
                            e.description as description
                 """
             else:
@@ -172,7 +172,7 @@ class EmbeddingGenerator:
             result = session.run("""
                 MATCH (e)
                 WHERE NOT e:Article AND e.embedding IS NOT NULL
-                RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
+                RETURN e.id as id, e.name as name, labels(e)[0] as type,
                        e.description as description, e.embedding as embedding
             """)
             
