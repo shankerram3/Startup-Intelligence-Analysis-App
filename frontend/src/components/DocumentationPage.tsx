@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Section {
   id: string;
@@ -8,16 +8,25 @@ interface Section {
 
 const DocumentationPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string>('overview');
+  const [scanlineOffset, setScanlineOffset] = useState(0);
+
+  // Animated scanline effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setScanlineOffset((prev) => (prev + 1) % 100);
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
 
   const sections: Section[] = [
-    { id: 'overview', title: 'Overview', icon: '🏠' },
-    { id: 'architecture', title: 'Architecture', icon: '🏗️' },
-    { id: 'pipeline', title: 'Data Pipeline', icon: '⚙️' },
-    { id: 'graphrag', title: 'GraphRAG System', icon: '🧠' },
-    { id: 'entities', title: 'Entity Model', icon: '📊' },
-    { id: 'api', title: 'API Reference', icon: '🔌' },
-    { id: 'deployment', title: 'Deployment', icon: '🚀' },
-    { id: 'quickstart', title: 'Quick Start', icon: '⚡' },
+    { id: 'overview', title: 'OVERVIEW', icon: '◆' },
+    { id: 'architecture', title: 'ARCHITECTURE', icon: '▣' },
+    { id: 'pipeline', title: 'PIPELINE', icon: '▶' },
+    { id: 'graphrag', title: 'GRAPHRAG', icon: '◈' },
+    { id: 'entities', title: 'ENTITIES', icon: '◉' },
+    { id: 'api', title: 'API', icon: '◐' },
+    { id: 'deployment', title: 'DEPLOY', icon: '◇' },
+    { id: 'quickstart', title: 'START', icon: '▸' },
   ];
 
   const scrollToSection = (sectionId: string) => {
@@ -25,1273 +34,545 @@ const DocumentationPage: React.FC = () => {
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+  }
   };
 
   return (
     <div style={styles.container}>
       <style>{`
-        /* Quick link hover effects */
-        a[style*="quickLinkCard"]:hover {
-          border-color: #3b82f6 !important;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15) !important;
-          transform: translateY(-2px);
+        @import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap');
+        
+        @keyframes flicker {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.95; }
         }
         
-        /* Feature card hover effects */
-        div[style*="featureCard"]:hover {
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-          transform: translateY(-2px);
+        @keyframes glow {
+          0%, 100% { text-shadow: 0 0 10px #66d9ef, 0 0 20px #66d9ef, 0 0 30px #66d9ef; }
+          50% { text-shadow: 0 0 5px #66d9ef, 0 0 10px #66d9ef, 0 0 15px #66d9ef; }
         }
         
-        /* Nav item hover effects */
-        button[style*="navItem"]:hover {
-          background-color: #f8fafc;
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(-20px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .retro-button:hover {
+          background: linear-gradient(45deg, #c084fc, #66d9ef) !important;
+          box-shadow: 0 0 20px #c084fc, 0 0 40px #66d9ef !important;
+          transform: scale(1.05) !important;
+        }
+        
+        .retro-card:hover {
+          transform: translateY(-5px) !important;
+          box-shadow: 0 10px 30px rgba(192, 132, 252, 0.3), 0 0 50px rgba(102, 217, 239, 0.2) !important;
+        }
+        
+        .scanline {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            to bottom,
+            transparent 50%,
+            rgba(102, 217, 239, 0.02) 51%
+          );
+          background-size: 100% 4px;
+          pointer-events: none;
+          z-index: 9999;
+          animation: flicker 0.15s infinite;
+        }
+        
+        .crt-effect {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+          pointer-events: none;
+          z-index: 9998;
         }
       `}</style>
+
+      {/* CRT Effects */}
+      <div className="scanline" />
+      <div className="crt-effect" />
+
       {/* Sidebar Navigation */}
       <aside style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
-          <h2 style={styles.sidebarTitle}>📚 Documentation</h2>
+          <div style={styles.terminalTop}>
+            <span style={styles.terminalDot}></span>
+            <span style={styles.terminalDot}></span>
+            <span style={styles.terminalDot}></span>
+          </div>
+          <h2 style={styles.sidebarTitle}>
+            <span style={styles.blinkingCursor}>▮</span> SYSTEM.DOCS
+          </h2>
+          <div style={styles.statusBar}>
+            <span style={styles.statusText}>STATUS: ONLINE</span>
+          </div>
         </div>
         <nav style={styles.nav}>
-          {sections.map((section) => (
+          {sections.map((section, idx) => (
             <button
               key={section.id}
               onClick={() => scrollToSection(section.id)}
+              className="retro-button"
               style={{
                 ...styles.navItem,
                 ...(activeSection === section.id ? styles.navItemActive : {}),
+                animationDelay: `${idx * 0.1}s`,
               }}
             >
               <span style={styles.navIcon}>{section.icon}</span>
-              <span>{section.title}</span>
+              <span style={styles.navText}>{section.title}</span>
+              {activeSection === section.id && <span style={styles.activeIndicator}>◀</span>}
             </button>
           ))}
         </nav>
+        <div style={styles.sidebarFooter}>
+          <div style={styles.pixelBorder}></div>
+          <div style={styles.versionInfo}>v2.0.25</div>
+        </div>
       </aside>
 
       {/* Main Content */}
       <main style={styles.content}>
         {/* Overview Section */}
         <section id="overview" style={styles.section}>
-          <h1 style={styles.h1}>🚀 Startup Intelligence Analysis Platform</h1>
-          <p style={styles.lead}>
-            A production-ready knowledge graph and GraphRAG system powered by GPT-4o that extracts entities 
-            and relationships from TechCrunch articles, enriches them with deep company intelligence via Playwright, 
-            stores them in Neo4j Aura, and provides intelligent querying through 38+ REST API endpoints with 
-            hybrid semantic search capabilities.
-          </p>
+          <div style={styles.glitchContainer}>
+            <h1 style={styles.h1} data-text="◢ STARTUP INTELLIGENCE ◣">
+              ◢ STARTUP INTELLIGENCE ◣
+            </h1>
+          </div>
+          <div style={styles.subtitleBar}>
+            <span style={styles.subtitle}>GRAPHRAG ANALYSIS PLATFORM</span>
+          </div>
+          
+          <div style={styles.terminalBox}>
+            <div style={styles.terminalHeader}>
+              <span>SYSTEM_INFO.TXT</span>
+            </div>
+            <p style={styles.terminalText}>
+              {'> '}<span style={styles.typingText}>INITIALIZING KNOWLEDGE GRAPH SYSTEM...</span><br/>
+              {'> '}GPT-4O ENTITY EXTRACTION: [<span style={{color: '#4ade80'}}>ACTIVE</span>]<br/>
+              {'> '}NEO4J AURA DATABASE: [<span style={{color: '#4ade80'}}>CONNECTED</span>]<br/>
+              {'> '}HYBRID RAG SEARCH: [<span style={{color: '#4ade80'}}>READY</span>]<br/>
+              {'> '}38+ API ENDPOINTS: [<span style={{color: '#4ade80'}}>ONLINE</span>]<br/>
+            </p>
+          </div>
 
           <div style={styles.statsGrid}>
-            <div style={styles.statCard}>
+            <div className="retro-card" style={styles.statCard}>
+              <div style={styles.statIcon}>◈</div>
               <div style={styles.statNumber}>38+</div>
-              <div style={styles.statLabel}>API Endpoints</div>
+              <div style={styles.statLabel}>API ENDPOINTS</div>
+              <div style={styles.statBar}></div>
             </div>
-            <div style={styles.statCard}>
-              <div style={styles.statNumber}>8</div>
-              <div style={styles.statLabel}>Entity Types</div>
+            <div className="retro-card" style={styles.statCard}>
+              <div style={styles.statIcon}>◉</div>
+              <div style={styles.statNumber}>08</div>
+              <div style={styles.statLabel}>ENTITY TYPES</div>
+              <div style={styles.statBar}></div>
             </div>
-            <div style={styles.statCard}>
+            <div className="retro-card" style={styles.statCard}>
+              <div style={styles.statIcon}>◐</div>
               <div style={styles.statNumber}>15+</div>
-              <div style={styles.statLabel}>Relationship Types</div>
+              <div style={styles.statLabel}>RELATIONSHIPS</div>
+              <div style={styles.statBar}></div>
             </div>
-            <div style={styles.statCard}>
-              <div style={styles.statNumber}>6</div>
-              <div style={styles.statLabel}>Pipeline Phases</div>
+            <div className="retro-card" style={styles.statCard}>
+              <div style={styles.statIcon}>▶</div>
+              <div style={styles.statNumber}>06</div>
+              <div style={styles.statLabel}>PIPELINE PHASES</div>
+              <div style={styles.statBar}></div>
             </div>
           </div>
 
           <div style={styles.featureGrid}>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>🤖</div>
-              <h3 style={styles.featureTitle}>GPT-4o Entity Extraction</h3>
-              <p style={styles.featureDesc}>Advanced NER with LangChain extracting 8 entity types and relationships with retry logic</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>🕸️</div>
-              <h3 style={styles.featureTitle}>Neo4j Aura Cloud</h3>
-              <p style={styles.featureDesc}>Managed graph database with GDS (Graph Data Science) for community detection</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>🔍</div>
-              <h3 style={styles.featureTitle}>Hybrid RAG Search</h3>
-              <p style={styles.featureDesc}>BAAI/bge-small-en-v1.5 embeddings + keyword search with intelligent query routing</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>💬</div>
-              <h3 style={styles.featureTitle}>Multi-Hop Reasoning</h3>
-              <p style={styles.featureDesc}>Complex graph traversal for entity comparison, aggregation, and relationship queries</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>🏢</div>
-              <h3 style={styles.featureTitle}>Company Intelligence</h3>
-              <p style={styles.featureDesc}>Playwright scraper enriching companies with founders, funding, products, and team data</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>⚡</div>
-              <h3 style={styles.featureTitle}>38 REST Endpoints</h3>
-              <p style={styles.featureDesc}>FastAPI with Pydantic validation, CORS, health checks, and Swagger UI</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>✨</div>
-              <h3 style={styles.featureTitle}>Auto Post-Processing</h3>
-              <p style={styles.featureDesc}>Sentence-transformers embeddings, entity deduplication, and Leiden community detection</p>
-            </div>
-            <div style={styles.featureCard}>
-              <div style={styles.featureIcon}>🎯</div>
-              <h3 style={styles.featureTitle}>Production Ready</h3>
-              <p style={styles.featureDesc}>Checkpoint system, progress tracking, validation, Docker support, and tmux orchestration</p>
-            </div>
+            {[
+              { icon: '◆', title: 'GPT-4O EXTRACTION', desc: 'ADVANCED NER WITH LANGCHAIN' },
+              { icon: '◈', title: 'NEO4J AURA CLOUD', desc: 'MANAGED GRAPH DATABASE + GDS' },
+              { icon: '◉', title: 'HYBRID RAG SEARCH', desc: 'SEMANTIC + KEYWORD MATCHING' },
+              { icon: '◐', title: 'MULTI-HOP REASONING', desc: 'COMPLEX GRAPH TRAVERSAL' },
+              { icon: '▣', title: 'COMPANY INTEL', desc: 'PLAYWRIGHT DEEP SCRAPING' },
+              { icon: '▶', title: '38 REST ENDPOINTS', desc: 'FASTAPI + SWAGGER UI' },
+              { icon: '◇', title: 'AUTO PROCESSING', desc: 'EMBEDDINGS + COMMUNITIES' },
+              { icon: '▸', title: 'PRODUCTION READY', desc: 'CHECKPOINTS + VALIDATION' },
+            ].map((feature, idx) => (
+              <div key={idx} className="retro-card" style={styles.featureCard}>
+                <div style={styles.featureIcon}>{feature.icon}</div>
+                <div style={styles.featureTitle}>{feature.title}</div>
+                <div style={styles.featureLine}></div>
+                <div style={styles.featureDesc}>{feature.desc}</div>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* Architecture Section */}
         <section id="architecture" style={styles.section}>
-          <h1 style={styles.h1}>🏗️ System Architecture</h1>
+          <h1 style={styles.h1}>◢ SYSTEM ARCHITECTURE ◣</h1>
           
-          <div style={styles.diagramCard}>
-            <h3 style={styles.diagramTitle}>High-Level Architecture</h3>
+          <div style={styles.retroBox}>
+            <div style={styles.retroBoxHeader}>
+              <span>LAYER_DIAGRAM.SYS</span>
+            </div>
             <div style={styles.architectureDiagram}>
-              <div style={styles.architectureLayer}>
-                <div style={styles.layerTitle}>Frontend Layer</div>
-                <div style={styles.componentRow}>
-                  <div style={{...styles.component, ...styles.componentReact}}>
-                    <div style={styles.componentIcon}>⚛️</div>
-                    <div style={styles.componentName}>React UI</div>
-                    <div style={styles.componentDesc}>TypeScript + Vite</div>
+              {[
+                { layer: 'FRONTEND LAYER', components: ['REACT UI', 'CHAT INTERFACE', 'DASHBOARD'], color: '#c084fc' },
+                { layer: 'API LAYER', components: ['FASTAPI', 'QUERY ROUTER', 'RAG ENGINE'], color: '#66d9ef' },
+                { layer: 'PROCESSING LAYER', components: ['WEB SCRAPER', 'ENTITY EXTRACTOR', 'GRAPH BUILDER'], color: '#facc15' },
+                { layer: 'DATA LAYER', components: ['NEO4J AURA', 'VECTOR INDEX', 'FILE STORAGE'], color: '#4ade80' },
+              ].map((layer, idx) => (
+                <div key={idx} style={styles.architectureLayer}>
+                  <div style={{...styles.layerTitle, borderColor: layer.color, color: layer.color}}>
+                    {layer.layer}
                   </div>
-                  <div style={{...styles.component, ...styles.componentReact}}>
-                    <div style={styles.componentIcon}>💬</div>
-                    <div style={styles.componentName}>Chat Interface</div>
-                    <div style={styles.componentDesc}>Real-time queries</div>
+                  <div style={styles.componentRow}>
+                    {layer.components.map((comp, cidx) => (
+                      <div key={cidx} className="retro-card" style={{...styles.component, borderColor: layer.color}}>
+                        <div style={styles.componentText}>{comp}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{...styles.component, ...styles.componentReact}}>
-                    <div style={styles.componentIcon}>📊</div>
-                    <div style={styles.componentName}>Dashboard</div>
-                    <div style={styles.componentDesc}>Analytics & Viz</div>
-                  </div>
+                  {idx < 3 && <div style={styles.layerArrow}>▼ ▼ ▼</div>}
                 </div>
-              </div>
-
-              <div style={styles.arrow}>↓</div>
-
-              <div style={styles.architectureLayer}>
-                <div style={styles.layerTitle}>API Layer</div>
-                <div style={styles.componentRow}>
-                  <div style={{...styles.component, ...styles.componentApi}}>
-                    <div style={styles.componentIcon}>⚡</div>
-                    <div style={styles.componentName}>FastAPI</div>
-                    <div style={styles.componentDesc}>40+ REST endpoints</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentApi}}>
-                    <div style={styles.componentIcon}>🔀</div>
-                    <div style={styles.componentName}>Query Router</div>
-                    <div style={styles.componentDesc}>Intelligent routing</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentApi}}>
-                    <div style={styles.componentIcon}>🧠</div>
-                    <div style={styles.componentName}>RAG Engine</div>
-                    <div style={styles.componentDesc}>Hybrid search</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.arrow}>↓</div>
-
-              <div style={styles.architectureLayer}>
-                <div style={styles.layerTitle}>Processing Layer</div>
-                <div style={styles.componentRow}>
-                  <div style={{...styles.component, ...styles.componentProcess}}>
-                    <div style={styles.componentIcon}>🕷️</div>
-                    <div style={styles.componentName}>Web Scraper</div>
-                    <div style={styles.componentDesc}>TechCrunch + Playwright</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentProcess}}>
-                    <div style={styles.componentIcon}>🤖</div>
-                    <div style={styles.componentName}>Entity Extractor</div>
-                    <div style={styles.componentDesc}>GPT-4o NER</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentProcess}}>
-                    <div style={styles.componentIcon}>🔗</div>
-                    <div style={styles.componentName}>Graph Builder</div>
-                    <div style={styles.componentDesc}>Neo4j integration</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.arrow}>↓</div>
-
-              <div style={styles.architectureLayer}>
-                <div style={styles.layerTitle}>Data Layer</div>
-                <div style={styles.componentRow}>
-                  <div style={{...styles.component, ...styles.componentData}}>
-                    <div style={styles.componentIcon}>🗄️</div>
-                    <div style={styles.componentName}>Neo4j</div>
-                    <div style={styles.componentDesc}>Graph database</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentData}}>
-                    <div style={styles.componentIcon}>🔢</div>
-                    <div style={styles.componentName}>Vector Index</div>
-                    <div style={styles.componentDesc}>Embeddings store</div>
-                  </div>
-                  <div style={{...styles.component, ...styles.componentData}}>
-                    <div style={styles.componentIcon}>📁</div>
-                    <div style={styles.componentName}>File Storage</div>
-                    <div style={styles.componentDesc}>Raw data cache</div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* Pipeline Section */}
         <section id="pipeline" style={styles.section}>
-          <h1 style={styles.h1}>⚙️ Data Pipeline Flow</h1>
+          <h1 style={styles.h1}>◢ DATA PIPELINE FLOW ◣</h1>
           
-          <div style={styles.diagramCard}>
-            <h3 style={styles.diagramTitle}>End-to-End Pipeline</h3>
+          <div style={styles.retroBox}>
+            <div style={styles.retroBoxHeader}>
+              <span>PIPELINE_EXEC.SYS</span>
+            </div>
             <div style={styles.pipelineFlow}>
               {[
-                { phase: 'Phase 0', title: 'Web Scraping', icon: '🕷️', desc: 'Crawl4AI + BeautifulSoup extraction', color: '#3b82f6', tech: 'crawl4ai, aiofiles' },
-                { phase: 'Phase 1', title: 'Entity Extraction', icon: '🤖', desc: 'GPT-4o via LangChain with retry', color: '#8b5cf6', tech: 'langchain-openai, pydantic' },
-                { phase: 'Phase 1.5', title: 'Company Intelligence', icon: '🏢', desc: 'Playwright deep scraping', color: '#ec4899', tech: 'playwright, company_intelligence_scraper' },
-                { phase: 'Phase 2', title: 'Graph Construction', icon: '🔗', desc: 'Neo4j Aura with constraints', color: '#10b981', tech: 'neo4j-driver, graph_builder' },
-                { phase: 'Phase 3', title: 'Graph Cleanup', icon: '🧹', desc: 'Deduplication & validation', color: '#f59e0b', tech: 'entity_resolver, graph_cleanup' },
-                { phase: 'Phase 4', title: 'Post-Processing', icon: '✨', desc: 'Embeddings + GDS communities', color: '#06b6d4', tech: 'sentence-transformers, graphdatascience' },
+                { phase: 'PHASE_0', title: 'WEB SCRAPING', tech: 'CRAWL4AI', color: '#c084fc' },
+                { phase: 'PHASE_1', title: 'ENTITY EXTRACTION', tech: 'GPT-4O', color: '#66d9ef' },
+                { phase: 'PHASE_1.5', title: 'COMPANY INTEL', tech: 'PLAYWRIGHT', color: '#facc15' },
+                { phase: 'PHASE_2', title: 'GRAPH BUILD', tech: 'NEO4J', color: '#4ade80' },
+                { phase: 'PHASE_3', title: 'CLEANUP', tech: 'DEDUP', color: '#fb923c' },
+                { phase: 'PHASE_4', title: 'POST-PROCESS', tech: 'EMBEDDINGS', color: '#f472b6' },
               ].map((step, idx) => (
-                <React.Fragment key={step.phase}>
-                  <div style={{...styles.pipelineStep, borderColor: step.color}}>
+                <React.Fragment key={idx}>
+                  <div className="retro-card" style={{...styles.pipelineStep, borderColor: step.color}}>
                     <div style={{...styles.pipelinePhase, backgroundColor: step.color}}>{step.phase}</div>
-                    <div style={styles.pipelineIcon}>{step.icon}</div>
                     <div style={styles.pipelineTitle}>{step.title}</div>
-                    <div style={styles.pipelineDesc}>{step.desc}</div>
-                    <div style={styles.pipelineTech}>{step.tech}</div>
+                    <div style={styles.pipelineTech}>[{step.tech}]</div>
                   </div>
-                  {idx < 5 && <div style={styles.pipelineArrow}>→</div>}
+                  {idx < 5 && (
+                    <div style={styles.pipelineArrowContainer}>
+                      <div style={styles.pipelineArrow}>→</div>
+                    </div>
+                  )}
                 </React.Fragment>
               ))}
             </div>
           </div>
 
-          <div style={styles.codeBlock}>
+          <div style={styles.codeBox}>
             <div style={styles.codeHeader}>
-              <span style={styles.codeTitle}>💻 Run Complete Pipeline</span>
+              <span>EXECUTE_PIPELINE.SH</span>
             </div>
-            <pre style={styles.code}>
-{`# Full pipeline with all phases (automatic embeddings!)
-python pipeline.py \\
-  --scrape-category startups \\
-  --scrape-max-pages 2 \\
-  --max-articles 10
+            <pre style={styles.codeContent}>
+{`$ python pipeline.py \\
+    --scrape-category startups \\
+    --scrape-max-pages 2 \\
+    --max-articles 10
 
-# Use existing articles (skip scraping)
-python pipeline.py --skip-scraping --max-articles 50
-
-# Use existing extractions (skip to graph building)
-python pipeline.py --skip-scraping --skip-extraction
-
-# Skip company enrichment (Phase 1.5)
-python pipeline.py --skip-enrichment
-
-# Control company enrichment limit
-python pipeline.py --max-companies-to-scrape 20`}
+[INFO] Initializing pipeline...
+[OK] Phase 0: Web Scraping
+[OK] Phase 1: Entity Extraction  
+[OK] Phase 1.5: Company Intelligence
+[OK] Phase 2: Graph Construction
+[OK] Phase 3: Graph Cleanup
+[OK] Phase 4: Post-Processing
+[SUCCESS] Pipeline complete!`}
             </pre>
-          </div>
-
-          {/* Utility Modules */}
-          <div style={styles.utilitySection}>
-            <h2 style={styles.subsectionTitle}>🔧 Core Utility Modules</h2>
-            <div style={styles.utilityGrid}>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>📍</div>
-                <h4 style={styles.utilityTitle}>checkpoint.py</h4>
-                <p style={styles.utilityDesc}>Resume capability for long-running extractions</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>🔄</div>
-                <h4 style={styles.utilityTitle}>entity_resolver.py</h4>
-                <p style={styles.utilityDesc}>Automatic entity deduplication and merging</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>✅</div>
-                <h4 style={styles.utilityTitle}>data_validation.py</h4>
-                <p style={styles.utilityDesc}>Multi-layer article and extraction validation</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>🔢</div>
-                <h4 style={styles.utilityTitle}>embedding_generator.py</h4>
-                <p style={styles.utilityDesc}>Sentence-transformers vector embeddings</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>👥</div>
-                <h4 style={styles.utilityTitle}>community_detector.py</h4>
-                <p style={styles.utilityDesc}>Leiden, Louvain, Label Propagation algorithms</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>📊</div>
-                <h4 style={styles.utilityTitle}>relationship_scorer.py</h4>
-                <p style={styles.utilityDesc}>Relationship strength scoring and ranking</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>🏢</div>
-                <h4 style={styles.utilityTitle}>company_intelligence_aggregator.py</h4>
-                <p style={styles.utilityDesc}>Aggregate and enrich company data</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>🧹</div>
-                <h4 style={styles.utilityTitle}>graph_cleanup.py</h4>
-                <p style={styles.utilityDesc}>Fix MENTIONED_IN and duplicate relationships</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>📈</div>
-                <h4 style={styles.utilityTitle}>progress_tracker.py</h4>
-                <p style={styles.utilityDesc}>Real-time progress monitoring with ETA</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>🔁</div>
-                <h4 style={styles.utilityTitle}>retry.py</h4>
-                <p style={styles.utilityDesc}>Exponential backoff for API calls</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>📅</div>
-                <h4 style={styles.utilityTitle}>temporal_analyzer.py</h4>
-                <p style={styles.utilityDesc}>Time-based trend analysis</p>
-              </div>
-              <div style={styles.utilityCard}>
-                <div style={styles.utilityIcon}>☁️</div>
-                <h4 style={styles.utilityTitle}>aura_graph_analytics.py</h4>
-                <p style={styles.utilityDesc}>Neo4j Aura GDS integration</p>
-              </div>
-            </div>
           </div>
         </section>
 
         {/* GraphRAG Section */}
         <section id="graphrag" style={styles.section}>
-          <h1 style={styles.h1}>🧠 GraphRAG Query System</h1>
+          <h1 style={styles.h1}>◢ GRAPHRAG QUERY SYSTEM ◣</h1>
           
-          <div style={styles.diagramCard}>
-            <h3 style={styles.diagramTitle}>Query Processing Flow</h3>
-            <div style={styles.queryFlow}>
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>1</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>📝 User Query</div>
-                  <div style={styles.queryStepDesc}>Natural language question</div>
-                  <div style={styles.queryExample}>"Which AI startups raised funding?"</div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>2</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🔀 Query Routing</div>
-                  <div style={styles.queryStepDesc}>Classify query type & select strategy</div>
-                  <div style={styles.queryTypes}>
-                    <span style={styles.queryType}>Entity</span>
-                    <span style={styles.queryType}>Relationship</span>
-                    <span style={styles.queryType}>Comparison</span>
-                    <span style={styles.queryType}>Aggregation</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>3</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🔍 Hybrid Search</div>
-                  <div style={styles.queryStepDesc}>Parallel semantic + keyword search</div>
-                  <div style={styles.searchMethods}>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🔢</div>
-                      <div>Vector Similarity</div>
-                    </div>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🔤</div>
-                      <div>Keyword Match</div>
-                    </div>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🕸️</div>
-                      <div>Graph Traversal</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>4</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🎯 Context Retrieval</div>
-                  <div style={styles.queryStepDesc}>Extract relevant entities & relationships</div>
-                  <div style={styles.contextBox}>
-                    <div style={styles.contextItem}>• Companies with AI technology</div>
-                    <div style={styles.contextItem}>• Funding relationships</div>
-                    <div style={styles.contextItem}>• Investment amounts & dates</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>5</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🤖 LLM Generation</div>
-                  <div style={styles.queryStepDesc}>Generate natural language answer</div>
-                  <div style={styles.answerBox}>
-                    "Based on the knowledge graph, 3 AI startups raised funding: 
-                    OpenAI ($10B from Microsoft), Anthropic ($450M from Google), 
-                    and Stability AI ($101M from Coatue)."
-                  </div>
-                </div>
-              </div>
+          <div style={styles.retroBox}>
+            <div style={styles.retroBoxHeader}>
+              <span>QUERY_FLOW.DAT</span>
             </div>
-          </div>
-
-          <div style={styles.infoBox}>
-            <div style={styles.infoIcon}>💡</div>
-            <div>
-              <strong>Hybrid RAG combines:</strong> Vector embeddings for semantic similarity, 
-              keyword search for exact matches, and graph traversal for relationship discovery.
+            <div style={styles.queryFlow}>
+              {[
+                { num: '01', title: 'USER QUERY', desc: 'Natural language input', color: '#c084fc' },
+                { num: '02', title: 'QUERY ROUTING', desc: 'Classify & select strategy', color: '#66d9ef' },
+                { num: '03', title: 'HYBRID SEARCH', desc: 'Semantic + keyword match', color: '#facc15' },
+                { num: '04', title: 'CONTEXT RETRIEVAL', desc: 'Extract entities & relations', color: '#4ade80' },
+                { num: '05', title: 'LLM GENERATION', desc: 'Generate natural answer', color: '#fb923c' },
+              ].map((step, idx) => (
+                <React.Fragment key={idx}>
+                  <div style={styles.queryStep}>
+                    <div style={{...styles.queryNum, backgroundColor: step.color}}>{step.num}</div>
+                    <div style={styles.queryContent}>
+                      <div style={styles.queryTitle}>{step.title}</div>
+                      <div style={styles.queryDesc}>{step.desc}</div>
+                    </div>
+                  </div>
+                  {idx < 4 && (
+                    <div style={styles.queryArrowContainer}>
+                      <div style={styles.queryArrow}>▼</div>
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Entity Model Section */}
+        {/* Entities Section */}
         <section id="entities" style={styles.section}>
-          <h1 style={styles.h1}>📊 Entity & Relationship Model</h1>
+          <h1 style={styles.h1}>◢ ENTITY & RELATIONSHIP MODEL ◣</h1>
           
-          <div style={styles.diagramCard}>
-            <h3 style={styles.diagramTitle}>Knowledge Graph Schema</h3>
-            <div style={styles.entityDiagram}>
-              <div style={styles.entityGroup}>
-                <div style={styles.entityGroupTitle}>Core Entities</div>
-                <div style={styles.entityRow}>
-                  <div style={{...styles.entity, ...styles.entityCompany}}>
-                    <div style={styles.entityIcon}>🏢</div>
-                    <div style={styles.entityName}>Company</div>
-                    <div style={styles.entityProps}>name, founded, employees, headquarters</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityPerson}}>
-                    <div style={styles.entityIcon}>👤</div>
-                    <div style={styles.entityName}>Person</div>
-                    <div style={styles.entityProps}>name, role, title</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityInvestor}}>
-                    <div style={styles.entityIcon}>💰</div>
-                    <div style={styles.entityName}>Investor</div>
-                    <div style={styles.entityProps}>name, type, portfolio</div>
-                  </div>
+          <div style={styles.retroBox}>
+            <div style={styles.retroBoxHeader}>
+              <span>ENTITY_SCHEMA.DB</span>
+            </div>
+            <div style={styles.entityGrid}>
+              {[
+                { type: 'COMPANY', icon: '◆', color: '#c084fc' },
+                { type: 'PERSON', icon: '◈', color: '#66d9ef' },
+                { type: 'INVESTOR', icon: '◉', color: '#facc15' },
+                { type: 'TECHNOLOGY', icon: '◐', color: '#4ade80' },
+                { type: 'PRODUCT', icon: '▣', color: '#fb923c' },
+                { type: 'FUNDING', icon: '▶', color: '#f472b6' },
+                { type: 'LOCATION', icon: '◇', color: '#a78bfa' },
+                { type: 'EVENT', icon: '▸', color: '#f87171' },
+              ].map((entity, idx) => (
+                <div key={idx} className="retro-card" style={{...styles.entityCard, borderColor: entity.color}}>
+                  <div style={{...styles.entityIcon, color: entity.color}}>{entity.icon}</div>
+                  <div style={styles.entityType}>{entity.type}</div>
                 </div>
-              </div>
-
-              <div style={styles.relationshipLines}>
-                <svg width="100%" height="80" style={{overflow: 'visible'}}>
-                  <defs>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-                      <polygon points="0 0, 10 3, 0 6" fill="#64748b" />
-                    </marker>
-                  </defs>
-                  <line x1="20%" y1="10" x2="50%" y2="70" stroke="#64748b" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                  <line x1="50%" y1="10" x2="50%" y2="70" stroke="#64748b" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                  <line x1="80%" y1="10" x2="50%" y2="70" stroke="#64748b" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                  
-                  <text x="15%" y="45" fill="#64748b" fontSize="11" fontWeight="600">FOUNDED_BY</text>
-                  <text x="45%" y="45" fill="#64748b" fontSize="11" fontWeight="600">WORKS_AT</text>
-                  <text x="70%" y="45" fill="#64748b" fontSize="11" fontWeight="600">FUNDED_BY</text>
-                </svg>
-              </div>
-
-              <div style={styles.entityGroup}>
-                <div style={styles.entityGroupTitle}>Supporting Entities</div>
-                <div style={styles.entityRow}>
-                  <div style={{...styles.entity, ...styles.entityTech}}>
-                    <div style={styles.entityIcon}>⚙️</div>
-                    <div style={styles.entityName}>Technology</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityProduct}}>
-                    <div style={styles.entityIcon}>📦</div>
-                    <div style={styles.entityName}>Product</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityFunding}}>
-                    <div style={styles.entityIcon}>💵</div>
-                    <div style={styles.entityName}>FundingRound</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityLocation}}>
-                    <div style={styles.entityIcon}>📍</div>
-                    <div style={styles.entityName}>Location</div>
-                  </div>
-                  <div style={{...styles.entity, ...styles.entityEvent}}>
-                    <div style={styles.entityIcon}>🎯</div>
-                    <div style={styles.entityName}>Event</div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          <div style={styles.relationshipGrid}>
-            <h3 style={styles.subsectionTitle}>Relationship Types (15+)</h3>
-            <div style={styles.relationshipList}>
+          <div style={styles.relationshipBox}>
+            <div style={styles.relationshipHeader}>RELATIONSHIP_TYPES.DAT</div>
+            <div style={styles.relationshipGrid}>
               {[
                 'FUNDED_BY', 'FOUNDED_BY', 'WORKS_AT', 'ACQUIRED', 'PARTNERS_WITH',
                 'COMPETES_WITH', 'USES_TECHNOLOGY', 'LOCATED_IN', 'ANNOUNCED_AT',
                 'INVESTS_IN', 'ADVISES', 'LEADS', 'COLLABORATES_WITH', 'REGULATES',
                 'OPPOSES', 'SUPPORTS', 'MENTIONED_IN'
-              ].map(rel => (
-                <div key={rel} style={styles.relationshipBadge}>{rel}</div>
+              ].map((rel, idx) => (
+                <div key={idx} style={styles.relationshipBadge}>
+                  <span style={styles.relationshipText}>{rel}</span>
+                </div>
               ))}
-            </div>
-          </div>
-
-          {/* Entity Properties */}
-          <div style={styles.entityPropertiesSection}>
-            <h3 style={styles.subsectionTitle}>Enriched Entity Properties</h3>
-            <div style={styles.propertiesGrid}>
-              <div style={styles.propertyCard}>
-                <h4 style={styles.propertyTitle}>Company Properties</h4>
-                <ul style={styles.propertyList}>
-                  <li>name, id, description</li>
-                  <li>headquarters, founded_year</li>
-                  <li>founders, employees_count</li>
-                  <li>products, technologies</li>
-                  <li>funding_total, funding_stage</li>
-                  <li>website_url, social_links</li>
-                  <li>enrichment_status, embedding</li>
-                </ul>
-              </div>
-              <div style={styles.propertyCard}>
-                <h4 style={styles.propertyTitle}>Person Properties</h4>
-                <ul style={styles.propertyList}>
-                  <li>name, id, description</li>
-                  <li>role, title</li>
-                  <li>company affiliations</li>
-                  <li>embedding vector</li>
-                </ul>
-              </div>
-              <div style={styles.propertyCard}>
-                <h4 style={styles.propertyTitle}>Article Properties</h4>
-                <ul style={styles.propertyList}>
-                  <li>id, title, url</li>
-                  <li>published_date, author</li>
-                  <li>content, summary</li>
-                  <li>category, tags</li>
-                  <li>embedding vector</li>
-                </ul>
-              </div>
             </div>
           </div>
         </section>
 
-        {/* API Reference Section */}
+        {/* API Section */}
         <section id="api" style={styles.section}>
-          <h1 style={styles.h1}>🔌 API Reference</h1>
+          <h1 style={styles.h1}>◢ API REFERENCE ◣</h1>
           
-          <p style={styles.lead}>
-            The platform provides 40+ REST API endpoints for querying the knowledge graph, 
-            semantic search, entity management, and analytics.
-          </p>
-
           <div style={styles.apiGrid}>
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>POST</div>
-              <div style={styles.apiEndpoint}>/query</div>
-              <div style={styles.apiDesc}>Execute natural language query with GraphRAG</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl -X POST http://localhost:8000/query \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "question": "Which AI startups raised funding?",
-    "use_llm": true
-  }'`}
-                </pre>
+            {[
+              { method: 'POST', endpoint: '/query', desc: 'Execute GraphRAG query' },
+              { method: 'POST', endpoint: '/search/semantic', desc: 'Vector similarity search' },
+              { method: 'POST', endpoint: '/search/hybrid', desc: 'Combined search' },
+              { method: 'GET', endpoint: '/company/{name}', desc: 'Get company details' },
+              { method: 'GET', endpoint: '/investors/top', desc: 'Top investors' },
+              { method: 'GET', endpoint: '/health', desc: 'System health check' },
+            ].map((api, idx) => (
+              <div key={idx} className="retro-card" style={styles.apiCard}>
+                <div style={styles.apiMethod}>[{api.method}]</div>
+                <div style={styles.apiEndpoint}>{api.endpoint}</div>
+                <div style={styles.apiDesc}>{api.desc}</div>
               </div>
-            </div>
-
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>POST</div>
-              <div style={styles.apiEndpoint}>/search/semantic</div>
-              <div style={styles.apiDesc}>Vector similarity search with embeddings</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl -X POST http://localhost:8000/search/semantic \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "query": "artificial intelligence",
-    "limit": 10
-  }'`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>POST</div>
-              <div style={styles.apiEndpoint}>/search/hybrid</div>
-              <div style={styles.apiDesc}>Combined semantic + keyword search</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl -X POST http://localhost:8000/search/hybrid \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "query": "fintech startups",
-    "limit": 10
-  }'`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>GET</div>
-              <div style={styles.apiEndpoint}>/company/{'{name}'}</div>
-              <div style={styles.apiDesc}>Get company details and relationships</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl http://localhost:8000/company/OpenAI`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>GET</div>
-              <div style={styles.apiEndpoint}>/investors/top</div>
-              <div style={styles.apiDesc}>Get most active investors</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl http://localhost:8000/investors/top?limit=20`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.apiCard}>
-              <div style={styles.apiMethod}>GET</div>
-              <div style={styles.apiEndpoint}>/health</div>
-              <div style={styles.apiDesc}>Check API and database connectivity</div>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`curl http://localhost:8000/health`}
-                </pre>
-              </div>
-            </div>
+            ))}
           </div>
 
-          <div style={styles.infoBox}>
-            <div style={styles.infoIcon}>📖</div>
-            <div>
-              <strong>Full API Documentation:</strong> Visit{' '}
-              <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" style={styles.link}>
-                http://localhost:8000/docs
-              </a>{' '}
-              for interactive Swagger UI with all 40+ endpoints, request/response schemas, and try-it-out functionality.
-            </div>
-          </div>
-
-          {/* Quick Links */}
-          <div style={styles.quickLinksSection}>
-            <h2 style={styles.subsectionTitle}>🔗 Quick Links</h2>
-            <div style={styles.quickLinksGrid}>
-              <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer" style={styles.quickLinkCard}>
-                <div style={styles.quickLinkIcon}>⚛️</div>
-                <div style={styles.quickLinkTitle}>React Frontend</div>
-                <div style={styles.quickLinkUrl}>http://localhost:5173</div>
-              </a>
-              <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" style={styles.quickLinkCard}>
-                <div style={styles.quickLinkIcon}>📚</div>
-                <div style={styles.quickLinkTitle}>API Docs</div>
-                <div style={styles.quickLinkUrl}>http://localhost:8000/docs</div>
-              </a>
-              <a href="https://console.neo4j.io/" target="_blank" rel="noopener noreferrer" style={styles.quickLinkCard}>
-                <div style={styles.quickLinkIcon}>☁️</div>
-                <div style={styles.quickLinkTitle}>Neo4j Aura Console</div>
-                <div style={styles.quickLinkUrl}>console.neo4j.io</div>
-              </a>
-              <a href="http://localhost:8000/health" target="_blank" rel="noopener noreferrer" style={styles.quickLinkCard}>
-                <div style={styles.quickLinkIcon}>💚</div>
-                <div style={styles.quickLinkTitle}>Health Check</div>
-                <div style={styles.quickLinkUrl}>http://localhost:8000/health</div>
-              </a>
-            </div>
+          <div style={styles.linkGrid}>
+            <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer" className="retro-card" style={styles.linkCard}>
+              <div style={styles.linkIcon}>◆</div>
+              <div style={styles.linkTitle}>FRONTEND</div>
+              <div style={styles.linkUrl}>:5173</div>
+            </a>
+            <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="retro-card" style={styles.linkCard}>
+              <div style={styles.linkIcon}>◈</div>
+              <div style={styles.linkTitle}>API DOCS</div>
+              <div style={styles.linkUrl}>:8000/docs</div>
+            </a>
+            <a href="https://console.neo4j.io/" target="_blank" rel="noopener noreferrer" className="retro-card" style={styles.linkCard}>
+              <div style={styles.linkIcon}>◉</div>
+              <div style={styles.linkTitle}>NEO4J AURA</div>
+              <div style={styles.linkUrl}>console.neo4j.io</div>
+            </a>
+            <a href="http://localhost:8000/health" target="_blank" rel="noopener noreferrer" className="retro-card" style={styles.linkCard}>
+              <div style={styles.linkIcon}>◐</div>
+              <div style={styles.linkTitle}>HEALTH</div>
+              <div style={styles.linkUrl}>:8000/health</div>
+            </a>
           </div>
         </section>
 
         {/* Deployment Section */}
         <section id="deployment" style={styles.section}>
-          <h1 style={styles.h1}>🚀 Deployment & Configuration</h1>
+          <h1 style={styles.h1}>◢ DEPLOYMENT & CONFIG ◣</h1>
           
-          {/* Configuration */}
-          <div style={styles.configSection}>
-            <h2 style={styles.subsectionTitle}>🔧 Configuration</h2>
-            
-            <div style={styles.configGrid}>
-              <div style={styles.configCard}>
-                <h4 style={styles.configTitle}>Backend (.env)</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Required
-OPENAI_API_KEY=sk-your-key
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # Aura
-# NEO4J_URI=bolt://localhost:7687  # Local Docker
+          <div style={styles.deployGrid}>
+            {[
+              { icon: '◆', title: 'LOCAL DEV', desc: 'Docker Compose setup' },
+              { icon: '◈', title: 'NEO4J AURA', desc: 'Cloud database' },
+              { icon: '◉', title: 'REMOTE SERVER', desc: 'VM deployment' },
+            ].map((deploy, idx) => (
+              <div key={idx} className="retro-card" style={styles.deployCard}>
+                <div style={styles.deployIcon}>{deploy.icon}</div>
+                <div style={styles.deployTitle}>{deploy.title}</div>
+                <div style={styles.deployDesc}>{deploy.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.codeBox}>
+            <div style={styles.codeHeader}>
+              <span>CONFIG.ENV</span>
+            </div>
+            <pre style={styles.codeContent}>
+{`OPENAI_API_KEY=sk-your-key
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your-password
-
-# Optional
 API_HOST=0.0.0.0
 API_PORT=8000
 RAG_EMBEDDING_BACKEND=sentence-transformers
 SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.configCard}>
-                <h4 style={styles.configTitle}>Frontend (frontend/.env.local)</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Local development
-VITE_API_BASE_URL=http://localhost:8000
-
-# Remote server
-VITE_API_BASE_URL=http://YOUR_SERVER_PUBLIC_IP:8000`}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Deployment Options */}
-          <h2 style={{...styles.subsectionTitle, marginTop: '48px'}}>Deployment Options</h2>
-          
-          <div style={styles.deploymentGrid}>
-            <div style={styles.deploymentCard}>
-              <div style={styles.deploymentIcon}>🐳</div>
-              <h3 style={styles.deploymentTitle}>Local Development</h3>
-              <p style={styles.deploymentDesc}>Docker Compose with all services</p>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`# Start all services
-docker-compose up -d
-python api.py
-cd frontend && npm run dev
-
-# Access
-http://localhost:5173  # Frontend
-http://localhost:8000  # API
-http://localhost:7474  # Neo4j Browser`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.deploymentCard}>
-              <div style={styles.deploymentIcon}>☁️</div>
-              <h3 style={styles.deploymentTitle}>Neo4j Aura</h3>
-              <p style={styles.deploymentDesc}>Managed cloud database</p>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`# .env configuration
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
-
-# Enable GDS (Graph Data Science)
-# Contact Aura support for GDS access
-# Required for community detection features`}
-                </pre>
-              </div>
-            </div>
-
-            <div style={styles.deploymentCard}>
-              <div style={styles.deploymentIcon}>🖥️</div>
-              <h3 style={styles.deploymentTitle}>Remote Server</h3>
-              <p style={styles.deploymentDesc}>Deploy on VM or cloud instance</p>
-              <div style={styles.codeBlock}>
-                <pre style={styles.code}>
-{`# On your server
-./start_all.sh
-
-# Configure firewall
-sudo ufw allow 8000/tcp  # API
-sudo ufw allow 5173/tcp  # Frontend
-sudo ufw allow 7474/tcp  # Neo4j Browser
-sudo ufw allow 7687/tcp  # Neo4j Bolt
-
-# Access from local browser
-http://YOUR_SERVER_PUBLIC_IP:5173`}
-                </pre>
-              </div>
-            </div>
+            </pre>
           </div>
         </section>
 
         {/* Quick Start Section */}
         <section id="quickstart" style={styles.section}>
-          <h1 style={styles.h1}>⚡ Quick Start Guide (5 Minutes)</h1>
+          <h1 style={styles.h1}>◢ QUICK START GUIDE ◣</h1>
           
-          <div style={styles.quickstartSteps}>
-            <div style={styles.quickstartStep}>
-              <div style={styles.quickstartNumber}>1</div>
-              <div style={styles.quickstartContent}>
-                <h3 style={styles.quickstartTitle}>Prerequisites</h3>
-                <ul style={styles.quickstartList}>
-                  <li>Python 3.11+</li>
-                  <li>Node.js 18+ (for frontend)</li>
-                  <li>Neo4j (Docker or Aura cloud)</li>
-                  <li>OpenAI API key</li>
-                </ul>
-              </div>
-            </div>
-
-            <div style={styles.quickstartStep}>
-              <div style={styles.quickstartNumber}>2</div>
-              <div style={styles.quickstartContent}>
-                <h3 style={styles.quickstartTitle}>Install & Setup</h3>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cat > .env << 'EOF'
-OPENAI_API_KEY=sk-your-openai-api-key
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # or bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
-API_HOST=0.0.0.0
-API_PORT=8000
-RAG_EMBEDDING_BACKEND=sentence-transformers
-SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
-EOF
-
-# Start Neo4j (if using Docker)
-docker-compose up -d`}
-                  </pre>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.quickstartStep}>
-              <div style={styles.quickstartNumber}>3</div>
-              <div style={styles.quickstartContent}>
-                <h3 style={styles.quickstartTitle}>Run Pipeline</h3>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Build knowledge graph (embeddings generated automatically!)
-python pipeline.py \\
-  --scrape-category startups \\
-  --scrape-max-pages 2 \\
-  --max-articles 10`}
-                  </pre>
-                </div>
-                <p style={styles.quickstartNote}>
-                  This automatically runs all phases:<br/>
-                  <strong>1.</strong> Web Scraping - TechCrunch article extraction<br/>
-                  <strong>2.</strong> Entity Extraction - GPT-4o NER and relationships<br/>
-                  <strong>3.</strong> Company Intelligence Enrichment - Deep company data via Playwright<br/>
-                  <strong>4.</strong> Graph Construction - Build Neo4j knowledge graph<br/>
-                  <strong>5.</strong> Post-Processing - Embeddings, deduplication, communities
-                </p>
-              </div>
-            </div>
-
-            <div style={styles.quickstartStep}>
-              <div style={styles.quickstartNumber}>4</div>
-              <div style={styles.quickstartContent}>
-                <h3 style={styles.quickstartTitle}>Start Services</h3>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Start everything
-./start_all.sh
-
-# Access from local machine: http://YOUR_VM_IP:5173
-# Access locally: http://localhost:5173`}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{...styles.infoBox, backgroundColor: '#dcfce7', borderColor: '#86efac'}}>
-            <div style={styles.infoIcon}>🎉</div>
-            <div>
-              <strong>You're all set!</strong> The application is now running. 
-              Try asking questions like "Which AI startups raised funding?" or 
-              "Show me companies founded by former Google employees."
-            </div>
-          </div>
-
-          {/* Additional Commands */}
-          <div style={styles.commandsSection}>
-            <h2 style={styles.subsectionTitle}>📋 Common Commands</h2>
-            
-            <div style={styles.commandGrid}>
-              <div style={styles.commandCard}>
-                <h4 style={styles.commandTitle}>Pipeline Options</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Full pipeline (automatic embeddings!)
-python pipeline.py --scrape-category startups --scrape-max-pages 2 --max-articles 10
-
-# Use existing articles
-python pipeline.py --skip-scraping --max-articles 50
-
-# Use existing extractions
-python pipeline.py --skip-scraping --skip-extraction`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.commandCard}>
-                <h4 style={styles.commandTitle}>Service Management</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Start all (API + Frontend in tmux)
-./start_all.sh
-
-# Start API only
-python api.py
-
-# Start frontend only
-cd frontend && npm run dev
-
-# Stop all
-tmux kill-session -t graphrag`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.commandCard}>
-                <h4 style={styles.commandTitle}>Query Methods</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Via React UI
-open http://localhost:5173
-
-# Via API docs
-open http://localhost:8000/docs
-
-# Via Python
-python -c "from rag_query import create_rag_query; rag = create_rag_query(); print(rag.query('Which AI startups raised funding?')['answer']); rag.close()"
-
-# Via cURL
-curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d '{"question": "Which AI startups raised funding?", "use_llm": true}'`}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Troubleshooting */}
-          <div style={styles.troubleshootingSection}>
-            <h2 style={styles.subsectionTitle}>🐛 Troubleshooting</h2>
-            
-            <div style={styles.troubleshootingGrid}>
-              <div style={styles.troubleshootingCard}>
-                <h4 style={styles.troubleshootingTitle}>❌ Queries Return "No Relevant Context"</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Check embeddings
-python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); result = driver.session().run('MATCH (n) WHERE n.embedding IS NOT NULL RETURN count(n) as count'); print(f'Embeddings: {result.single()[\"count\"]}'); driver.close()"
-
-# Generate embeddings if needed
-python -c "from neo4j import GraphDatabase; from utils.embedding_generator import EmbeddingGenerator; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); gen = EmbeddingGenerator(driver, 'sentence-transformers'); gen.generate_embeddings_for_all_entities(); driver.close()"`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.troubleshootingCard}>
-                <h4 style={styles.troubleshootingTitle}>❌ Neo4j Connection Failed</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Check Neo4j
-docker ps | grep neo4j
-
-# Start Neo4j
-docker-compose up -d
-
-# Test connection
-python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); driver.verify_connectivity(); print('✓ Connected'); driver.close()"`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.troubleshootingCard}>
-                <h4 style={styles.troubleshootingTitle}>❌ Frontend Not Accessible</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Check services
-sudo netstat -tulpn | grep -E '8000|5173'
-
-# Check firewall
-sudo ufw status | grep -E '8000|5173'
-
-# Add firewall rules
-sudo ufw allow 8000/tcp
-sudo ufw allow 5173/tcp`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.troubleshootingCard}>
-                <h4 style={styles.troubleshootingTitle}>❌ Chat Not Working</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Hard refresh browser: Ctrl + Shift + R
-# Check browser console (F12) for errors
-# Verify API: curl http://YOUR_VM_IP:8000/health`}
-                  </pre>
-                </div>
-              </div>
-
-              <div style={styles.troubleshootingCard}>
-                <h4 style={styles.troubleshootingTitle}>❌ Port Already in Use</h4>
-                <div style={styles.codeBlock}>
-                  <pre style={styles.code}>
-{`# Kill existing services
-tmux kill-session -t graphrag
-
-# Restart
-./start_all.sh`}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Technology Stack Section */}
-        <section id="tech-stack" style={styles.section}>
-          <h1 style={styles.h1}>🛠️ Technology Stack</h1>
-          
-          <div style={styles.techStackSection}>
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>Backend & API</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🐍</div>
-                  <div style={styles.techItemName}>Python 3.11+</div>
-                  <div style={styles.techItemDesc}>Core language</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>⚡</div>
-                  <div style={styles.techItemName}>FastAPI</div>
-                  <div style={styles.techItemDesc}>REST API framework</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🦄</div>
-                  <div style={styles.techItemName}>Uvicorn</div>
-                  <div style={styles.techItemDesc}>ASGI server</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>✅</div>
-                  <div style={styles.techItemName}>Pydantic</div>
-                  <div style={styles.techItemDesc}>Data validation</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>AI & NLP</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🤖</div>
-                  <div style={styles.techItemName}>GPT-4o</div>
-                  <div style={styles.techItemDesc}>Entity extraction</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🔗</div>
-                  <div style={styles.techItemName}>LangChain</div>
-                  <div style={styles.techItemDesc}>LLM orchestration</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🔢</div>
-                  <div style={styles.techItemName}>Sentence Transformers</div>
-                  <div style={styles.techItemDesc}>BAAI/bge-small-en-v1.5</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>📊</div>
-                  <div style={styles.techItemName}>NumPy</div>
-                  <div style={styles.techItemDesc}>Vector operations</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>Database & Graph</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🗄️</div>
-                  <div style={styles.techItemName}>Neo4j Aura</div>
-                  <div style={styles.techItemDesc}>Cloud graph database</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>📈</div>
-                  <div style={styles.techItemName}>Graph Data Science</div>
-                  <div style={styles.techItemDesc}>Community detection</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🕸️</div>
-                  <div style={styles.techItemName}>NetworkX</div>
-                  <div style={styles.techItemDesc}>Graph algorithms</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🔌</div>
-                  <div style={styles.techItemName}>Neo4j Driver 5.0+</div>
-                  <div style={styles.techItemDesc}>Python client</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>Web Scraping</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🕷️</div>
-                  <div style={styles.techItemName}>Crawl4AI</div>
-                  <div style={styles.techItemDesc}>Article extraction</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🎭</div>
-                  <div style={styles.techItemName}>Playwright</div>
-                  <div style={styles.techItemDesc}>Company intelligence</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🥣</div>
-                  <div style={styles.techItemName}>BeautifulSoup4</div>
-                  <div style={styles.techItemDesc}>HTML parsing</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>📄</div>
-                  <div style={styles.techItemName}>lxml</div>
-                  <div style={styles.techItemDesc}>XML processing</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>Frontend</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>⚛️</div>
-                  <div style={styles.techItemName}>React 18</div>
-                  <div style={styles.techItemDesc}>UI framework</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>📘</div>
-                  <div style={styles.techItemName}>TypeScript</div>
-                  <div style={styles.techItemDesc}>Type safety</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>⚡</div>
-                  <div style={styles.techItemName}>Vite</div>
-                  <div style={styles.techItemDesc}>Build tool</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>📝</div>
-                  <div style={styles.techItemName}>React Markdown</div>
-                  <div style={styles.techItemDesc}>Content rendering</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.techCategory}>
-              <h3 style={styles.techCategoryTitle}>DevOps & Utilities</h3>
-              <div style={styles.techGrid}>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🐳</div>
-                  <div style={styles.techItemName}>Docker</div>
-                  <div style={styles.techItemDesc}>Containerization</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🔧</div>
-                  <div style={styles.techItemName}>Docker Compose</div>
-                  <div style={styles.techItemDesc}>Multi-container</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>💻</div>
-                  <div style={styles.techItemName}>tmux</div>
-                  <div style={styles.techItemDesc}>Session management</div>
-                </div>
-                <div style={styles.techItem}>
-                  <div style={styles.techItemIcon}>🔐</div>
-                  <div style={styles.techItemName}>python-dotenv</div>
-                  <div style={styles.techItemDesc}>Environment config</div>
-                </div>
-              </div>
-            </div>
+          <div style={styles.startGrid}>
+            {[
+              { num: '01', title: 'INSTALL DEPS', cmd: 'pip install -r requirements.txt' },
+              { num: '02', title: 'CONFIGURE ENV', cmd: 'cp .env.example .env' },
+              { num: '03', title: 'START NEO4J', cmd: 'docker-compose up -d' },
+              { num: '04', title: 'RUN PIPELINE', cmd: 'python pipeline.py' },
+              { num: '05', title: 'START SERVICES', cmd: './start_all.sh' },
+              { num: '06', title: 'ACCESS APP', cmd: 'open http://localhost:5173' },
+            ].map((step, idx) => (
+              <div key={idx} className="retro-card" style={styles.startCard}>
+                <div style={styles.startNum}>{step.num}</div>
+                <div style={styles.startTitle}>{step.title}</div>
+                <div style={styles.startCmd}>$ {step.cmd}</div>
+      </div>
+            ))}
           </div>
         </section>
 
         {/* Footer */}
         <footer style={styles.footer}>
+          <div style={styles.footerBorder}></div>
           <div style={styles.footerContent}>
-            <div style={styles.footerSection}>
-              <h4 style={styles.footerTitle}>Project Info</h4>
-              <div style={styles.projectInfo}>
-                <div style={styles.projectInfoItem}>📦 38+ API Endpoints</div>
-                <div style={styles.projectInfoItem}>🗄️ Neo4j Aura Cloud</div>
-                <div style={styles.projectInfoItem}>🤖 GPT-4o Powered</div>
-                <div style={styles.projectInfoItem}>⚡ Production Ready</div>
-              </div>
+            <div style={styles.footerText}>
+              ◢◣ STARTUP INTELLIGENCE ANALYSIS PLATFORM ◢◣
             </div>
-            <div style={styles.footerSection}>
-              <h4 style={styles.footerTitle}>Key Technologies</h4>
-              <div style={styles.techStack}>
-                <span style={styles.techBadge}>Python 3.11</span>
-                <span style={styles.techBadge}>Neo4j Aura</span>
-                <span style={styles.techBadge}>FastAPI</span>
-                <span style={styles.techBadge}>React 18</span>
-                <span style={styles.techBadge}>GPT-4o</span>
-                <span style={styles.techBadge}>LangChain</span>
-                <span style={styles.techBadge}>Sentence Transformers</span>
-                <span style={styles.techBadge}>Playwright</span>
-              </div>
+            <div style={styles.footerTech}>
+              POWERED BY: PYTHON • NEO4J • FASTAPI • REACT • GPT-4O • LANGCHAIN
             </div>
-          </div>
-          <div style={styles.footerBottom}>
-            🚀 Startup Intelligence Analysis Platform • Built with ❤️ for intelligent startup analysis
-          </div>
+            <div style={styles.footerVersion}>
+              SYSTEM VERSION 2.0.25 • BUILD 20251122
+        </div>
+      </div>
+          <div style={styles.footerBorder}></div>
         </footer>
       </main>
     </div>
   );
 };
 
-// Styles
+// Retro Styles
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
     display: 'flex',
     minHeight: '100vh',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0a0a0a',
+    fontFamily: "'VT323', monospace",
+    color: '#0ff',
+    position: 'relative',
   },
   sidebar: {
-    width: '280px',
-    backgroundColor: '#ffffff',
-    borderRight: '1px solid #e2e8f0',
+    width: '200px',
+    backgroundColor: '#000',
+    borderRight: '2px solid #66d9ef',
     position: 'sticky' as const,
     top: 0,
     height: '100vh',
     overflowY: 'auto' as const,
     flexShrink: 0,
+    boxShadow: '0 0 15px rgba(102, 217, 239, 0.3)',
   },
   sidebarHeader: {
-    padding: '24px 20px',
-    borderBottom: '1px solid #e2e8f0',
+    padding: '12px',
+    borderBottom: '2px solid #66d9ef',
+    backgroundColor: '#000',
+  },
+  terminalTop: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '15px',
+  },
+  terminalDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: '#66d9ef',
+    boxShadow: '0 0 6px #66d9ef',
   },
   sidebarTitle: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 700,
-    color: '#1e293b',
+    margin: '0 0 8px 0',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    textShadow: '0 0 8px #66d9ef',
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '1px',
+  },
+  blinkingCursor: {
+    animation: 'blink 1s infinite',
+    color: '#ff00ff',
+  },
+  statusBar: {
+    padding: '5px',
+    backgroundColor: '#0a0a0a',
+    border: '1px solid #0ff',
+    marginTop: '6px',
+  },
+  statusText: {
+    fontSize: '9px',
+    color: '#4ade80',
+    textShadow: '0 0 4px #4ade80',
   },
   nav: {
-    padding: '16px 8px',
+    padding: '8px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '4px',
@@ -1299,877 +580,615 @@ const styles: { [key: string]: React.CSSProperties } = {
   navItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    border: 'none',
-    backgroundColor: 'transparent',
-    color: '#64748b',
-    fontSize: '15px',
-    fontWeight: 500,
+    gap: '8px',
+    padding: '8px 10px',
+    border: '1px solid #66d9ef',
+    backgroundColor: '#000',
+    color: '#66d9ef',
+    fontSize: '12px',
+    fontWeight: 'bold',
     cursor: 'pointer',
-    borderRadius: '8px',
-    transition: 'all 0.2s',
+    transition: 'all 0.3s',
     textAlign: 'left' as const,
+    position: 'relative' as const,
+    animation: 'slideIn 0.5s ease-out',
   },
   navItemActive: {
-    backgroundColor: '#f1f5f9',
-    color: '#3b82f6',
-    fontWeight: 600,
+    backgroundColor: '#66d9ef',
+    color: '#000',
+    boxShadow: '0 0 20px #66d9ef',
   },
   navIcon: {
-    fontSize: '18px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  navText: {
+    flex: 1,
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '9px',
+  },
+  activeIndicator: {
+    color: '#c084fc',
+    fontSize: '12px',
+    animation: 'blink 1s infinite',
+  },
+  sidebarFooter: {
+    padding: '12px',
+    borderTop: '2px solid #66d9ef',
+    marginTop: 'auto',
+  },
+  pixelBorder: {
+    height: '6px',
+    background: 'repeating-linear-gradient(90deg, #0ff 0px, #0ff 3px, transparent 3px, transparent 6px)',
+    marginBottom: '6px',
+  },
+  versionInfo: {
+    textAlign: 'center' as const,
+    fontSize: '9px',
+    color: '#66d9ef',
+    fontFamily: "'Press Start 2P', monospace",
   },
   content: {
     flex: 1,
-    padding: '40px 60px',
+    padding: '20px 30px',
     maxWidth: '1400px',
     margin: '0 auto',
     width: '100%',
+    overflowY: 'auto' as const,
   },
   section: {
-    marginBottom: '80px',
+    marginBottom: '40px',
+  },
+  glitchContainer: {
+    position: 'relative' as const,
+    marginBottom: '20px',
   },
   h1: {
-    fontSize: '36px',
-    fontWeight: 700,
-    color: '#0f172a',
-    marginBottom: '16px',
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '12px',
     marginTop: 0,
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 8px #66d9ef, 0 0 15px #66d9ef, 2px 2px 0 #c084fc',
+    animation: 'glow 2s infinite',
+    letterSpacing: '1px',
   },
-  lead: {
-    fontSize: '18px',
-    color: '#475569',
-    lineHeight: 1.7,
-    marginBottom: '40px',
+  subtitleBar: {
+    padding: '8px',
+    backgroundColor: '#000',
+    border: '2px solid #c084fc',
+    marginBottom: '15px',
+    textAlign: 'center' as const,
+    boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)',
+  },
+  subtitle: {
+    fontSize: '11px',
+    color: '#c084fc',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 8px #c084fc',
+    letterSpacing: '1px',
+  },
+  terminalBox: {
+    backgroundColor: '#000',
+    border: '2px solid #66d9ef',
+    padding: '12px',
+    marginBottom: '15px',
+    boxShadow: '0 0 20px rgba(102, 217, 239, 0.2)',
+  },
+  terminalHeader: {
+    color: '#66d9ef',
+    fontSize: '11px',
+    marginBottom: '8px',
+    paddingBottom: '6px',
+    borderBottom: '1px solid #66d9ef',
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  terminalText: {
+    fontSize: '12px',
+    lineHeight: 1.5,
+    color: '#66d9ef',
+    margin: 0,
+  },
+  typingText: {
+    color: '#facc15',
+    textShadow: '0 0 5px #facc15',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+    gap: '10px',
+    marginBottom: '20px',
+  },
+  statCard: {
+    backgroundColor: '#000',
+    border: '2px solid #c084fc',
+    padding: '12px',
+    textAlign: 'center' as const,
+    transition: 'all 0.3s',
+    position: 'relative' as const,
+  },
+  statIcon: {
+    fontSize: '20px',
+    color: '#c084fc',
+    marginBottom: '6px',
+    textShadow: '0 0 8px #c084fc',
+  },
+  statNumber: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 10px #66d9ef',
+  },
+  statLabel: {
+    fontSize: '9px',
+    color: '#facc15',
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '0.5px',
+  },
+  statBar: {
+    height: '3px',
+    backgroundColor: '#c084fc',
+    marginTop: '8px',
+    boxShadow: '0 0 8px #c084fc',
   },
   featureGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '24px',
-    marginTop: '32px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '10px',
   },
   featureCard: {
-    backgroundColor: '#ffffff',
-    padding: '28px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    backgroundColor: '#000',
+    border: '1px solid #66d9ef',
+    padding: '12px',
+    textAlign: 'center' as const,
     transition: 'all 0.3s',
-    cursor: 'default',
   },
   featureIcon: {
-    fontSize: '40px',
-    marginBottom: '16px',
+    fontSize: '22px',
+    color: '#c084fc',
+    marginBottom: '8px',
+    textShadow: '0 0 8px #c084fc',
   },
   featureTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '8px',
-    marginTop: 0,
+    fontSize: '9px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '0.5px',
+  },
+  featureLine: {
+    height: '1px',
+    backgroundColor: '#66d9ef',
+    margin: '6px 0',
+    boxShadow: '0 0 3px #66d9ef',
   },
   featureDesc: {
-    fontSize: '14px',
-    color: '#64748b',
-    lineHeight: 1.6,
-    margin: 0,
+    fontSize: '10px',
+    color: '#facc15',
+    lineHeight: 1.4,
   },
-  diagramCard: {
-    backgroundColor: '#ffffff',
-    padding: '32px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-    marginBottom: '24px',
+  retroBox: {
+    backgroundColor: '#000',
+    border: '2px solid #c084fc',
+    marginBottom: '15px',
+    boxShadow: '0 0 20px rgba(192, 132, 252, 0.2)',
+    display: 'block',
+    visibility: 'visible',
+    opacity: 1,
   },
-  diagramTitle: {
-    fontSize: '20px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
-    marginBottom: '28px',
+  retroBoxHeader: {
+    padding: '8px',
+    backgroundColor: '#c084fc',
+    color: '#000',
+    fontSize: '10px',
+    fontWeight: 'bold',
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '1px',
   },
   architectureDiagram: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '16px',
+    padding: '15px',
+    display: 'block',
+    visibility: 'visible',
   },
   architectureLayer: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
+    marginBottom: '15px',
   },
   layerTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#64748b',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
+    fontSize: '10px',
+    fontWeight: 'bold',
+    padding: '6px',
+    border: '1px solid',
+    marginBottom: '8px',
+    textAlign: 'center' as const,
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '1px',
+    textShadow: '0 0 8px currentColor',
   },
   componentRow: {
     display: 'flex',
-    gap: '16px',
-    justifyContent: 'space-between',
+    gap: '8px',
+    justifyContent: 'center',
+    flexWrap: 'wrap' as const,
+    marginBottom: '6px',
   },
   component: {
-    flex: 1,
-    padding: '20px',
-    borderRadius: '8px',
-    border: '2px solid',
+    flex: '1 1 100px',
+    minWidth: '100px',
+    maxWidth: '130px',
+    padding: '10px',
+    border: '1px solid',
+    backgroundColor: '#000',
     textAlign: 'center' as const,
+    transition: 'all 0.3s',
   },
-  componentReact: {
-    borderColor: '#61dafb',
-    backgroundColor: '#f0fdff',
+  componentText: {
+    fontSize: '8px',
+    color: '#66d9ef',
+    fontFamily: "'Press Start 2P', monospace",
+    lineHeight: 1.3,
+    textShadow: '0 0 4px #66d9ef',
   },
-  componentApi: {
-    borderColor: '#10b981',
-    backgroundColor: '#f0fdf4',
-  },
-  componentProcess: {
-    borderColor: '#8b5cf6',
-    backgroundColor: '#faf5ff',
-  },
-  componentData: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#fffbeb',
-  },
-  componentIcon: {
-    fontSize: '28px',
-    marginBottom: '8px',
-  },
-  componentName: {
-    fontSize: '15px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '4px',
-  },
-  componentDesc: {
-    fontSize: '12px',
-    color: '#64748b',
-  },
-  arrow: {
+  layerArrow: {
     textAlign: 'center' as const,
-    fontSize: '24px',
-    color: '#94a3b8',
-    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#facc15',
+    margin: '8px 0',
+    textShadow: '0 0 8px #facc15',
   },
   pipelineFlow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    justifyContent: 'center',
+    padding: '15px',
     overflowX: 'auto' as const,
-    padding: '8px 0',
+    flexWrap: 'nowrap' as const,
+    minWidth: '100%',
   },
   pipelineStep: {
-    minWidth: '180px',
-    padding: '20px',
-    backgroundColor: '#ffffff',
-    borderRadius: '8px',
-    border: '2px solid',
+    minWidth: '110px',
+    maxWidth: '120px',
+    padding: '10px',
+    backgroundColor: '#000',
+    border: '1px solid',
     textAlign: 'center' as const,
+    transition: 'all 0.3s',
+    flexShrink: 0,
+  },
+  pipelineArrowContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 10px',
+    flexShrink: 0,
   },
   pipelinePhase: {
-    display: 'inline-block',
-    padding: '4px 12px',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 700,
-    color: '#ffffff',
-    marginBottom: '12px',
-    textTransform: 'uppercase' as const,
+    padding: '4px 6px',
+    fontSize: '8px',
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
     letterSpacing: '0.5px',
   },
-  pipelineIcon: {
-    fontSize: '32px',
-    marginBottom: '8px',
-  },
   pipelineTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '6px',
-  },
-  pipelineDesc: {
-    fontSize: '12px',
-    color: '#64748b',
-    lineHeight: 1.4,
-    marginBottom: '8px',
+    fontSize: '9px',
+    fontWeight: 'bold',
+    color: '#0ff',
+    marginBottom: '4px',
+    fontFamily: "'Press Start 2P', monospace",
   },
   pipelineTech: {
-    fontSize: '10px',
-    color: '#94a3b8',
-    fontFamily: 'monospace',
-    fontStyle: 'italic' as const,
+    fontSize: '9px',
+    color: '#ffff00',
   },
   pipelineArrow: {
     fontSize: '24px',
-    color: '#cbd5e1',
+    color: '#ff00ff',
+    textShadow: '0 0 10px #ff00ff, 0 0 15px #ff00ff',
     fontWeight: 'bold',
-    flexShrink: 0,
+    animation: 'blink 1.5s infinite',
+  },
+  codeBox: {
+    backgroundColor: '#000',
+    border: '2px solid #4ade80',
+    marginBottom: '15px',
+    boxShadow: '0 0 20px rgba(74, 222, 128, 0.2)',
+  },
+  codeHeader: {
+    padding: '8px',
+    backgroundColor: '#4ade80',
+    color: '#000',
+    fontSize: '10px',
+    fontWeight: 'bold',
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  codeContent: {
+    padding: '12px',
+    fontSize: '11px',
+    lineHeight: 1.5,
+    color: '#4ade80',
+    margin: 0,
+    overflowX: 'auto' as const,
+    textShadow: '0 0 4px #4ade80',
   },
   queryFlow: {
+    padding: '15px',
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '16px',
+    gap: '12px',
+    alignItems: 'center' as const,
   },
   queryStep: {
     display: 'flex',
-    gap: '20px',
-    alignItems: 'flex-start',
-  },
-  queryStepNumber: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
-    display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '18px',
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  queryStepContent: {
-    flex: 1,
-  },
-  queryStepTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '6px',
-  },
-  queryStepDesc: {
-    fontSize: '14px',
-    color: '#64748b',
-    marginBottom: '12px',
-  },
-  queryExample: {
-    padding: '12px 16px',
-    backgroundColor: '#f8fafc',
-    borderLeft: '3px solid #3b82f6',
-    borderRadius: '4px',
-    fontSize: '14px',
-    color: '#475569',
-    fontStyle: 'italic' as const,
-  },
-  queryTypes: {
-    display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap' as const,
-  },
-  queryType: {
-    padding: '6px 12px',
-    backgroundColor: '#e0f2fe',
-    color: '#0369a1',
-    borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: 600,
-  },
-  searchMethods: {
-    display: 'flex',
-    gap: '16px',
-    marginTop: '8px',
-  },
-  searchMethod: {
-    flex: 1,
-    padding: '12px',
-    backgroundColor: '#f8fafc',
-    borderRadius: '6px',
-    textAlign: 'center' as const,
-    fontSize: '13px',
-    color: '#475569',
-    fontWeight: 500,
-  },
-  searchIcon: {
-    fontSize: '20px',
-    marginBottom: '4px',
-  },
-  contextBox: {
-    padding: '16px',
-    backgroundColor: '#fef3c7',
-    borderRadius: '6px',
-    marginTop: '8px',
-  },
-  contextItem: {
-    fontSize: '13px',
-    color: '#78350f',
-    marginBottom: '4px',
-  },
-  answerBox: {
-    padding: '16px',
-    backgroundColor: '#dcfce7',
-    borderRadius: '6px',
-    fontSize: '14px',
-    color: '#14532d',
-    lineHeight: 1.6,
-    marginTop: '8px',
-  },
-  queryArrow: {
-    textAlign: 'center' as const,
-    fontSize: '24px',
-    color: '#cbd5e1',
-    fontWeight: 'bold',
-    marginLeft: '20px',
-  },
-  entityDiagram: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '24px',
-  },
-  entityGroup: {
-    display: 'flex',
-    flexDirection: 'column' as const,
     gap: '12px',
-  },
-  entityGroupTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#64748b',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
-  },
-  entityRow: {
-    display: 'flex',
-    gap: '12px',
-    flexWrap: 'wrap' as const,
-  },
-  entity: {
-    flex: '1 1 150px',
-    padding: '16px',
-    borderRadius: '8px',
-    border: '2px solid',
-    textAlign: 'center' as const,
-  },
-  entityCompany: {
-    borderColor: '#3b82f6',
-    backgroundColor: '#eff6ff',
-  },
-  entityPerson: {
-    borderColor: '#8b5cf6',
-    backgroundColor: '#faf5ff',
-  },
-  entityInvestor: {
-    borderColor: '#10b981',
-    backgroundColor: '#f0fdf4',
-  },
-  entityTech: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#fffbeb',
-  },
-  entityProduct: {
-    borderColor: '#ec4899',
-    backgroundColor: '#fdf2f8',
-  },
-  entityFunding: {
-    borderColor: '#06b6d4',
-    backgroundColor: '#f0fdfa',
-  },
-  entityLocation: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fef2f2',
-  },
-  entityEvent: {
-    borderColor: '#6366f1',
-    backgroundColor: '#eef2ff',
-  },
-  entityIcon: {
-    fontSize: '24px',
-    marginBottom: '8px',
-  },
-  entityName: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '4px',
-  },
-  entityProps: {
-    fontSize: '11px',
-    color: '#64748b',
-  },
-  relationshipLines: {
-    margin: '0 auto',
     width: '100%',
     maxWidth: '600px',
   },
-  subsectionTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '16px',
-    marginTop: '32px',
-  },
-  relationshipGrid: {
-    marginTop: '32px',
-  },
-  relationshipList: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: '8px',
-  },
-  relationshipBadge: {
-    padding: '8px 14px',
-    backgroundColor: '#f1f5f9',
-    color: '#475569',
-    borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: 600,
-    fontFamily: 'monospace',
-  },
-  codeBlock: {
-    backgroundColor: '#1e293b',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    marginTop: '16px',
-  },
-  codeHeader: {
-    padding: '12px 16px',
-    backgroundColor: '#0f172a',
-    borderBottom: '1px solid #334155',
-  },
-  codeTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#94a3b8',
-  },
-  code: {
-    margin: 0,
-    padding: '20px',
-    color: '#e2e8f0',
-    fontSize: '13px',
-    lineHeight: 1.6,
-    fontFamily: 'Monaco, Consolas, monospace',
-    overflow: 'auto' as const,
-  },
-  infoBox: {
-    display: 'flex',
-    gap: '16px',
-    padding: '16px 20px',
-    backgroundColor: '#dbeafe',
-    border: '1px solid #93c5fd',
-    borderRadius: '8px',
-    marginTop: '24px',
-    fontSize: '14px',
-    color: '#1e3a8a',
-    lineHeight: 1.6,
-  },
-  infoIcon: {
-    fontSize: '20px',
-    flexShrink: 0,
-  },
-  link: {
-    color: '#2563eb',
-    textDecoration: 'none',
-    fontWeight: 600,
-  },
-  quickLinksSection: {
-    marginTop: '48px',
-  },
-  quickLinksGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '16px',
-    marginTop: '20px',
-  },
-  quickLinkCard: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    padding: '24px',
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    border: '2px solid #e2e8f0',
-    textDecoration: 'none',
-    transition: 'all 0.3s',
-    cursor: 'pointer',
-  },
-  quickLinkIcon: {
-    fontSize: '32px',
-    marginBottom: '12px',
-  },
-  quickLinkTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '6px',
-  },
-  quickLinkUrl: {
-    fontSize: '12px',
-    color: '#64748b',
-    fontFamily: 'monospace',
-  },
-  apiGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-    gap: '24px',
-  },
-  apiCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  apiMethod: {
-    display: 'inline-block',
-    padding: '4px 10px',
-    backgroundColor: '#10b981',
-    color: '#ffffff',
-    borderRadius: '4px',
-    fontSize: '12px',
-    fontWeight: 700,
-    marginBottom: '12px',
-  },
-  apiEndpoint: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    fontFamily: 'monospace',
-    marginBottom: '8px',
-  },
-  apiDesc: {
-    fontSize: '14px',
-    color: '#64748b',
-    marginBottom: '16px',
-  },
-  configSection: {
-    marginBottom: '32px',
-  },
-  configGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-    gap: '24px',
-    marginTop: '20px',
-  },
-  configCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  configTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
-    marginBottom: '16px',
-  },
-  deploymentGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-    gap: '24px',
-  },
-  deploymentCard: {
-    backgroundColor: '#ffffff',
-    padding: '28px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  deploymentIcon: {
-    fontSize: '48px',
-    marginBottom: '16px',
-  },
-  deploymentTitle: {
-    fontSize: '20px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '8px',
-    marginTop: 0,
-  },
-  deploymentDesc: {
-    fontSize: '14px',
-    color: '#64748b',
-    marginBottom: '20px',
-  },
-  quickstartSteps: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '32px',
-  },
-  quickstartStep: {
-    display: 'flex',
-    gap: '24px',
-    alignItems: 'flex-start',
-  },
-  quickstartNumber: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
+  queryNum: {
+    width: '35px',
+    height: '35px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '20px',
-    fontWeight: 700,
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#000',
+    fontFamily: "'Press Start 2P', monospace",
     flexShrink: 0,
+    boxShadow: '0 0 12px currentColor',
   },
-  quickstartContent: {
+  queryContent: {
     flex: 1,
+    padding: '10px',
+    border: '1px solid #66d9ef',
+    backgroundColor: '#000',
   },
-  quickstartTitle: {
+  queryTitle: {
+    fontSize: '10px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '4px',
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  queryDesc: {
+    fontSize: '10px',
+    color: '#facc15',
+  },
+  queryArrowContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: '800px',
+    padding: '5px 0',
+  },
+  queryArrow: {
     fontSize: '20px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
-    marginBottom: '12px',
+    color: '#c084fc',
+    textAlign: 'center' as const,
+    textShadow: '0 0 10px #c084fc, 0 0 15px #c084fc',
+    fontWeight: 'bold',
+    animation: 'blink 1.5s infinite',
   },
-  quickstartList: {
-    margin: 0,
-    paddingLeft: '20px',
-    color: '#475569',
-    fontSize: '15px',
-    lineHeight: 1.8,
-  },
-  quickstartNote: {
-    marginTop: '12px',
-    fontSize: '14px',
-    color: '#64748b',
-    lineHeight: 1.7,
-    padding: '12px 16px',
-    backgroundColor: '#f8fafc',
-    borderRadius: '6px',
-    borderLeft: '3px solid #3b82f6',
-  },
-  commandsSection: {
-    marginTop: '48px',
-  },
-  commandGrid: {
+  entityGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-    gap: '24px',
-    marginTop: '20px',
-  },
-  commandCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  commandTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
-    marginBottom: '16px',
-  },
-  troubleshootingSection: {
-    marginTop: '48px',
-  },
-  troubleshootingGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
-    gap: '24px',
-    marginTop: '20px',
-  },
-  troubleshootingCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  troubleshootingTitle: {
-    fontSize: '15px',
-    fontWeight: 600,
-    color: '#dc2626',
-    marginTop: 0,
-    marginBottom: '16px',
-  },
-  footer: {
-    marginTop: '80px',
-    padding: '40px 0',
-    borderTop: '1px solid #e2e8f0',
-  },
-  footerContent: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '32px',
-    marginBottom: '24px',
-  },
-  footerSection: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
-  },
-  footerTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1e293b',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
-    marginTop: 0,
-    marginBottom: 0,
-  },
-  footerLinks: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
     gap: '8px',
+    padding: '15px',
   },
-  footerLink: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-    fontSize: '14px',
-    fontWeight: 500,
+  entityCard: {
+    padding: '12px',
+    backgroundColor: '#000',
+    border: '1px solid',
+    textAlign: 'center' as const,
+    transition: 'all 0.3s',
   },
-  techStack: {
+  entityIcon: {
+    fontSize: '22px',
+    marginBottom: '6px',
+    textShadow: '0 0 8px currentColor',
+  },
+  entityType: {
+    fontSize: '9px',
+    color: '#66d9ef',
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  relationshipBox: {
+    backgroundColor: '#000',
+    border: '2px solid #facc15',
+    padding: '12px',
+    marginTop: '15px',
+    boxShadow: '0 0 20px rgba(250, 204, 21, 0.2)',
+  },
+  relationshipHeader: {
+    fontSize: '10px',
+    fontWeight: 'bold',
+    color: '#facc15',
+    marginBottom: '10px',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 8px #facc15',
+  },
+  relationshipGrid: {
     display: 'flex',
     flexWrap: 'wrap' as const,
-    gap: '8px',
+    gap: '6px',
   },
-  techBadge: {
-    padding: '6px 12px',
-    backgroundColor: '#f1f5f9',
-    color: '#475569',
-    borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: 600,
+  relationshipBadge: {
+    padding: '5px 8px',
+    border: '1px solid #facc15',
+    backgroundColor: '#000',
   },
-  footerBottom: {
-    textAlign: 'center' as const,
-    color: '#94a3b8',
-    fontSize: '14px',
-    paddingTop: '24px',
-    borderTop: '1px solid #f1f5f9',
+  relationshipText: {
+    fontSize: '8px',
+    color: '#facc15',
+    fontFamily: "'Press Start 2P', monospace",
   },
-  statsGrid: {
+  apiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: '20px',
-    marginTop: '32px',
-    marginBottom: '32px',
-  },
-  statCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '2px solid #e2e8f0',
-    textAlign: 'center' as const,
-  },
-  statNumber: {
-    fontSize: '36px',
-    fontWeight: 700,
-    color: '#3b82f6',
-    marginBottom: '8px',
-  },
-  statLabel: {
-    fontSize: '14px',
-    color: '#64748b',
-    fontWeight: 500,
-  },
-  techStackSection: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '32px',
-  },
-  techCategory: {
-    backgroundColor: '#ffffff',
-    padding: '28px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-  },
-  techCategoryTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '10px',
     marginBottom: '20px',
   },
-  techGrid: {
+  apiCard: {
+    backgroundColor: '#000',
+    border: '1px solid #66d9ef',
+    padding: '12px',
+    transition: 'all 0.3s',
+  },
+  apiMethod: {
+    fontSize: '9px',
+    color: '#4ade80',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 4px #4ade80',
+  },
+  apiEndpoint: {
+    fontSize: '11px',
+    color: '#66d9ef',
+    marginBottom: '6px',
+    fontWeight: 'bold',
+  },
+  apiDesc: {
+    fontSize: '10px',
+    color: '#facc15',
+  },
+  linkGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '16px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+    gap: '10px',
   },
-  techItem: {
-    padding: '16px',
-    backgroundColor: '#f8fafc',
-    borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+  linkCard: {
+    backgroundColor: '#000',
+    border: '1px solid #c084fc',
+    padding: '12px',
     textAlign: 'center' as const,
-  },
-  techItemIcon: {
-    fontSize: '24px',
-    marginBottom: '8px',
-  },
-  techItemName: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginBottom: '4px',
-  },
-  techItemDesc: {
-    fontSize: '12px',
-    color: '#64748b',
-  },
-  projectInfo: {
+    textDecoration: 'none',
+    transition: 'all 0.3s',
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '8px',
+    alignItems: 'center',
   },
-  projectInfoItem: {
-    fontSize: '14px',
-    color: '#64748b',
-    fontWeight: 500,
+  linkIcon: {
+    fontSize: '22px',
+    color: '#c084fc',
+    marginBottom: '6px',
+    textShadow: '0 0 8px #c084fc',
   },
-  utilitySection: {
-    marginTop: '48px',
+  linkTitle: {
+    fontSize: '9px',
+    color: '#66d9ef',
+    marginBottom: '4px',
+    fontFamily: "'Press Start 2P', monospace",
   },
-  utilityGrid: {
+  linkUrl: {
+    fontSize: '9px',
+    color: '#facc15',
+  },
+  deployGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '16px',
-    marginTop: '20px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '10px',
+    marginBottom: '15px',
   },
-  utilityCard: {
-    backgroundColor: '#ffffff',
-    padding: '20px',
-    borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+  deployCard: {
+    backgroundColor: '#000',
+    border: '2px solid #4ade80',
+    padding: '15px',
     textAlign: 'center' as const,
+    transition: 'all 0.3s',
   },
-  utilityIcon: {
+  deployIcon: {
     fontSize: '28px',
-    marginBottom: '12px',
-  },
-  utilityTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
+    color: '#4ade80',
     marginBottom: '8px',
-    fontFamily: 'monospace',
+    textShadow: '0 0 10px #4ade80',
   },
-  utilityDesc: {
-    fontSize: '12px',
-    color: '#64748b',
-    lineHeight: 1.5,
-    margin: 0,
+  deployTitle: {
+    fontSize: '9px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
   },
-  entityPropertiesSection: {
-    marginTop: '32px',
+  deployDesc: {
+    fontSize: '10px',
+    color: '#facc15',
   },
-  propertiesGrid: {
+  startGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '20px',
-    marginTop: '20px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '10px',
   },
-  propertyCard: {
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+  startCard: {
+    backgroundColor: '#000',
+    border: '1px solid #c084fc',
+    padding: '12px',
+    transition: 'all 0.3s',
   },
-  propertyTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e293b',
-    marginTop: 0,
-    marginBottom: '12px',
+  startNum: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#c084fc',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 8px #c084fc',
   },
-  propertyList: {
-    margin: 0,
-    paddingLeft: '20px',
-    fontSize: '13px',
-    color: '#64748b',
-    lineHeight: 1.8,
+  startTitle: {
+    fontSize: '9px',
+    fontWeight: 'bold',
+    color: '#66d9ef',
+    marginBottom: '6px',
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  startCmd: {
+    fontSize: '10px',
+    color: '#4ade80',
+    padding: '6px',
+    backgroundColor: '#0a0a0a',
+    border: '1px solid #4ade80',
+    textShadow: '0 0 4px #4ade80',
+  },
+  footer: {
+    marginTop: '40px',
+    paddingBottom: '20px',
+  },
+  footerBorder: {
+    height: '3px',
+    background: 'repeating-linear-gradient(90deg, #66d9ef 0px, #66d9ef 6px, #c084fc 6px, #c084fc 12px, #facc15 12px, #facc15 18px)',
+    marginBottom: '10px',
+    boxShadow: '0 0 8px rgba(102, 217, 239, 0.3)',
+  },
+  footerContent: {
+    textAlign: 'center' as const,
+    padding: '15px',
+    backgroundColor: '#000',
+    border: '2px solid #66d9ef',
+    boxShadow: '0 0 20px rgba(102, 217, 239, 0.2)',
+  },
+  footerText: {
+    fontSize: '11px',
+    color: '#66d9ef',
+    marginBottom: '8px',
+    fontFamily: "'Press Start 2P', monospace",
+    textShadow: '0 0 8px #66d9ef',
+    letterSpacing: '1px',
+  },
+  footerTech: {
+    fontSize: '9px',
+    color: '#facc15',
+    marginBottom: '8px',
+    fontFamily: "'Press Start 2P', monospace",
+    letterSpacing: '0.5px',
+  },
+  footerVersion: {
+    fontSize: '8px',
+    color: '#c084fc',
+    fontFamily: "'Press Start 2P', monospace",
   },
 };
 
