@@ -525,11 +525,15 @@ function ChatMessageBubble({
 }
 
 function ContextDataDisplay({ context }: { context: any }) {
-  // Handle array of context items (typically companies/entities)
+  // Handle array of context items
   if (Array.isArray(context)) {
     if (context.length === 0) {
       return <div style={styles.contextEmpty}>No context data available.</div>;
     }
+    
+    // Check if this is article context (has url/title/text) or entity context (has name/description)
+    const firstItem = context[0];
+    const isArticleContext = firstItem && (firstItem.url || firstItem.title || firstItem.text);
     
     return (
       <div style={styles.contextContainer}>
@@ -537,58 +541,134 @@ function ContextDataDisplay({ context }: { context: any }) {
           Found {context.length} {context.length === 1 ? 'result' : 'results'}
         </div>
         <div style={styles.contextList}>
-          {context.map((item: any, index: number) => (
-            <div key={item.id || index} style={styles.contextItem}>
-              <div style={styles.contextItemHeader}>
-                <h4 style={styles.contextItemName}>{item.name || item.id || `Item ${index + 1}`}</h4>
-                {item.mention_count !== undefined && (
-                  <span style={styles.contextBadge}>{item.mention_count} mentions</span>
+          {context.map((item: any, index: number) => {
+            // Article context display
+            if (isArticleContext) {
+              return (
+                <div key={item.article_id || item.url || index} style={styles.contextItem}>
+                  <div style={styles.contextItemHeader}>
+                    <h4 style={styles.contextItemName}>{item.title || 'Untitled Article'}</h4>
+                    {item.score !== undefined && (
+                      <span style={styles.contextBadge}>Score: {item.score.toFixed(3)}</span>
+                    )}
+                  </div>
+                  
+                  {item.url && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>Source:</strong>{' '}
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={styles.contextLink}
+                      >
+                        {item.url}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {item.text && (
+                    <div style={styles.contextDescription}>
+                      {item.text.length > 300 ? `${item.text.substring(0, 300)}...` : item.text}
+                    </div>
+                  )}
+                  
+                  {item.article_id && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>Article ID:</strong> <code style={styles.contextCode}>{item.article_id}</code>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            // Entity context display (original format)
+            return (
+              <div key={item.id || index} style={styles.contextItem}>
+                <div style={styles.contextItemHeader}>
+                  <h4 style={styles.contextItemName}>{item.name || item.id || `Item ${index + 1}`}</h4>
+                  {item.mention_count !== undefined && (
+                    <span style={styles.contextBadge}>{item.mention_count} mentions</span>
+                  )}
+                </div>
+                
+                {item.description && (
+                  <div style={styles.contextDescription}>{item.description}</div>
                 )}
-              </div>
-              
-              {item.description && (
-                <div style={styles.contextDescription}>{item.description}</div>
-              )}
-              
-              <div style={styles.contextMeta}>
-                {item.investors && Array.isArray(item.investors) && item.investors.length > 0 && (
+                
+                {(item.url || (item.article_urls && item.article_urls.length > 0)) && (
                   <div style={styles.contextMetaRow}>
-                    <strong>Investors:</strong>
-                    <div style={styles.contextTags}>
-                      {item.investors.map((investor: string, i: number) => (
-                        <span key={i} style={styles.contextTag}>{investor}</span>
-                      ))}
+                    <strong>Source {item.article_urls && item.article_urls.length > 1 ? 'Articles' : 'Article'}:</strong>
+                    <div style={styles.contextUrls}>
+                      {item.url ? (
+                        <a 
+                          href={item.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={styles.contextLink}
+                        >
+                          {item.url}
+                        </a>
+                      ) : null}
+                      {item.article_urls && item.article_urls.length > 0 && (
+                        <>
+                          {item.article_urls.map((url: string, idx: number) => (
+                            <a 
+                              key={idx}
+                              href={url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={styles.contextLink}
+                            >
+                              {url}
+                            </a>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
                 
-                {item.investor_count !== undefined && item.investor_count > 0 && (
-                  <div style={styles.contextMetaRow}>
-                    <strong>Investor Count:</strong> {item.investor_count}
-                  </div>
-                )}
-                
-                {item.latest_announcement && (
-                  <div style={styles.contextMetaRow}>
-                    <strong>Latest Announcement:</strong>{' '}
-                    {new Date(item.latest_announcement).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
-                )}
-                
-                {item.id && (
-                  <div style={styles.contextMetaRow}>
-                    <strong>ID:</strong> <code style={styles.contextCode}>{item.id}</code>
-                  </div>
-                )}
+                <div style={styles.contextMeta}>
+                  {item.investors && Array.isArray(item.investors) && item.investors.length > 0 && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>Investors:</strong>
+                      <div style={styles.contextTags}>
+                        {item.investors.map((investor: string, i: number) => (
+                          <span key={i} style={styles.contextTag}>{investor}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {item.investor_count !== undefined && item.investor_count > 0 && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>Investor Count:</strong> {item.investor_count}
+                    </div>
+                  )}
+                  
+                  {item.latest_announcement && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>Latest Announcement:</strong>{' '}
+                      {new Date(item.latest_announcement).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  )}
+                  
+                  {item.id && (
+                    <div style={styles.contextMetaRow}>
+                      <strong>ID:</strong> <code style={styles.contextCode}>{item.id}</code>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -622,11 +702,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: '200px 2fr 290px',
     gap: 16,
-    height: 'calc(100vh - 140px)',
-    minHeight: 700,
+    height: '100%',
+    minHeight: 0,
     width: '100%',
     boxSizing: 'border-box',
-    maxWidth: '100%'
+    maxWidth: '100%',
+    overflow: 'hidden'
   },
   historySidebar: {
     display: 'flex',
@@ -1031,6 +1112,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#0f172a',
     borderRadius: 4,
     fontFamily: 'monospace'
+  },
+  contextUrls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    marginTop: 4
+  },
+  contextLink: {
+    color: '#0ea5e9',
+    textDecoration: 'none',
+    fontSize: 12,
+    wordBreak: 'break-all',
+    transition: 'all 0.2s',
+    lineHeight: 1.4
   },
   contextEmpty: {
     padding: 16,

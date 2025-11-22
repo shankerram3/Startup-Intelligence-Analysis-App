@@ -1,11 +1,21 @@
 """
 Community Detection for Knowledge Graph
 Detect communities of related entities using graph algorithms
+Supports both Aura Graph Analytics (GDS Sessions) and simple fallback
 """
 
 from typing import Dict, List, Optional, Tuple
 from neo4j import GraphDatabase, Driver
 import json
+import os
+from dotenv import load_dotenv
+
+# Try to import Aura Graph Analytics
+try:
+    from utils.aura_graph_analytics import AuraGraphAnalytics
+    AURA_GDS_AVAILABLE = True
+except (ImportError, ValueError):
+    AURA_GDS_AVAILABLE = False
 
 
 class CommunityDetector:
@@ -13,6 +23,21 @@ class CommunityDetector:
     
     def __init__(self, driver: Driver):
         self.driver = driver
+        self.aura_gds = None
+        
+        # Try to initialize Aura Graph Analytics if available
+        load_dotenv()
+        if AURA_GDS_AVAILABLE:
+            try:
+                # Check if Aura API credentials are available
+                if os.getenv("AURA_API_CLIENT_ID") and os.getenv("AURA_API_CLIENT_SECRET"):
+                    self.aura_gds = AuraGraphAnalytics()
+                    print("✅ Aura Graph Analytics initialized (will use advanced algorithms)")
+                else:
+                    print("ℹ️  Aura Graph Analytics not configured (missing API credentials)")
+            except Exception as e:
+                print(f"⚠️  Aura Graph Analytics not available: {e}")
+                self.aura_gds = None
     
     def detect_communities(self, algorithm: str = "leiden", min_community_size: int = 3) -> Dict:
         """
@@ -25,6 +50,28 @@ class CommunityDetector:
         Returns:
             Dictionary with community information
         """
+        # Try Aura Graph Analytics first (if available)
+        if self.aura_gds:
+            try:
+                print(f"🚀 Using Aura Graph Analytics for {algorithm} algorithm...")
+                result = self.aura_gds.detect_communities(
+                    algorithm=algorithm,
+                    min_community_size=min_community_size
+                )
+                
+                # Results already written back by AuraGraphAnalytics
+                return {
+                    "algorithm": result["algorithm"],
+                    "total_communities": result["total_communities"],
+                    "communities": result["communities"],
+                    "method": result.get("method", "aura_graph_analytics")
+                }
+            except Exception as e:
+                print(f"⚠️  Aura Graph Analytics failed: {e}")
+                print("   Falling back to simple community detection...")
+                # Fall through to simple detection
+        
+        # Fallback: Use simple community detection or try direct GDS
         with self.driver.session() as session:
             if algorithm == "leiden":
                 return self._detect_leiden_communities(session, min_community_size)
@@ -41,13 +88,30 @@ class CommunityDetector:
         
         Note: Requires Neo4j Graph Data Science (GDS) library
         """
-        # Check if GDS is available
         try:
-            # Drop existing graph if it exists
+            # First check if GDS procedures are available
             try:
-                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+                gds_check = session.run("CALL dbms.procedures() YIELD name WHERE name STARTS WITH 'gds.' RETURN count(*) as count")
+                gds_count = gds_check.single()["count"] if gds_check.single() else 0
+                if gds_count == 0:
+                    raise Exception("GDS library not installed")
+            except Exception as e:
+                # Can't check GDS availability - assume it's not available
+                raise Exception("GDS library not available")
+            
+            # Drop existing graph if it exists (check first to avoid warnings)
+            try:
+                graph_exists = session.run("""
+                    CALL gds.graph.exists('entity-graph') 
+                    YIELD exists
+                    RETURN exists
+                """)
+                exists_record = graph_exists.single()
+                if exists_record and exists_record.get("exists"):
+                    session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
             except Exception:
-                pass  # Graph doesn't exist, that's fine
+                # Graph doesn't exist or can't check - that's fine, continue
+                pass
             
             # Create projection
             session.run("""
@@ -109,11 +173,29 @@ class CommunityDetector:
     def _detect_louvain_communities(self, session, min_size: int) -> Dict:
         """Detect communities using Louvain algorithm"""
         try:
-            # Drop existing graph if it exists
+            # First check if GDS procedures are available
             try:
-                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+                gds_check = session.run("CALL dbms.procedures() YIELD name WHERE name STARTS WITH 'gds.' RETURN count(*) as count")
+                gds_count = gds_check.single()["count"] if gds_check.single() else 0
+                if gds_count == 0:
+                    raise Exception("GDS library not installed")
+            except Exception as e:
+                # Can't check GDS availability - assume it's not available
+                raise Exception("GDS library not available")
+            
+            # Drop existing graph if it exists (check first to avoid warnings)
+            try:
+                graph_exists = session.run("""
+                    CALL gds.graph.exists('entity-graph') 
+                    YIELD exists
+                    RETURN exists
+                """)
+                exists_record = graph_exists.single()
+                if exists_record and exists_record.get("exists"):
+                    session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
             except Exception:
-                pass  # Graph doesn't exist, that's fine
+                # Graph doesn't exist or can't check - that's fine, continue
+                pass
             
             session.run("""
                 CALL gds.graph.project(
@@ -161,11 +243,29 @@ class CommunityDetector:
     def _detect_label_propagation_communities(self, session, min_size: int) -> Dict:
         """Detect communities using Label Propagation algorithm"""
         try:
-            # Drop existing graph if it exists
+            # First check if GDS procedures are available
             try:
-                session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+                gds_check = session.run("CALL dbms.procedures() YIELD name WHERE name STARTS WITH 'gds.' RETURN count(*) as count")
+                gds_count = gds_check.single()["count"] if gds_check.single() else 0
+                if gds_count == 0:
+                    raise Exception("GDS library not installed")
+            except Exception as e:
+                # Can't check GDS availability - assume it's not available
+                raise Exception("GDS library not available")
+            
+            # Drop existing graph if it exists (check first to avoid warnings)
+            try:
+                graph_exists = session.run("""
+                    CALL gds.graph.exists('entity-graph') 
+                    YIELD exists
+                    RETURN exists
+                """)
+                exists_record = graph_exists.single()
+                if exists_record and exists_record.get("exists"):
+                    session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
             except Exception:
-                pass  # Graph doesn't exist, that's fine
+                # Graph doesn't exist or can't check - that's fine, continue
+                pass
             
             session.run("""
                 CALL gds.graph.project(
@@ -297,6 +397,27 @@ class CommunityDetector:
                     WHERE NOT e:Article
                     SET e.community_id = $community_id
                 """, name=entity_name, community_id=community_id)
+    
+    def _write_communities_to_db(self, communities: Dict):
+        """
+        Write community IDs back to database from Aura Graph Analytics results
+        
+        Args:
+            communities: Dictionary mapping community_id to list of node IDs
+        """
+        # For Aura Graph Analytics, we get node IDs, not names
+        # We need to map node IDs back to entity names
+        # This is a simplified version - in practice, you'd need to get node names from the GDS Session
+        # For now, we'll use the simple community detection to map IDs to names
+        
+        print("   Note: Community IDs computed via Aura Graph Analytics")
+        print("   Using simple mapping to write back to database...")
+        
+        # Actually, we'll let the simple detection handle the write-back
+        # The Aura Graph Analytics result can be used for analysis, but we need
+        # to write back using entity names, which requires mapping node IDs to names
+        # For now, this is a placeholder - the simple detection will handle it
+        pass
     
     def get_community_summary(self, community_id: int) -> Dict:
         """Get summary information for a community"""

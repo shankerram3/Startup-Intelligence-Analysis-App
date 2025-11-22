@@ -312,6 +312,71 @@ class GraphRAGQuery:
         else:
             return {"intent": "general_search", "confidence": 0.5}
 
+    def _enrich_with_article_urls(self, context: Any) -> Any:
+        """
+        Enrich context results with article URLs from source_articles
+        
+        Args:
+            context: Context data (dict, list, or nested structure)
+            
+        Returns:
+            Context enriched with article URLs
+        """
+        if isinstance(context, list):
+            # Enrich each item in the list
+            enriched = []
+            for item in context:
+                if isinstance(item, dict):
+                    # Recursively enrich nested structures
+                    enriched_item = self._enrich_with_article_urls(item)
+                    enriched.append(enriched_item)
+                else:
+                    enriched.append(item)
+            return enriched
+        elif isinstance(context, dict):
+            # Enrich single entity or nested dict
+            enriched = dict(context)
+            
+            # If this dict has an entity ID, get article URLs
+            if enriched.get("id"):
+                entity_id = enriched["id"]
+                source_articles = enriched.get("source_articles")
+                article_urls = self._get_article_urls_for_entity(entity_id, source_articles)
+                if article_urls:
+                    enriched["article_urls"] = article_urls
+            
+            # Recursively enrich nested dicts (like portfolio, investors, etc.)
+            for key, value in enriched.items():
+                if isinstance(value, (dict, list)):
+                    enriched[key] = self._enrich_with_article_urls(value)
+            
+            return enriched
+        else:
+            return context
+    
+    def _get_article_urls_for_entity(self, entity_id: str, source_articles: Optional[List[str]] = None) -> List[str]:
+        """Get article URLs for an entity"""
+        with self.driver.session() as session:
+            if source_articles:
+                # Use provided article IDs
+                result = session.run("""
+                    UNWIND $article_ids as article_id
+                    MATCH (a:Article {id: article_id})
+                    RETURN collect(DISTINCT a.url) as urls
+                """, article_ids=source_articles)
+            else:
+                # Get from entity's source_articles property
+                result = session.run("""
+                    MATCH (e {id: $entity_id})
+                    WHERE e.source_articles IS NOT NULL
+                    UNWIND e.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
+                    RETURN collect(DISTINCT a.url) as urls
+                """, entity_id=entity_id)
+            
+            record = result.single()
+            return record["urls"] if record and record.get("urls") else []
+    
     def route_query(self, query: str, intent: Dict) -> Any:
         """
         Route query to appropriate handler based on intent
@@ -480,6 +545,10 @@ Answer:"""
 
         # Step 2: Route to appropriate handler and get context
         context = self.route_query(question, intent)
+        
+        # Step 2.5: Enrich context with article URLs
+        if context:
+            context = self._enrich_with_article_urls(context)
 
         # Step 3: Generate answer if LLM enabled
         answer = None

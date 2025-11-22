@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, startTransition } from 'react';
 import {
   fetchPipelineLogs,
   fetchPipelineStatus,
   PipelineStartRequest,
   PipelineStatus,
   startPipeline,
-  stopPipeline
+  stopPipeline,
+  clearPipelineLogs
 } from '../lib/api';
 
 type ConfigSection = 'scraping' | 'enrichment' | 'processing' | 'advanced';
@@ -54,6 +55,8 @@ export function EnhancedDashboardView() {
   const [activeSection, setActiveSection] = useState<ConfigSection>('scraping');
   const [opts, setOpts] = useState<PipelineStartRequest>(loadSavedOptions);
   const [status, setStatus] = useState<PipelineStatus>({ running: false });
+  const [presetKey, setPresetKey] = useState(0); // Force re-render key
+  const [lastPresetLoaded, setLastPresetLoaded] = useState<string | null>(null);
   const [logs, setLogs] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -62,24 +65,398 @@ export function EnhancedDashboardView() {
     current: number;
     total: number;
     percentage: number;
+    subPhase?: string;
+    subCurrent?: number;
+    subTotal?: number;
+    subPercentage?: number;
+    detail?: string;
   } | null>(null);
+  const [lastRunSummary, setLastRunSummary] = useState<{
+    phase: string;
+    articlesProcessed?: number;
+    companiesExtracted?: number;
+    entitiesExtracted?: number;
+    relationshipsCreated?: number;
+    companiesEnriched?: number;
+    nodesTotal?: number;
+    relationshipsTotal?: number;
+    errors?: number;
+  } | null>(null);
+
+  const [runHistory, setRunHistory] = useState<Array<{
+    id: string;
+    timestamp: Date;
+    duration: number;
+    status: 'completed' | 'stopped' | 'failed';
+    summary: {
+      phase: string;
+      articlesProcessed?: number;
+      companiesExtracted?: number;
+      errors?: number;
+    };
+    logs: string;
+  }>>(() => {
+    try {
+      // Check if history was manually cleared - if so, never restore it
+      const clearedFlag = localStorage.getItem('pipeline-history-cleared');
+      if (clearedFlag) {
+        // History was manually cleared, don't restore it
+        console.log('⏭️ Skipping history restore - was manually cleared');
+        return [];
+      }
+      
+      const saved = localStorage.getItem('pipeline-run-history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((r: any) => ({
+          ...r,
+          timestamp: new Date(r.timestamp)
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to load run history:', e);
+    }
+    return [];
+  });
+  const previousStatusRunningRef = useRef(false);
+  const currentRunStartTimeRef = useRef<Date | null>(null);
+  const logsManuallyClearedRef = useRef(false);
+  const manuallyStoppedRef = useRef(false);
+  const historyManuallyClearedRef = useRef(false);
+  const [currentRunDuration, setCurrentRunDuration] = useState(0);
+
+  // Save run history to localStorage
+  function saveRunHistory(history: typeof runHistory) {
+    try {
+      localStorage.setItem('pipeline-run-history', JSON.stringify(history));
+    } catch (e) {
+      console.error('Failed to save run history:', e);
+    }
+  }
 
   async function refresh() {
     try {
       const s = await fetchPipelineStatus();
-      setStatus(s);
       const l = await fetchPipelineLogs(500);
-      setLogs(l);
+      
+      const wasRunning = previousStatusRunningRef.current;
+      const isRunning = s.running;
+      
+      // Track when pipeline starts
+      if (isRunning && !wasRunning) {
+        console.log('🚀 Pipeline started - tracking run');
+        currentRunStartTimeRef.current = new Date();
+        logsManuallyClearedRef.current = false; // Reset cleared flag when pipeline starts
+        manuallyStoppedRef.current = false; // Reset manual stop flag when pipeline starts
+      }
+      
+      // Detect pipeline completion - check if status changed from running to stopped
+      if (wasRunning && !isRunning && currentRunStartTimeRef.current) {
+        console.log('✅ Pipeline stopped - saving to history', { 
+          returncode: s.returncode, 
+          manuallyStopped: manuallyStoppedRef.current 
+        });
+        // Pipeline just stopped
+        const duration = (new Date().getTime() - currentRunStartTimeRef.current.getTime()) / 1000;
+        
+        // Determine status:
+        // 1. If manually stopped, always mark as 'stopped'
+        // 2. If returncode is non-zero, mark as 'failed'
+        // 3. If returncode is 0 AND logs indicate completion, mark as 'completed'
+        // 4. Otherwise mark as 'stopped'
+        let runStatus: 'completed' | 'stopped' | 'failed';
+        if (manuallyStoppedRef.current) {
+          runStatus = 'stopped';
+        } else if (s.returncode !== null && s.returncode !== 0) {
+          runStatus = 'failed';
+        } else {
+          // Only mark as completed if returncode is 0 AND logs explicitly show FINAL pipeline completion
+          // Look for final completion messages, not intermediate phase completions
+          const hasFinalCompletion = l.includes('✅ PIPELINE COMPLETE!') ||
+                                     l.includes('PIPELINE COMPLETE!') ||
+                                     l.includes('Pipeline complete!') ||
+                                     l.includes('✅ POST-PROCESSING COMPLETE') ||
+                                     (l.includes('POST-PROCESSING COMPLETE') && !l.includes('PHASE'));
+          // Don't rely on generic "COMPLETE" or "Complete" as these appear in intermediate phases
+          // Also check that we've reached the final phases
+          const hasReachedEnd = l.includes('POST-PROCESSING COMPLETE') || 
+                                l.includes('Next steps:') ||
+                                l.includes('Open Neo4j Browser:');
+          runStatus = (s.returncode === 0 && (hasFinalCompletion || hasReachedEnd)) ? 'completed' : 'stopped';
+        }
+        
+        // Create run summary
+        const summary = extractRunSummary(l);
+        
+        // Store summary for status display
+        setLastRunSummary(summary);
+        
+        const runRecord = {
+          id: `run-${Date.now()}`,
+          timestamp: currentRunStartTimeRef.current,
+          duration,
+          status: runStatus,
+          summary,
+          logs: l.substring(0, 10000) // Store last 10k chars
+        };
+        
+        console.log('📝 Saving run record:', runRecord);
+        
+        // Add to history (keep last 50 runs)
+        setRunHistory((prevHistory) => {
+          const newHistory = [runRecord, ...prevHistory].slice(0, 50);
+          saveRunHistory(newHistory);
+          console.log('💾 Saved to history, total runs:', newHistory.length);
+          return newHistory;
+        });
+        
+        // Clear current run data
+        currentRunStartTimeRef.current = null;
+        // Clear logs and progress after a short delay to show completion message
+        setTimeout(() => {
+          setLogs('');
+          setProgress(null);
+        }, 2000);
+      }
+      
+      // Also check if pipeline just finished (has returncode but was running)
+      // This handles cases where we might have missed the transition
+      if (isRunning && s.returncode !== null && s.returncode !== undefined && currentRunStartTimeRef.current) {
+        console.log('⚠️ Pipeline has returncode but still marked as running - treating as stopped');
+        // Force a stop detection
+        previousStatusRunningRef.current = false;
+        // This will trigger the detection on next refresh
+      }
+      
+      setStatus(s);
+      
+      // Only update logs if pipeline is running OR logs were not manually cleared
+      // This prevents refresh from overwriting manually cleared logs when pipeline is stopped
+      // If pipeline is running, always show new logs (reset the cleared flag)
+      if (isRunning) {
+        logsManuallyClearedRef.current = false;
+        setLogs(l);
+      } else if (!logsManuallyClearedRef.current) {
+        // Pipeline not running and logs weren't manually cleared, show logs
+        setLogs(l);
+        
+        // Extract summary from logs if available and pipeline has completed
+        if (l && l.length > 0 && s.returncode !== null && s.returncode !== undefined) {
+          const summary = extractRunSummary(l);
+          // Only update if we have meaningful data
+          if (summary.articlesProcessed || summary.nodesTotal || summary.relationshipsTotal || 
+              summary.companiesExtracted || summary.companiesEnriched) {
+            setLastRunSummary(summary);
+          }
+        }
+      }
+      // If logs were manually cleared and pipeline is stopped, don't update logs
+      
+      previousStatusRunningRef.current = isRunning;
     } catch (e) {
+      console.error('Refresh error:', e);
       // ignore
     }
   }
 
+  function extractRunSummary(logs: string): { 
+    phase: string; 
+    articlesProcessed?: number; 
+    companiesExtracted?: number; 
+    entitiesExtracted?: number;
+    relationshipsCreated?: number;
+    companiesEnriched?: number;
+    nodesTotal?: number;
+    relationshipsTotal?: number;
+    errors?: number;
+    duration?: number;
+  } {
+    const summary: { 
+      phase: string; 
+      articlesProcessed?: number; 
+      companiesExtracted?: number;
+      entitiesExtracted?: number;
+      relationshipsCreated?: number;
+      companiesEnriched?: number;
+      nodesTotal?: number;
+      relationshipsTotal?: number;
+      errors?: number;
+      duration?: number;
+    } = {
+      phase: 'Unknown'
+    };
+    
+    // Extract phase (look for final phase or most recent)
+    const phaseMatches = [...logs.matchAll(/PHASE\s+(\d+(?:\.\d+)?):\s+(.+?)(?:\n|$)/gi)];
+    if (phaseMatches.length > 0) {
+      const lastPhase = phaseMatches[phaseMatches.length - 1];
+      summary.phase = lastPhase[2].trim();
+    }
+    
+    // Extract articles processed
+    const articlesMatch = logs.match(/(\d+)\s+articles?\s+(?:processed|ingested)/i);
+    if (articlesMatch) {
+      summary.articlesProcessed = parseInt(articlesMatch[1]);
+    }
+    
+    // Extract total nodes
+    const nodesMatch = logs.match(/Total\s+Nodes?:\s*(\d+)/i);
+    if (nodesMatch) {
+      summary.nodesTotal = parseInt(nodesMatch[1]);
+    }
+    
+    // Extract total relationships
+    const relsMatch = logs.match(/Total\s+Relationships?:\s*(\d+)/i);
+    if (relsMatch) {
+      summary.relationshipsTotal = parseInt(relsMatch[1]);
+    }
+    
+    // Extract companies enriched
+    const enrichedMatch = logs.match(/(\d+)\s+companies?\s+enriched/i);
+    if (enrichedMatch) {
+      summary.companiesEnriched = parseInt(enrichedMatch[1]);
+    }
+    
+    // Extract node breakdown
+    const companyNodesMatch = logs.match(/Company:\s*(\d+)/i);
+    if (companyNodesMatch) {
+      summary.companiesExtracted = parseInt(companyNodesMatch[1]);
+    }
+    
+    // Extract entity nodes from breakdown
+    const entityNodesMatch = logs.match(/Person:\s*(\d+)/i);
+    if (entityNodesMatch) {
+      summary.entitiesExtracted = parseInt(entityNodesMatch[1]);
+    }
+    
+    // Extract relationships created
+    const relationshipsMatch = logs.match(/FUNDED_BY:\s*(\d+)/i) || logs.match(/FOUNDED_BY:\s*(\d+)/i);
+    if (relationshipsMatch) {
+      // Sum all relationship types
+      const allRels = [...logs.matchAll(/(\w+):\s*(\d+)/g)];
+      let totalRels = 0;
+      for (const match of allRels) {
+        if (match[1] !== 'Company' && match[1] !== 'Person' && match[1] !== 'Investor' && 
+            match[1] !== 'Article' && match[1] !== 'Product' && match[1] !== 'Location' &&
+            match[1] !== 'Technology' && match[1] !== 'Event' && match[1] !== 'Entity' &&
+            match[1] !== 'FundingRound' && !isNaN(parseInt(match[2]))) {
+          totalRels += parseInt(match[2]);
+        }
+      }
+      if (totalRels > 0) {
+        summary.relationshipsCreated = totalRels;
+      }
+    }
+    
+    // Count errors
+    const errorCount = (logs.match(/\b(error|failed|exception|traceback|Error)\b/gi) || []).length;
+    if (errorCount > 0) {
+      summary.errors = errorCount;
+    }
+    
+    // Extract duration if available
+    const durationMatch = logs.match(/Duration:\s*(\d+(?:\.\d+)?)\s*(?:seconds?|s)/i);
+    if (durationMatch) {
+      summary.duration = parseFloat(durationMatch[1]);
+    }
+    
+    return summary;
+  }
+
   useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 2000);
+    // Initial refresh
+    refresh().then(() => {
+      // After first refresh, initialize the previous status
+      previousStatusRunningRef.current = status.running;
+      console.log('🔍 Initial status:', { running: status.running, returncode: status.returncode });
+    });
+    
+    const t = setInterval(() => {
+      refresh();
+    }, 2000);
     return () => clearInterval(t);
   }, []);
+
+  // Initialize current run start time if pipeline is already running on mount
+  useEffect(() => {
+    if (status.running && !currentRunStartTimeRef.current) {
+      // Pipeline is running but we don't have a start time
+      // Try to estimate from logs or use a reasonable fallback
+      // For now, we'll track from when we first detect it running
+      const now = new Date();
+      currentRunStartTimeRef.current = now;
+      previousStatusRunningRef.current = true;
+      console.log('🔄 Detected running pipeline on mount - initializing tracking');
+    }
+    
+    // Check if pipeline just completed (has returncode, not running, but we have logs)
+    if (!status.running && status.returncode !== null && status.returncode !== undefined && logs) {
+      // Pipeline completed but we might have missed tracking it
+      // Check if this run is already in history
+      const recentLogs = logs.toLowerCase();
+      // Only check for final pipeline completion, not intermediate phase completions
+      const hasCompletionIndicators = recentLogs.includes('✅ pipeline complete!') ||
+                                       recentLogs.includes('pipeline complete!') ||
+                                       recentLogs.includes('✅ post-processing complete') ||
+                                       recentLogs.includes('next steps:') ||
+                                       recentLogs.includes('open neo4j browser:');
+      
+      if (hasCompletionIndicators && !currentRunStartTimeRef.current && !historyManuallyClearedRef.current) {
+        // Check if history was manually cleared (skip auto-restoration if it was)
+        const clearedFlag = localStorage.getItem('pipeline-history-cleared');
+        if (clearedFlag) {
+          // History was manually cleared, don't auto-add runs
+          console.log('⏭️ Skipping auto-add to history - was manually cleared');
+          return;
+        }
+        
+        // This looks like a recently completed run we missed
+        // Try to extract info from logs and create a history entry
+        console.log('🔍 Detected recently completed pipeline - attempting to save');
+        const summary = extractRunSummary(logs);
+        const estimatedStart = new Date(Date.now() - 300000); // Estimate 5 min ago
+        const runRecord = {
+          id: `run-${Date.now()}`,
+          timestamp: estimatedStart,
+          duration: 300, // Estimated
+          status: (status.returncode === 0 ? 'completed' : 'failed') as const,
+          summary,
+          logs: logs.substring(0, 10000)
+        };
+        
+        setRunHistory((prevHistory) => {
+          // Check if we already have this run (by checking if logs are similar)
+          const alreadyExists = prevHistory.some(r => 
+            Math.abs(r.timestamp.getTime() - estimatedStart.getTime()) < 60000 // Within 1 minute
+          );
+          if (!alreadyExists) {
+            const newHistory = [runRecord, ...prevHistory].slice(0, 50);
+            saveRunHistory(newHistory);
+            console.log('💾 Saved missed run to history');
+            return newHistory;
+          }
+          return prevHistory;
+        });
+      }
+    }
+  }, [status.running, status.returncode, logs]);
+
+  // Update current run duration every second when running
+  useEffect(() => {
+    if (status.running && currentRunStartTimeRef.current) {
+      const updateDuration = () => {
+        if (currentRunStartTimeRef.current) {
+          const duration = Math.round((new Date().getTime() - currentRunStartTimeRef.current.getTime()) / 1000);
+          setCurrentRunDuration(duration);
+        }
+      };
+      updateDuration(); // Initial update
+      const interval = setInterval(updateDuration, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setCurrentRunDuration(0);
+    }
+  }, [status.running]);
 
   useEffect(() => {
     if (autoScroll) {
@@ -94,6 +471,10 @@ export function EnhancedDashboardView() {
     if (busy || status.running) return;
     setBusy(true);
     try {
+      // Clear logs when starting a new pipeline run
+      logsManuallyClearedRef.current = false; // Reset cleared flag
+      setLogs(''); // Clear local logs state
+      
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timed out')), 10000)
@@ -110,6 +491,8 @@ export function EnhancedDashboardView() {
   async function onStop() {
     if (busy || !status.running) return;
     setBusy(true);
+    // Mark that pipeline was manually stopped
+    manuallyStoppedRef.current = true;
     try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
@@ -150,6 +533,14 @@ export function EnhancedDashboardView() {
     });
   }
 
+  // Debug: Log when opts change
+  useEffect(() => {
+    console.log('📝 Options updated:', opts);
+    console.log('📝 Max articles:', opts.max_articles);
+    console.log('📝 Max pages:', opts.scrape_max_pages);
+    console.log('📝 Category:', opts.scrape_category);
+  }, [opts]);
+
   // Parse logs for progress indicators
   useEffect(() => {
     if (!logs) {
@@ -157,14 +548,16 @@ export function EnhancedDashboardView() {
       return;
     }
 
-    // Extract last 50 lines for better performance
-    const logLines = logs.split('\n').slice(-50).join('\n');
+    // Extract last 100 lines for better granular progress detection
+    const logLines = logs.split('\n').slice(-100).join('\n');
+    const allLogLines = logs.split('\n');
 
     // Parse phase progress patterns
     const phaseMatch = logLines.match(/PHASE\s+(\d+(?:\.\d+)?):\s+(.+?)(?:\n|$)/i);
     
-    // Pattern 1: [X/Y] format (most common)
-    const bracketMatch = logLines.match(/\[(\d+)\/(\d+)\]/);
+    // Pattern 1: [X/Y] format (most common) - find the LAST occurrence for current progress
+    const bracketMatches = [...logLines.matchAll(/\[(\d+)\/(\d+)\]/g)];
+    const lastBracketMatch = bracketMatches[bracketMatches.length - 1];
     
     // Pattern 2: "Processing X of Y" or "X of Y"
     const processingMatch = logLines.match(/(?:Processing|Calculating|Scoring).*?(\d+)\s+(?:of|\/)\s*(\d+)/i);
@@ -172,24 +565,57 @@ export function EnhancedDashboardView() {
     // Pattern 3: "Relationship Strength" specific
     const relationshipMatch = logLines.match(/Relationship\s+Strength.*?(\d+)\s*\/\s*(\d+)/i);
     
-    // Pattern 4: "Ingesting article: X" with count
-    const ingestingMatch = logLines.match(/Ingesting\s+article.*?\[(\d+)\/(\d+)\]/);
+    // Pattern 4: "Ingesting article: X" with count - most recent
+    const ingestingMatches = [...logLines.matchAll(/Ingesting\s+article.*?\[(\d+)\/(\d+)\]/g)];
+    const lastIngestingMatch = ingestingMatches[ingestingMatches.length - 1];
+    
+    // Pattern 5: Entity extraction progress
+    const entityMatch = logLines.match(/(\d+)\s+entity\s+nodes?\s+created/i);
+    
+    // Pattern 6: Relationship creation progress
+    const relMatch = logLines.match(/(\d+)\s+relationships?\s+created/i);
+    
+    // Pattern 7: Company enrichment progress
+    const enrichmentMatch = logLines.match(/Enriched:\s+([^\s]+).*?\(confidence:\s+([\d.]+)\)/i);
+    const enrichmentCountMatch = logLines.match(/(\d+)\s+companies?\s+enriched/i);
+    
+    // Pattern 8: Post-processing sub-steps
+    const dedupMatch = logLines.match(/Merged:\s+(\d+).*?merged.*?(\d+).*?failed/i);
+    const communityMatch = logLines.match(/(\d+)\s+communities?\s+detected/i);
+    const embeddingMatch = logLines.match(/(\d+)\s+embeddings?\s+(?:generated|regenerated)/i);
     
     let current = 0;
     let total = 0;
     let phaseName = 'Processing';
+    let subPhase: string | undefined;
+    let subCurrent: number | undefined;
+    let subTotal: number | undefined;
+    let detail: string | undefined;
 
-    if (relationshipMatch) {
+    // Determine main progress
+    if (lastIngestingMatch) {
+      current = parseInt(lastIngestingMatch[1]) || 0;
+      total = parseInt(lastIngestingMatch[2]) || 0;
+      phaseName = phaseMatch ? phaseMatch[2] : 'Graph Construction';
+      
+      // Get sub-progress from article ingestion details
+      const articleLine = allLogLines.filter(l => l.includes(`[${current}/${total}]`)).pop();
+      if (articleLine) {
+        const entityCount = articleLine.match(/(\d+)\s+entity\s+nodes/i)?.[1];
+        const relCount = articleLine.match(/(\d+)\s+relationships?/i)?.[1];
+        if (entityCount || relCount) {
+          subPhase = 'Current Article';
+          detail = entityCount ? `${entityCount} entities` : '';
+          if (relCount) detail += detail ? `, ${relCount} relationships` : `${relCount} relationships`;
+        }
+      }
+    } else if (relationshipMatch) {
       current = parseInt(relationshipMatch[1]) || 0;
       total = parseInt(relationshipMatch[2]) || 0;
       phaseName = 'Relationship Strength Calculation';
-    } else if (ingestingMatch) {
-      current = parseInt(ingestingMatch[1]) || 0;
-      total = parseInt(ingestingMatch[2]) || 0;
-      phaseName = phaseMatch ? phaseMatch[2] : 'Graph Construction';
-    } else if (bracketMatch) {
-      current = parseInt(bracketMatch[1]) || 0;
-      total = parseInt(bracketMatch[2]) || 0;
+    } else if (lastBracketMatch) {
+      current = parseInt(lastBracketMatch[1]) || 0;
+      total = parseInt(lastBracketMatch[2]) || 0;
       phaseName = phaseMatch ? phaseMatch[2] : 'Processing';
     } else if (processingMatch) {
       current = parseInt(processingMatch[1]) || 0;
@@ -206,9 +632,58 @@ export function EnhancedDashboardView() {
       }
     }
 
-    // Check if pipeline is complete
-    if (logLines.includes('COMPLETE') || logLines.includes('Complete') || 
-        logLines.includes('Finished') || logLines.includes('Pipeline complete')) {
+    // Extract sub-progress based on phase
+    if (phaseMatch) {
+      const phaseNum = phaseMatch[1];
+      const phaseText = phaseMatch[2];
+      
+      if (phaseNum.includes('0')) {
+        // Phase 0: Web Scraping
+        const pageMatch = logLines.match(/page\s+(\d+)/i);
+        if (pageMatch) {
+          subPhase = `Page ${pageMatch[1]}`;
+        }
+      } else if (phaseNum.includes('1') || phaseNum.includes('2')) {
+        // Phase 1/2: Extraction/Graph Construction
+        if (entityMatch) {
+          subPhase = 'Entities Extracted';
+          subCurrent = parseInt(entityMatch[1]);
+        }
+        if (relMatch) {
+          subPhase = subPhase ? `${subPhase} / Relationships` : 'Relationships Created';
+          subTotal = parseInt(relMatch[1]);
+        }
+      } else if (phaseNum.includes('2.5') || enrichmentCountMatch) {
+        // Phase 2.5: Enrichment
+        subPhase = 'Company Enrichment';
+        subCurrent = parseInt(enrichmentCountMatch?.[1] || '0');
+        if (enrichmentMatch) {
+          detail = enrichmentMatch[1];
+        }
+      } else if (phaseNum.includes('3') || phaseNum.includes('4')) {
+        // Phase 3/4: Post-processing
+        if (dedupMatch) {
+          subPhase = 'Deduplication';
+          subCurrent = parseInt(dedupMatch[1]);
+          subTotal = parseInt(dedupMatch[1]) + parseInt(dedupMatch[2]);
+        } else if (communityMatch) {
+          subPhase = 'Community Detection';
+          subCurrent = parseInt(communityMatch[1]);
+        } else if (embeddingMatch) {
+          subPhase = 'Embedding Generation';
+          subCurrent = parseInt(embeddingMatch[1]);
+        }
+      }
+    }
+
+    // Check if pipeline is complete - only check for final completion, not intermediate phases
+    // Look for final pipeline completion messages
+    if (logLines.includes('✅ PIPELINE COMPLETE!') || 
+        logLines.includes('PIPELINE COMPLETE!') ||
+        logLines.includes('✅ POST-PROCESSING COMPLETE') ||
+        (logLines.includes('POST-PROCESSING COMPLETE') && !logLines.includes('PHASE')) ||
+        logLines.includes('Next steps:') ||
+        logLines.includes('Open Neo4j Browser:')) {
       setProgress({
         phase: 'Complete',
         current: 100,
@@ -216,28 +691,53 @@ export function EnhancedDashboardView() {
         percentage: 100
       });
     } else if (total > 0) {
+      const mainPercentage = Math.min(100, (current / total) * 100);
+      const subPercentage = (subCurrent !== undefined && subTotal !== undefined && subTotal > 0) 
+        ? Math.min(100, (subCurrent / subTotal) * 100) 
+        : undefined;
+      
       setProgress({
         phase: phaseName,
         current,
         total,
-        percentage: Math.min(100, (current / total) * 100)
+        percentage: mainPercentage,
+        subPhase,
+        subCurrent,
+        subTotal,
+        subPercentage,
+        detail
       });
     } else if (phaseMatch) {
       setProgress({
         phase: phaseName,
         current: 0,
         total: 0,
-        percentage: 0
+        percentage: 0,
+        subPhase,
+        subCurrent,
+        subTotal,
+        detail
       });
     } else {
       setProgress(null);
     }
   }, [logs]);
 
-  function loadPreset(preset: 'quick' | 'full' | 'enrichment-test') {
+  function loadPreset(preset: 'quick' | 'full' | 'enrichment-test', e?: React.MouseEvent) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('🔄 Loading preset:', preset);
+    
+    let newOpts: PipelineStartRequest;
+    
+    // Get current opts to preserve some settings
+    const currentOpts = opts;
+    
     switch (preset) {
       case 'quick':
-        setOpts({
+        newOpts = {
           scrape_category: 'startups',
           scrape_max_pages: 1,
           max_articles: 5,
@@ -246,11 +746,14 @@ export function EnhancedDashboardView() {
           skip_enrichment: true,  // Skip for quick test
           skip_graph: false,
           skip_post_processing: false,
-          no_resume: false
-        });
+          no_resume: false,
+          no_validation: currentOpts?.no_validation || false,
+          no_cleanup: currentOpts?.no_cleanup || false,
+          max_companies_per_article: undefined
+        };
         break;
       case 'full':
-        setOpts({
+        newOpts = {
           scrape_category: 'startups',
           scrape_max_pages: 5,
           max_articles: 50,
@@ -260,11 +763,13 @@ export function EnhancedDashboardView() {
           skip_graph: false,
           skip_post_processing: false,
           max_companies_per_article: undefined,
-          no_resume: false
-        });
+          no_resume: false,
+          no_validation: currentOpts?.no_validation || false,
+          no_cleanup: currentOpts?.no_cleanup || false
+        };
         break;
       case 'enrichment-test':
-        setOpts({
+        newOpts = {
           scrape_category: 'startups',
           scrape_max_pages: 1,
           max_articles: 3,
@@ -274,14 +779,76 @@ export function EnhancedDashboardView() {
           max_companies_per_article: 3,  // Limit for testing
           skip_graph: false,
           skip_post_processing: false,
-          no_resume: false
-        });
+          no_resume: false,
+          no_validation: currentOpts?.no_validation || false,
+          no_cleanup: currentOpts?.no_cleanup || false
+        };
         break;
+      default:
+        return;
     }
+    
+    console.log('📋 Previous opts:', JSON.stringify(currentOpts, null, 2));
+    console.log('📋 New opts:', JSON.stringify(newOpts, null, 2));
+    
+    // Save to localStorage first
+    try {
+      localStorage.setItem('pipeline-options', JSON.stringify(newOpts));
+      console.log('💾 Saved preset to localStorage');
+    } catch (err) {
+      console.error('Failed to save preset:', err);
+    }
+    
+    // Update state with a completely new object reference - deep clone to ensure new reference
+    const updatedOpts: PipelineStartRequest = JSON.parse(JSON.stringify(newOpts));
+    
+    console.log('🔄 Setting state...');
+    console.log('  Current max_articles:', opts.max_articles);
+    console.log('  New max_articles:', updatedOpts.max_articles);
+    console.log('  Current scrape_max_pages:', opts.scrape_max_pages);
+    console.log('  New scrape_max_pages:', updatedOpts.scrape_max_pages);
+    
+    // Update state - ensure we create a completely new object reference
+    // Use JSON parse/stringify to force a deep clone with new reference
+    const finalOpts: PipelineStartRequest = JSON.parse(JSON.stringify(updatedOpts));
+    
+    console.log('🔄 About to update state:');
+    console.log('  Previous max_articles:', opts.max_articles);
+    console.log('  New max_articles:', finalOpts.max_articles);
+    console.log('  Previous scrape_max_pages:', opts.scrape_max_pages);
+    console.log('  New scrape_max_pages:', finalOpts.scrape_max_pages);
+    
+    // Update all state together
+    setOpts(finalOpts);
+    setLastPresetLoaded(preset);
+    setPresetKey(Date.now());
+    
+    console.log('✅ Preset loaded:', preset);
+    console.log('✅ State updated with max_articles:', finalOpts.max_articles);
+    console.log('✅ State updated with scrape_max_pages:', finalOpts.scrape_max_pages);
+    
+    // Verify the update worked
+    setTimeout(() => {
+      // This will use the new state value after re-render
+      console.log('🔍 Post-update check - State should have:', {
+        max_articles: finalOpts.max_articles,
+        scrape_max_pages: finalOpts.scrape_max_pages
+      });
+    }, 100);
   }
+
 
   return (
     <div style={styles.root}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .pulse-dot {
+          animation: pulse 2s infinite;
+        }
+      `}</style>
       {/* Header with Presets */}
       <section style={styles.headerCard}>
         <div style={styles.headerContent}>
@@ -289,19 +856,187 @@ export function EnhancedDashboardView() {
             <h2 style={{ margin: 0 }}>Pipeline Control Center</h2>
             <p style={{ margin: '4px 0 0', opacity: 0.7 }}>
               Configure and run the knowledge graph pipeline
+              {lastPresetLoaded && (
+                <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.9 }}>
+                  (Preset: {lastPresetLoaded})
+                </span>
+              )}
             </p>
           </div>
           <div style={styles.presets}>
             <span style={styles.presetsLabel}>Quick Presets:</span>
-            <button onClick={() => loadPreset('quick')} style={styles.presetButton}>⚡ Quick Test</button>
-            <button onClick={() => loadPreset('enrichment-test')} style={styles.presetButton}>🔍 Enrichment Test</button>
-            <button onClick={() => loadPreset('full')} style={styles.presetButton}>🚀 Full Run</button>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔘 Quick Test button clicked');
+                loadPreset('quick', e);
+              }} 
+              style={styles.presetButton}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              ⚡ Quick Test
+            </button>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔘 Enrichment Test button clicked');
+                loadPreset('enrichment-test', e);
+              }} 
+              style={styles.presetButton}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              🔍 Enrichment Test
+            </button>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔘 Full Run button clicked');
+                loadPreset('full', e);
+              }} 
+              style={styles.presetButton}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              🚀 Full Run
+            </button>
           </div>
         </div>
       </section>
 
       <div style={styles.mainGrid}>
-        {/* Left Panel: Configuration */}
+        {/* Left Sidepanel: History */}
+        <aside style={styles.historyPanel}>
+          <div style={styles.historyHeader}>
+            <h3 style={{ margin: 0 }}>📋 Run History</h3>
+            {(runHistory.length > 0 || status.running) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (confirm('Clear all run history? This cannot be undone.')) {
+                    // Mark that history was manually cleared
+                    historyManuallyClearedRef.current = true;
+                    // Clear state
+                    setRunHistory([]);
+                    // Clear localStorage
+                    try {
+                      localStorage.removeItem('pipeline-run-history');
+                      // Also set a flag in localStorage to prevent auto-restoration
+                      localStorage.setItem('pipeline-history-cleared', Date.now().toString());
+                      console.log('🗑️ Run history cleared from localStorage');
+                    } catch (err) {
+                      console.error('Failed to clear history from localStorage:', err);
+                    }
+                    // Also save empty array to ensure it's cleared
+                    saveRunHistory([]);
+                  }
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={styles.clearHistoryButton}
+                title="Clear all run history"
+              >
+                🗑️ Clear
+              </button>
+            )}
+          </div>
+          {runHistory.length === 0 && !status.running ? (
+            <div style={styles.emptyHistory}>
+              <p>No pipeline runs yet.</p>
+              <p style={{ fontSize: 12, opacity: 0.7 }}>Completed runs will appear here.</p>
+            </div>
+          ) : (
+            <div style={styles.historyList}>
+              {/* Current Running Pipeline */}
+              {status.running && currentRunStartTimeRef.current && (
+                <div style={{...styles.historyItem, ...styles.currentRunItem}}>
+                  <div style={styles.historyItemHeader}>
+                    <div style={styles.historyItemStatus}>
+                      <span className="pulse-dot" style={{
+                        ...styles.historyStatusDot,
+                        background: '#0ea5e9'
+                      }}></span>
+                      <span style={{ fontWeight: 600 }}>Running...</span>
+                    </div>
+                    <span style={styles.historyTime}>
+                      {currentRunStartTimeRef.current.toLocaleDateString()} {currentRunStartTimeRef.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={styles.historyItemDetails}>
+                    <div style={styles.historyDetailRow}>
+                      <strong>Duration:</strong> {currentRunDuration}s
+                    </div>
+                    {progress && (
+                      <>
+                        <div style={styles.historyDetailRow}>
+                          <strong>Phase:</strong> {progress.phase}
+                        </div>
+                        {progress.total > 0 && (
+                          <div style={styles.historyDetailRow}>
+                            <strong>Progress:</strong> {progress.current}/{progress.total} ({Math.round(progress.percentage)}%)
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div style={{...styles.historyDetailRow, fontSize: 11, color: '#0ea5e9', fontStyle: 'italic'}}>
+                      ⏳ Pipeline is currently running...
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Past Runs */}
+              {runHistory.map((run) => (
+                <div key={run.id} style={styles.historyItem}>
+                  <div style={styles.historyItemHeader}>
+                    <div style={styles.historyItemStatus}>
+                      <span style={{
+                        ...styles.historyStatusDot,
+                        background: run.status === 'completed' ? '#22c55e' : 
+                                   run.status === 'failed' ? '#dc2626' : '#f59e0b'
+                      }}></span>
+                      <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>
+                        {run.status}
+                      </span>
+                    </div>
+                    <span style={styles.historyTime}>
+                      {run.timestamp.toLocaleDateString()} {run.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={styles.historyItemDetails}>
+                    <div style={styles.historyDetailRow}>
+                      <strong>Phase:</strong> {run.summary.phase}
+                    </div>
+                    <div style={styles.historyDetailRow}>
+                      <strong>Duration:</strong> {Math.round(run.duration)}s
+                    </div>
+                    {run.summary.articlesProcessed && (
+                      <div style={styles.historyDetailRow}>
+                        <strong>Articles:</strong> {run.summary.articlesProcessed}
+                      </div>
+                    )}
+                    {run.summary.companiesExtracted && (
+                      <div style={styles.historyDetailRow}>
+                        <strong>Companies:</strong> {run.summary.companiesExtracted}
+                      </div>
+                    )}
+                    {run.summary.errors && run.summary.errors > 0 && (
+                      <div style={{...styles.historyDetailRow, color: '#dc2626'}}>
+                        <strong>Errors:</strong> {run.summary.errors}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
+
+        {/* Middle Panel: Configuration */}
         <div style={styles.leftPanel}>
           {/* Status Card */}
           <section style={{...styles.card, ...styles.statusCard}}>
@@ -318,12 +1053,69 @@ export function EnhancedDashboardView() {
               </div>
             </div>
             {status.pid && <div style={styles.statusDetail}>PID: {status.pid}</div>}
-            {typeof status.returncode !== 'undefined' && status.returncode !== null && (
-              <div style={{
-                ...styles.statusDetail,
-                color: status.returncode === 0 ? '#16a34a' : '#dc2626'
-              }}>
-                Exit Code: {status.returncode} {status.returncode === 0 ? '✓' : '✗'}
+            
+            {/* Show run summary instead of exit code when not running */}
+            {!status.running && status.returncode !== null && status.returncode !== undefined && (
+              <div style={styles.statusSummary}>
+                {status.returncode === 0 ? (
+                  lastRunSummary ? (
+                    <div style={styles.summaryContent}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 16, color: '#16a34a' }}>✓</span>
+                        <span style={{ fontWeight: 600, color: '#16a34a' }}>Completed Successfully</span>
+                      </div>
+                      {(lastRunSummary.articlesProcessed || lastRunSummary.nodesTotal || lastRunSummary.relationshipsTotal) && (
+                        <div style={styles.summaryStats}>
+                          {lastRunSummary.articlesProcessed && (
+                            <div style={styles.summaryStat}>
+                              <strong>Articles:</strong> {lastRunSummary.articlesProcessed}
+                            </div>
+                          )}
+                          {lastRunSummary.nodesTotal && (
+                            <div style={styles.summaryStat}>
+                              <strong>Nodes:</strong> {lastRunSummary.nodesTotal.toLocaleString()}
+                            </div>
+                          )}
+                          {lastRunSummary.relationshipsTotal && (
+                            <div style={styles.summaryStat}>
+                              <strong>Relationships:</strong> {lastRunSummary.relationshipsTotal.toLocaleString()}
+                            </div>
+                          )}
+                          {lastRunSummary.companiesExtracted && (
+                            <div style={styles.summaryStat}>
+                              <strong>Companies:</strong> {lastRunSummary.companiesExtracted.toLocaleString()}
+                            </div>
+                          )}
+                          {lastRunSummary.companiesEnriched && (
+                            <div style={styles.summaryStat}>
+                              <strong>Enriched:</strong> {lastRunSummary.companiesEnriched}
+                            </div>
+                          )}
+                          {lastRunSummary.errors && lastRunSummary.errors > 0 && (
+                            <div style={{...styles.summaryStat, color: '#dc2626'}}>
+                              <strong>Errors:</strong> {lastRunSummary.errors}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{...styles.statusDetail, color: '#16a34a'}}>
+                      Exit Code: {status.returncode} ✓
+                    </div>
+                  )
+                ) : (
+                  <div style={{...styles.statusDetail, color: '#dc2626'}}>
+                    Exit Code: {status.returncode} ✗ Failed
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Show exit code only when running (shouldn't happen, but just in case) */}
+            {status.running && status.returncode !== null && status.returncode !== undefined && (
+              <div style={styles.statusDetail}>
+                Exit Code: {status.returncode}
               </div>
             )}
             
@@ -331,7 +1123,14 @@ export function EnhancedDashboardView() {
             {progress && status.running && (
               <div style={styles.progressContainer}>
                 <div style={styles.progressHeader}>
-                  <span style={styles.progressLabel}>{progress.phase}</span>
+                  <span style={styles.progressLabel}>
+                    {progress.phase}
+                    {progress.detail && (
+                      <span style={{ fontSize: 12, opacity: 0.8, marginLeft: 8 }}>
+                        ({progress.detail})
+                      </span>
+                    )}
+                  </span>
                   {progress.total > 0 && (
                     <span style={styles.progressText}>
                       {progress.current}/{progress.total} ({Math.round(progress.percentage)}%)
@@ -346,6 +1145,30 @@ export function EnhancedDashboardView() {
                     }}
                   />
                 </div>
+                
+                {/* Sub-progress bar */}
+                {progress.subPhase && progress.subCurrent !== undefined && progress.subTotal !== undefined && progress.subTotal > 0 && (
+                  <>
+                    <div style={{ ...styles.progressHeader, marginTop: 8, fontSize: 12 }}>
+                      <span style={{ ...styles.progressLabel, fontSize: 12 }}>
+                        {progress.subPhase}
+                      </span>
+                      <span style={{ ...styles.progressText, fontSize: 11 }}>
+                        {progress.subCurrent}/{progress.subTotal} ({Math.round(progress.subPercentage || 0)}%)
+                      </span>
+                    </div>
+                    <div style={{ ...styles.progressBar, height: 6, marginTop: 4 }}>
+                      <div 
+                        style={{
+                          ...styles.progressFill,
+                          width: `${progress.subPercentage || 0}%`,
+                          background: 'linear-gradient(90deg, #10b981, #059669)',
+                          height: '100%'
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -372,9 +1195,9 @@ export function EnhancedDashboardView() {
               ))}
             </div>
 
-            <div style={styles.sectionContent}>
+            <div style={styles.sectionContent} key={`content-${presetKey}`}>
               {activeSection === 'scraping' && (
-                <div style={styles.configSection}>
+                <div style={styles.configSection} key={`scraping-${presetKey}`}>
                   <h4 style={{ marginTop: 0 }}>Web Scraping (Phase 0)</h4>
 
                   <label style={styles.checkbox}>
@@ -391,7 +1214,8 @@ export function EnhancedDashboardView() {
                       <div style={styles.formGroup}>
                         <label style={styles.label}>TechCrunch Category</label>
                         <select
-                          value={opts.scrape_category || 'startups'}
+                          key={`category-${presetKey}`}
+                          value={opts.scrape_category ?? 'startups'}
                           onChange={(e) => update('scrape_category', e.target.value)}
                           style={styles.input}
                         >
@@ -407,10 +1231,11 @@ export function EnhancedDashboardView() {
                       <div style={styles.formGroup}>
                         <label style={styles.label}>Maximum Pages to Scrape</label>
                         <input
+                          key={`pages-${presetKey}`}
                           type="number"
                           min={1}
                           max={100}
-                          value={opts.scrape_max_pages || 2}
+                          value={opts.scrape_max_pages !== undefined ? opts.scrape_max_pages : 2}
                           onChange={(e) => update('scrape_max_pages', Number(e.target.value))}
                           style={styles.input}
                         />
@@ -420,10 +1245,11 @@ export function EnhancedDashboardView() {
                       <div style={styles.formGroup}>
                         <label style={styles.label}>Maximum Articles to Process</label>
                         <input
+                          key={`articles-${presetKey}`}
                           type="number"
                           min={1}
                           max={1000}
-                          value={opts.max_articles || 10}
+                          value={opts.max_articles !== undefined ? opts.max_articles : 10}
                           onChange={(e) => update('max_articles', Number(e.target.value))}
                           style={styles.input}
                         />
@@ -457,7 +1283,8 @@ export function EnhancedDashboardView() {
                         type="number"
                         min={1}
                         max={50}
-                        value={opts.max_companies_per_article || ''}
+                        key={`companies-${presetKey}`}
+                        value={opts.max_companies_per_article ?? ''}
                         onChange={(e) => update('max_companies_per_article', e.target.value ? Number(e.target.value) : undefined)}
                         style={styles.input}
                         placeholder="Unlimited"
@@ -572,14 +1399,20 @@ export function EnhancedDashboardView() {
             <div style={styles.actions}>
               <button
                 onClick={onStart}
-                style={styles.startButton}
+                style={{
+                  ...styles.startButton,
+                  ...((busy || status.running) && styles.buttonDisabled)
+                }}
                 disabled={busy || status.running}
               >
                 {status.running ? '⏸ Running...' : '▶ Start Pipeline'}
               </button>
               <button
                 onClick={onStop}
-                style={styles.stopButton}
+                style={{
+                  ...styles.stopButton,
+                  ...((busy || !status.running) && styles.buttonDisabled)
+                }}
                 disabled={busy || !status.running}
               >
                 ⏹ Stop
@@ -598,14 +1431,50 @@ export function EnhancedDashboardView() {
         <section style={styles.logsCard}>
           <div style={styles.logsHeader}>
             <h3 style={{ margin: 0 }}>Pipeline Logs</h3>
-            <label style={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={autoScroll}
-                onChange={(e) => setAutoScroll(e.target.checked)}
-              />
-              <span style={{ fontSize: 14 }}>Auto-scroll</span>
-            </label>
+            <div style={styles.logsControls}>
+              {logs && (
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (confirm('Clear pipeline logs? This will clear logs from the server.')) {
+                      try {
+                        // Call backend API to clear logs
+                        await clearPipelineLogs();
+                        // Clear local state
+                        logsManuallyClearedRef.current = true;
+                        setLogs('');
+                        // Force scroll to top after clearing
+                        setTimeout(() => {
+                          const logPre = document.getElementById('pipeline-logs');
+                          if (logPre) {
+                            logPre.scrollTop = 0;
+                          }
+                        }, 0);
+                        console.log('✅ Pipeline logs cleared from server');
+                      } catch (err: any) {
+                        console.error('Failed to clear logs:', err);
+                        alert(err?.message || 'Failed to clear pipeline logs');
+                      }
+                    }
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={styles.clearLogsButton}
+                  title="Clear logs"
+                >
+                  🗑️ Clear
+                </button>
+              )}
+              <label style={styles.checkbox}>
+                <input
+                  type="checkbox"
+                  checked={autoScroll}
+                  onChange={(e) => setAutoScroll(e.target.checked)}
+                />
+                <span style={{ fontSize: 14 }}>Auto-scroll</span>
+              </label>
+            </div>
           </div>
           <pre id="pipeline-logs" style={styles.logs}>
             {logs || '(Pipeline not started yet. Click "Start Pipeline" to begin.)'}
@@ -620,26 +1489,43 @@ const styles: Record<string, React.CSSProperties> = {
   root: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 16
+    gap: 16,
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    position: 'relative' as const
   },
   headerCard: {
     background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
     borderRadius: 12,
     padding: 20,
     color: 'white',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    pointerEvents: 'auto' as const,
+    position: 'sticky' as const,
+    top: 0,
+    zIndex: 100,
+    marginBottom: 0,
+    flexShrink: 0
   },
   headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 16
+    gap: 16,
+    pointerEvents: 'auto' as const,
+    minHeight: 'fit-content'
   },
   presets: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8
+    gap: 8,
+    pointerEvents: 'auto' as const,
+    position: 'relative' as const,
+    zIndex: 101,
+    flexWrap: 'wrap' as const,
+    minWidth: 0
   },
   presetsLabel: {
     fontSize: 14,
@@ -654,13 +1540,114 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    pointerEvents: 'auto' as const,
+    position: 'relative' as const,
+    zIndex: 1,
+    userSelect: 'none' as const,
+    whiteSpace: 'nowrap' as const,
+    flexShrink: 0
   },
   mainGrid: {
     display: 'grid',
-    gridTemplateColumns: '480px 1fr',
+    gridTemplateColumns: '280px 480px 1fr',
     gap: 16,
     alignItems: 'start'
+  },
+  historyPanel: {
+    background: 'white',
+    border: '1px solid #e2e8f0',
+    borderRadius: 12,
+    padding: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    height: 'calc(100vh - 200px)',
+    maxHeight: 800,
+    minHeight: 400,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden'
+  },
+  historyHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottom: '1px solid #e2e8f0'
+  },
+  clearHistoryButton: {
+    padding: '4px 8px',
+    borderRadius: 6,
+    border: '1px solid #e2e8f0',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: 16,
+    lineHeight: 1,
+    transition: 'all 0.2s'
+  },
+  emptyHistory: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    color: '#64748b',
+    fontSize: 14
+  },
+  historyList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    overflowY: 'auto',
+    flex: 1,
+    paddingRight: 4
+  },
+  historyItem: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    transition: 'all 0.2s',
+    cursor: 'pointer'
+  },
+  historyItemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  historyItemStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 13
+  },
+  historyStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    display: 'inline-block'
+  },
+  historyTime: {
+    fontSize: 11,
+    color: '#64748b'
+  },
+  historyItemDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    fontSize: 12
+  },
+  historyDetailRow: {
+    display: 'flex',
+    gap: 8
+  },
+  currentRunItem: {
+    border: '2px solid #0ea5e9',
+    background: '#eff6ff',
+    boxShadow: '0 0 0 3px rgba(14, 165, 233, 0.1)'
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+    pointerEvents: 'none' as const
   },
   leftPanel: {
     display: 'flex',
@@ -698,6 +1685,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     marginTop: 4,
     opacity: 0.8
+  },
+  statusSummary: {
+    marginTop: 12,
+    padding: 12,
+    background: '#f8fafc',
+    borderRadius: 8,
+    border: '1px solid #e2e8f0'
+  },
+  summaryContent: {
+    fontSize: 13
+  },
+  summaryStats: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: '1px solid #e2e8f0'
+  },
+  summaryStat: {
+    fontSize: 12,
+    color: '#475569'
   },
   sectionTabs: {
     display: 'grid',
@@ -832,6 +1841,25 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     marginBottom: 12
   },
+  logsControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12
+  },
+  clearLogsButton: {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #e2e8f0',
+    background: '#f8fafc',
+    color: '#64748b',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    transition: 'all 0.2s',
+    pointerEvents: 'auto' as const,
+    position: 'relative' as const,
+    zIndex: 10
+  },
   logs: {
     background: '#0b1220',
     color: '#e2e8f0',
@@ -839,11 +1867,18 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     flex: 1,
     overflow: 'auto',
+    overflowX: 'auto',
+    overflowY: 'auto',
+    width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     fontSize: 12,
     lineHeight: 1.5,
     fontFamily: 'Consolas, Monaco, "Courier New", monospace',
     height: '100%',
-    maxHeight: '100%'
+    maxHeight: '100%',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word'
   },
   progressContainer: {
     marginTop: 16,

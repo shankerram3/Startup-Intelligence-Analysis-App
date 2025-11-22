@@ -305,6 +305,12 @@ async def start_pipeline(options: PipelineStartRequest):
 
     args = _build_pipeline_args(options)
     try:
+        # Clear log file before starting new pipeline run
+        if os.path.exists(pipeline_log_path):
+            with open(pipeline_log_path, "w") as f:
+                f.write("")
+        
+        # Open log file in append mode for the new run
         log_fh = open(pipeline_log_path, "ab")
         pipeline_proc = subprocess.Popen(
             args,
@@ -356,6 +362,24 @@ async def pipeline_logs(tail: int = Query(200, ge=1, le=5000)):
         return {"log": text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read logs: {e}")
+
+
+@app.post("/admin/pipeline/logs/clear", tags=["Admin"])
+async def clear_pipeline_logs():
+    """Clear the pipeline log file"""
+    global pipeline_proc
+    # Don't allow clearing logs if pipeline is currently running
+    if pipeline_proc and pipeline_proc.poll() is None:
+        raise HTTPException(status_code=409, detail="Cannot clear logs while pipeline is running")
+    
+    try:
+        # Clear the log file by truncating it
+        if os.path.exists(pipeline_log_path):
+            with open(pipeline_log_path, "w") as f:
+                f.write("")
+        return {"status": "cleared", "message": "Pipeline logs cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear logs: {e}")
 
 
 # =============================================================================

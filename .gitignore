@@ -49,4 +49,6 @@ data docs/
 data notebooks/
 data models/
 delete_nodes.py
-delete_techcrunch_disrupt.cypher
+delete_techcrunch_disrupt.cypher.env
+.env.*
+!.env.template

@@ -12,6 +12,40 @@ class QueryTemplates:
 
     def __init__(self, driver: Driver):
         self.driver = driver
+    
+    def _enrich_with_article_urls(self, entity_id: str, source_articles: Optional[List[str]] = None) -> List[str]:
+        """
+        Helper method to get article URLs for an entity
+        
+        Args:
+            entity_id: Entity ID
+            source_articles: Optional list of article IDs (if already known)
+            
+        Returns:
+            List of article URLs
+        """
+        if not source_articles:
+            # Get source_articles from entity
+            with self.driver.session() as session:
+                result = session.run("""
+                    MATCH (e {id: $entity_id})
+                    WHERE e.source_articles IS NOT NULL
+                    UNWIND e.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
+                    RETURN collect(DISTINCT a.url) as urls
+                """, entity_id=entity_id)
+                record = result.single()
+                return record["urls"] if record and record["urls"] else []
+        else:
+            # Use provided source_articles
+            with self.driver.session() as session:
+                result = session.run("""
+                    UNWIND $article_ids as article_id
+                    MATCH (a:Article {id: article_id})
+                    RETURN collect(DISTINCT a.url) as urls
+                """, article_ids=source_articles)
+                record = result.single()
+                return record["urls"] if record and record["urls"] else []
 
     # =========================================================================
     # ENTITY QUERIES
@@ -75,7 +109,7 @@ class QueryTemplates:
             result = session.run(f"""
                 MATCH (e:{entity_type})
                 RETURN e.id as id, e.name as name, e.description as description,
-                       e.mention_count as mention_count
+                       e.mention_count as mention_count, e.source_articles as source_articles
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
             """, limit=limit)
@@ -116,10 +150,18 @@ class QueryTemplates:
 
                 OPTIONAL MATCH (c)-[r5:COMPETES_WITH]-(comp:Company)
                 WITH c, investors, founders, technologies, locations, collect(DISTINCT comp.name) as competitors
+                
+                // Collect article URLs from source_articles
+                OPTIONAL MATCH (c)
+                WHERE c.source_articles IS NOT NULL
+                UNWIND c.source_articles as article_id
+                MATCH (a:Article {id: article_id})
+                WITH c, investors, founders, technologies, locations, competitors, collect(DISTINCT a.url) as article_urls
 
                 RETURN c.id as id, c.name as name, c.description as description,
                        c.mention_count as mention_count,
-                       investors, founders, technologies, locations, competitors
+                       investors, founders, technologies, locations, competitors,
+                       COALESCE(article_urls, []) as article_urls
                 LIMIT 1
             """, name=company_name)
 
@@ -132,9 +174,16 @@ class QueryTemplates:
             result = session.run("""
                 MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                 WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
-                WHERE investor_count >= $min_investors
+                WHERE investor_count >= $min_investors AND c.source_articles IS NOT NULL
+                
+                // Collect article URLs from source_articles
+                UNWIND c.source_articles as article_id
+                MATCH (a:Article {id: article_id})
+                WITH c, investors, investor_count, collect(DISTINCT a.url) as article_urls
+                WHERE size(article_urls) > 0
+                
                 RETURN c.id as id, c.name as name, c.description as description,
-                       investor_count, investors
+                       investor_count, investors, article_urls
                 ORDER BY investor_count DESC
                 LIMIT 20
             """, min_investors=min_investors)
@@ -157,10 +206,18 @@ class QueryTemplates:
                 WHERE toLower(c.description) CONTAINS toLower($keyword)
 
                 OPTIONAL MATCH (c)-[:FUNDED_BY]->(i:Investor)
-                WITH c, count(DISTINCT i) as investor_count
+                WITH c, count(DISTINCT i) as investor_count, collect(DISTINCT i.name) as investors
+                
+                // Collect article URLs from source_articles if available
+                OPTIONAL MATCH (c)
+                WHERE c.source_articles IS NOT NULL
+                UNWIND c.source_articles as article_id
+                MATCH (a:Article {id: article_id})
+                WITH c, investor_count, investors, collect(DISTINCT a.url) as article_urls
 
                 RETURN c.id as id, c.name as name, c.description as description,
-                       c.mention_count as mention_count, investor_count
+                       c.mention_count as mention_count, investor_count, 
+                       investors, COALESCE(article_urls, []) as article_urls
                 ORDER BY c.mention_count DESC
                 LIMIT 20
             """, keyword=sector_keyword)
@@ -195,9 +252,17 @@ class QueryTemplates:
                     WITH c, investors, investor_count, max(a.published_date) as latest_announcement
                     WHERE investor_count > 0
 
+                    // Collect article URLs from source_articles
+                    UNWIND c.source_articles as article_id
+                    MATCH (art:Article {id: article_id})
+                    WHERE art.published_date IS NOT NULL
+                      AND datetime(art.published_date) > datetime() - duration({days: $days})
+                    WITH c, investors, investor_count, latest_announcement, collect(DISTINCT art.url) as article_urls
+                    WHERE size(article_urls) > 0
+
                     RETURN c.id as id, c.name as name, c.description as description,
                            c.mention_count as mention_count,
-                           investor_count, investors, latest_announcement
+                           investor_count, investors, latest_announcement, article_urls
                     ORDER BY latest_announcement DESC, investor_count DESC
                     LIMIT 20
                 """, keyword=sector_keyword, days=days)
@@ -216,9 +281,17 @@ class QueryTemplates:
                     WITH c, investors, investor_count, max(a.published_date) as latest_announcement
                     WHERE investor_count > 0
 
+                    // Collect article URLs from source_articles
+                    UNWIND c.source_articles as article_id
+                    MATCH (art:Article {id: article_id})
+                    WHERE art.published_date IS NOT NULL
+                      AND datetime(art.published_date) > datetime() - duration({days: $days})
+                    WITH c, investors, investor_count, latest_announcement, collect(DISTINCT art.url) as article_urls
+                    WHERE size(article_urls) > 0
+
                     RETURN c.id as id, c.name as name, c.description as description,
                            c.mention_count as mention_count,
-                           investor_count, investors, latest_announcement
+                           investor_count, investors, latest_announcement, article_urls
                     ORDER BY latest_announcement DESC, investor_count DESC
                     LIMIT 20
                 """, days=days)
@@ -250,9 +323,17 @@ class QueryTemplates:
                     description: c.description,
                     mention_count: c.mention_count
                 }) as portfolio
+                
+                // Get article URLs from source_articles if available
+                OPTIONAL MATCH (i)
+                WHERE i.source_articles IS NOT NULL
+                UNWIND i.source_articles as article_id
+                MATCH (a:Article {id: article_id})
+                WITH i, portfolio, collect(DISTINCT a.url) as article_urls
 
                 RETURN i.id as id, i.name as name, i.description as description,
-                       size(portfolio) as portfolio_size, portfolio
+                       size(portfolio) as portfolio_size, portfolio,
+                       COALESCE(article_urls, []) as article_urls
                 LIMIT 1
             """, name=investor_name)
 
@@ -405,10 +486,19 @@ class QueryTemplates:
                 WHERE c <> funded
                 WITH c, direct_competitors, similar_companies,
                      collect(DISTINCT funded.name)[..5] as companies_with_shared_investors
+                
+                // Collect article URLs from source_articles
+                OPTIONAL MATCH (c)
+                WHERE c.source_articles IS NOT NULL
+                UNWIND c.source_articles as article_id
+                MATCH (a:Article {id: article_id})
+                WITH c, direct_competitors, similar_companies, companies_with_shared_investors,
+                     collect(DISTINCT a.url) as article_urls
 
-                RETURN c.name as company, c.description as description,
+                RETURN c.id as id, c.name as company, c.description as description,
                        direct_competitors, similar_companies,
-                       companies_with_shared_investors
+                       companies_with_shared_investors,
+                       COALESCE(article_urls, []) as article_urls
                 LIMIT 1
             """, name=company_name)
 

@@ -43,8 +43,8 @@ class TechCrunchGraphBuilder:
                 except Exception as e:
                     print(f"  Constraint may already exist: {e}")
             
-            # Initialize enrichment properties for existing Company nodes
-            self._initialize_company_properties(session)
+            # Initialize enrichment properties for existing nodes (all entity types)
+            self._initialize_enrichment_properties(session)
             
             # Indexes for performance
             indexes = [
@@ -61,32 +61,26 @@ class TechCrunchGraphBuilder:
                 except Exception as e:
                     print(f"  Index may already exist: {e}")
     
-    def _initialize_company_properties(self, session):
-        """Initialize enrichment properties for Company nodes that don't have them"""
+    def _initialize_enrichment_properties(self, session):
+        """Initialize enrichment properties for ALL entity nodes (not just Company)"""
+        # Initialize properties on all non-Article nodes to avoid Neo4j warnings
+        # This allows dynamic enrichment on any entity type
         query = """
-            MATCH (c:Company)
-            WHERE c.headquarters IS NULL
-               OR c.founded_year IS NULL
-               OR c.founders IS NULL
-               OR c.products IS NULL
-               OR c.technologies IS NULL
-               OR c.funding_total IS NULL
-               OR c.funding_stage IS NULL
-               OR c.enriched_description IS NULL
-               OR c.enrichment_status IS NULL
-            SET c.headquarters = COALESCE(c.headquarters, null),
-                c.founded_year = COALESCE(c.founded_year, null),
-                c.founders = COALESCE(c.founders, null),
-                c.products = COALESCE(c.products, null),
-                c.technologies = COALESCE(c.technologies, null),
-                c.funding_total = COALESCE(c.funding_total, null),
-                c.funding_stage = COALESCE(c.funding_stage, null),
-                c.enriched_description = COALESCE(c.enriched_description, null),
-                c.enrichment_status = COALESCE(c.enrichment_status, 'pending'),
-                c.website_url = COALESCE(c.website_url, null),
-                c.employee_count = COALESCE(c.employee_count, null),
-                c.pricing_model = COALESCE(c.pricing_model, null)
-            RETURN count(c) as updated
+            MATCH (e)
+            WHERE NOT e:Article
+            SET e.headquarters = COALESCE(e.headquarters, null),
+                e.founded_year = COALESCE(e.founded_year, null),
+                e.founders = COALESCE(e.founders, null),
+                e.products = COALESCE(e.products, null),
+                e.technologies = COALESCE(e.technologies, null),
+                e.funding_total = COALESCE(e.funding_total, null),
+                e.funding_stage = COALESCE(e.funding_stage, null),
+                e.enriched_description = COALESCE(e.enriched_description, null),
+                e.enrichment_status = COALESCE(e.enrichment_status, 'pending'),
+                e.website_url = COALESCE(e.website_url, null),
+                e.employee_count = COALESCE(e.employee_count, null),
+                e.pricing_model = COALESCE(e.pricing_model, null)
+            RETURN count(e) as updated
         """
         
         try:
@@ -94,20 +88,9 @@ class TechCrunchGraphBuilder:
             record = result.single()
             updated = record["updated"] if record else 0
             if updated > 0:
-                print(f"✓ Initialized enrichment properties for {updated} Company nodes")
+                print(f"✓ Initialized enrichment properties for {updated} entity nodes")
         except Exception as e:
-            print(f"  Note: Could not initialize company properties: {e}") = [
-                "CREATE INDEX IF NOT EXISTS FOR (c:Company) ON (c.name)",
-                "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.name)",
-                "CREATE INDEX IF NOT EXISTS FOR (a:Article) ON (a.published_date)"
-            ]
-            
-            for index in indexes:
-                try:
-                    session.run(index)
-                    print(f"✓ Created index")
-                except Exception as e:
-                    print(f"  Index may already exist: {e}")
+            print(f"  Note: Could not initialize enrichment properties: {e}")
     
     @staticmethod
     def generate_entity_id(name: str, entity_type: str) -> str:
@@ -162,48 +145,45 @@ class TechCrunchGraphBuilder:
             # Map entity type to node label
             node_label = self._get_node_label(entity_type)
             
-            # For Company nodes, initialize enrichment properties
-            if node_label == "Company":
-                query = f"""
-                    MERGE (e:{node_label} {{id: $id}})
-                    ON CREATE SET 
-                        e.name = $name,
-                        e.description = $description,
-                        e.created_at = timestamp(),
-                        e.mention_count = 1,
-                        e.headquarters = null,
-                        e.founded_year = null,
-                        e.founders = null,
-                        e.products = null,
-                        e.technologies = null,
-                        e.funding_total = null,
-                        e.funding_stage = null,
-                        e.enriched_description = null,
-                        e.enrichment_status = 'pending',
-                        e.website_url = null,
-                        e.employee_count = null,
-                        e.pricing_model = null
-                    ON MATCH SET
-                        e.description = e.description + ' | ' + $description,
-                        e.mention_count = e.mention_count + 1,
-                        e.updated_at = timestamp()
-                    RETURN e.id as id
-                """
-            else:
-                # Create or update entity node (non-Company)
-                query = f"""
-                    MERGE (e:{node_label} {{id: $id}})
-                    ON CREATE SET 
-                        e.name = $name,
-                        e.description = $description,
-                        e.created_at = timestamp(),
-                        e.mention_count = 1
-                    ON MATCH SET
-                        e.description = e.description + ' | ' + $description,
-                        e.mention_count = e.mention_count + 1,
-                        e.updated_at = timestamp()
-                    RETURN e.id as id
-                """
+            # Initialize enrichment properties for ALL entity types
+            # This allows dynamic enrichment and avoids Neo4j warnings
+            query = f"""
+                MERGE (e:{node_label} {{id: $id}})
+                ON CREATE SET 
+                    e.name = $name,
+                    e.description = $description,
+                    e.created_at = timestamp(),
+                    e.mention_count = 1,
+                    e.headquarters = null,
+                    e.founded_year = null,
+                    e.founders = null,
+                    e.products = null,
+                    e.technologies = null,
+                    e.funding_total = null,
+                    e.funding_stage = null,
+                    e.enriched_description = null,
+                    e.enrichment_status = COALESCE(e.enrichment_status, 'pending'),
+                    e.website_url = null,
+                    e.employee_count = null,
+                    e.pricing_model = null
+                ON MATCH SET
+                    e.description = e.description + ' | ' + $description,
+                    e.mention_count = e.mention_count + 1,
+                    e.updated_at = timestamp(),
+                    e.headquarters = COALESCE(e.headquarters, null),
+                    e.founded_year = COALESCE(e.founded_year, null),
+                    e.founders = COALESCE(e.founders, null),
+                    e.products = COALESCE(e.products, null),
+                    e.technologies = COALESCE(e.technologies, null),
+                    e.funding_total = COALESCE(e.funding_total, null),
+                    e.funding_stage = COALESCE(e.funding_stage, null),
+                    e.enriched_description = COALESCE(e.enriched_description, null),
+                    e.enrichment_status = COALESCE(e.enrichment_status, 'pending'),
+                    e.website_url = COALESCE(e.website_url, null),
+                    e.employee_count = COALESCE(e.employee_count, null),
+                    e.pricing_model = COALESCE(e.pricing_model, null)
+                RETURN e.id as id
+            """
             
             result = session.run(query,
                 id=entity_id,

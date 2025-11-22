@@ -59,3 +59,9 @@ httpx>=0.25.0
 
 # Additional utilities
 numpy>=1.24.0  # For similarity calculations
+
+# ============================================================================
+# Graph Data Science (for Aura Graph Analytics)
+# ============================================================================
+# For advanced graph algorithms via Aura Graph Analytics
+graphdatascience>=1.17.0  # Neo4j Graph Data Science Client

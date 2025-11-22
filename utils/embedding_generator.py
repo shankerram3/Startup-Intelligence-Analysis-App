@@ -182,7 +182,8 @@ class EmbeddingGenerator:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:
-            # Properties are now initialized on Company nodes, so direct access is safe
+            # All entity nodes now have enrichment properties initialized (even if null)
+            # So we can safely query them without warnings
             if entity_type:
                 query = f"""
                     MATCH (e:{entity_type})
@@ -294,7 +295,8 @@ class EmbeddingGenerator:
                 MATCH (e)
                 WHERE NOT e:Article AND e.embedding IS NOT NULL
                 RETURN e.id as id, e.name as name, labels(e)[0] as type,
-                       e.description as description, e.embedding as embedding
+                       e.description as description, e.embedding as embedding,
+                       e.source_articles as source_articles
             """)
             
             similarities = []
@@ -322,7 +324,8 @@ class EmbeddingGenerator:
                     "name": record["name"],
                     "type": record["type"],
                     "description": record.get("description", ""),
-                    "similarity": float(similarity)
+                    "similarity": float(similarity),
+                    "source_articles": record.get("source_articles")
                 })
             
             # Sort by similarity and return top results
@@ -346,7 +349,7 @@ class EmbeddingGenerator:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:
-            # Only fetch companies with enrichment status
+            # All nodes now have enrichment properties initialized, so we can query directly
             query = """
                 MATCH (c:Company)
                 WHERE c.enrichment_status = 'enriched'

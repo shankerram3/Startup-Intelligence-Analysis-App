@@ -156,4 +156,8 @@ export async function fetchPipelineLogs(tail = 200): Promise<string> {
   return res.log || '';
 }
 
+export function clearPipelineLogs() {
+  return postJson<{}, { status: string; message: string }>(`/admin/pipeline/logs/clear`, {} as any);
+}
+
 

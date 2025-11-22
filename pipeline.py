@@ -479,8 +479,12 @@ def run_pipeline(
                 print("3. Community Detection")
                 print("-" * 80)
                 detector = CommunityDetector(driver)
-                communities = detector.detect_communities(min_community_size=3)
-                print(f"   ✓ Detected {communities.get('total_communities', 0)} communities\n")
+                communities = detector.detect_communities(algorithm="leiden", min_community_size=3)
+                method = communities.get('method', 'simple')
+                if method == 'aura_graph_analytics':
+                    print(f"   ✓ Detected {communities.get('total_communities', 0)} communities using Aura Graph Analytics\n")
+                else:
+                    print(f"   ✓ Detected {communities.get('total_communities', 0)} communities using {method} method\n")
                 
                 # 4. Embedding Generation (includes enriched company data)
                 print("4. Embedding Generation (with enriched company intelligence)")
