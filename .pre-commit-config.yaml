@@ -33,40 +33,41 @@ repos:
     rev: 5.13.2
     hooks:
       - id: isort
+        args: ['--profile', 'black']
         exclude: ^frontend/
 
-  # Python linting
-  - repo: https://github.com/PyCQA/pylint
-    rev: v3.0.3
-    hooks:
-      - id: pylint
-        args: ['--rcfile=.pylintrc', '--disable=C0111,R0903']
-        exclude: ^(frontend/|tests/)
+  # Python linting (disabled - run in CI instead)
+  # - repo: https://github.com/PyCQA/pylint
+  #   rev: v3.0.3
+  #   hooks:
+  #     - id: pylint
+  #       args: ['--rcfile=.pylintrc', '--disable=C0111,R0903']
+  #       exclude: ^(frontend/|tests/)
 
-  # Python type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        args: ['--ignore-missing-imports', '--no-strict-optional']
-        additional_dependencies: [types-requests]
-        exclude: ^(frontend/|tests/)
+  # Python type checking (disabled - run in CI instead)
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.7.1
+  #   hooks:
+  #     - id: mypy
+  #       args: ['--ignore-missing-imports', '--no-strict-optional']
+  #       additional_dependencies: [types-requests]
+  #       exclude: ^(frontend/|tests/)
 
-  # Security checks
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.6
-    hooks:
-      - id: bandit
-        args: ['-ll', '-i', '--exclude', 'tests/']
-        exclude: ^frontend/
+  # Security checks (disabled - run in CI instead)
+  # - repo: https://github.com/PyCQA/bandit
+  #   rev: 1.7.6
+  #   hooks:
+  #     - id: bandit
+  #       args: ['-ll', '-i', '--exclude', 'tests/']
+  #       exclude: ^frontend/
 
-  # Secrets detection
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
-    hooks:
-      - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
-        exclude: ^(frontend/|\.env\.aura\.template)
+  # Secrets detection (disabled - run in CI instead)
+  # - repo: https://github.com/Yelp/detect-secrets
+  #   rev: v1.4.0
+  #   hooks:
+  #     - id: detect-secrets
+  #       args: ['--baseline', '.secrets.baseline']
+  #       exclude: ^(frontend/|\.env\.aura\.template)
 
 # Configuration
 default_language_version:

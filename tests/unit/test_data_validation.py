@@ -4,14 +4,15 @@ Tests all validation functions without external dependencies
 """
 
 import pytest
+
 from utils.data_validation import (
-    validate_article_structure,
-    validate_article_content,
-    validate_extracted_data,
-    validate_entity_types,
-    validate_relationship_types,
     VALID_ENTITY_TYPES,
-    VALID_RELATIONSHIP_TYPES
+    VALID_RELATIONSHIP_TYPES,
+    validate_article_content,
+    validate_article_structure,
+    validate_entity_types,
+    validate_extracted_data,
+    validate_relationship_types,
 )
 
 
@@ -89,7 +90,7 @@ class TestExtractedDataValidation:
         extracted = {
             "entities": [
                 {"name": "OpenAI", "type": "Company", "description": "AI company"},
-                {"name": "Sam Altman", "type": "Person", "description": "CEO"}
+                {"name": "Sam Altman", "type": "Person", "description": "CEO"},
             ],
             "relationships": [
                 {
@@ -97,9 +98,9 @@ class TestExtractedDataValidation:
                     "target": "OpenAI",
                     "type": "WORKS_AT",
                     "strength": 0.9,
-                    "context": "CEO of OpenAI"
+                    "context": "CEO of OpenAI",
                 }
-            ]
+            ],
         }
         is_valid, message = validate_extracted_data(extracted)
         assert is_valid is True
@@ -128,10 +129,8 @@ class TestExtractedDataValidation:
     def test_entity_missing_name(self):
         """Test validation fails when entity missing name"""
         extracted = {
-            "entities": [
-                {"type": "Company", "description": "AI company"}
-            ],
-            "relationships": []
+            "entities": [{"type": "Company", "description": "AI company"}],
+            "relationships": [],
         }
         is_valid, message = validate_extracted_data(extracted)
         assert is_valid is False
@@ -140,10 +139,8 @@ class TestExtractedDataValidation:
     def test_entity_missing_type(self):
         """Test validation fails when entity missing type"""
         extracted = {
-            "entities": [
-                {"name": "OpenAI", "description": "AI company"}
-            ],
-            "relationships": []
+            "entities": [{"name": "OpenAI", "description": "AI company"}],
+            "relationships": [],
         }
         is_valid, message = validate_extracted_data(extracted)
         assert is_valid is False
@@ -152,12 +149,8 @@ class TestExtractedDataValidation:
     def test_relationship_missing_fields(self):
         """Test validation fails when relationship missing required fields"""
         extracted = {
-            "entities": [
-                {"name": "OpenAI", "type": "Company", "description": "AI"}
-            ],
-            "relationships": [
-                {"source": "OpenAI"}  # Missing target, type, strength
-            ]
+            "entities": [{"name": "OpenAI", "type": "Company", "description": "AI"}],
+            "relationships": [{"source": "OpenAI"}],  # Missing target, type, strength
         }
         is_valid, message = validate_extracted_data(extracted)
         assert is_valid is False
@@ -165,17 +158,15 @@ class TestExtractedDataValidation:
     def test_invalid_strength_value(self):
         """Test validation fails for invalid strength value"""
         extracted = {
-            "entities": [
-                {"name": "OpenAI", "type": "Company", "description": "AI"}
-            ],
+            "entities": [{"name": "OpenAI", "type": "Company", "description": "AI"}],
             "relationships": [
                 {
                     "source": "A",
                     "target": "B",
                     "type": "PARTNERS_WITH",
-                    "strength": 1.5  # Invalid: > 1.0
+                    "strength": 1.5,  # Invalid: > 1.0
                 }
-            ]
+            ],
         }
         is_valid, message = validate_extracted_data(extracted)
         assert is_valid is False

@@ -3,13 +3,14 @@ Pytest configuration and shared fixtures
 Provides reusable test fixtures for all test suites
 """
 
-import pytest
-import os
-from typing import Generator, Dict, Any
-from unittest.mock import Mock, MagicMock, patch
-from neo4j import GraphDatabase
-from faker import Faker
 import json
+import os
+from typing import Any, Dict, Generator
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+from faker import Faker
+from neo4j import GraphDatabase
 
 # Set test environment variables before importing app modules
 os.environ["TESTING"] = "true"
@@ -23,6 +24,7 @@ fake = Faker()
 # =============================================================================
 # Session-scoped fixtures (run once per test session)
 # =============================================================================
+
 
 @pytest.fixture(scope="session")
 def test_config() -> Dict[str, Any]:
@@ -45,6 +47,7 @@ def test_config() -> Dict[str, Any]:
 # =============================================================================
 # Function-scoped fixtures (run for each test)
 # =============================================================================
+
 
 @pytest.fixture
 def mock_neo4j_driver():
@@ -87,10 +90,9 @@ def mock_openai_client():
     # Mock response structure
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message.content = json.dumps({
-        "entities": [],
-        "relationships": []
-    })
+    mock_response.choices[0].message.content = json.dumps(
+        {"entities": [], "relationships": []}
+    )
     mock_response.usage.prompt_tokens = 100
     mock_response.usage.completion_tokens = 50
 
@@ -120,10 +122,7 @@ def sample_article() -> Dict[str, Any]:
         "published_date": fake.date_time_this_year().isoformat(),
         "author": fake.name(),
         "source": "TechCrunch",
-        "metadata": {
-            "word_count": 500,
-            "reading_time": 3
-        }
+        "metadata": {"word_count": 500, "reading_time": 3},
     }
 
 
@@ -144,25 +143,20 @@ def sample_entities() -> list[Dict[str, Any]]:
             "name": fake.company(),
             "type": "Company",
             "description": fake.catch_phrase(),
-            "properties": {
-                "founded": "2020",
-                "industry": "AI"
-            }
+            "properties": {"founded": "2020", "industry": "AI"},
         },
         {
             "name": fake.name(),
             "type": "Person",
             "description": fake.job(),
-            "properties": {
-                "role": "CEO"
-            }
+            "properties": {"role": "CEO"},
         },
         {
             "name": fake.company(),
             "type": "Investor",
             "description": "Venture Capital",
-            "properties": {}
-        }
+            "properties": {},
+        },
     ]
 
 
@@ -180,15 +174,15 @@ def sample_relationships() -> list[Dict[str, Any]]:
             "target": "Person X",
             "type": "FOUNDED_BY",
             "strength": 0.95,
-            "context": "Founded in 2020"
+            "context": "Founded in 2020",
         },
         {
             "source": "Company A",
             "target": "Investor Y",
             "type": "FUNDED_BY",
             "strength": 0.90,
-            "context": "Series A funding"
-        }
+            "context": "Series A funding",
+        },
     ]
 
 
@@ -226,6 +220,7 @@ def mock_logger():
 # Real connection fixtures (for integration tests)
 # =============================================================================
 
+
 @pytest.fixture(scope="session")
 @pytest.mark.requires_neo4j
 def neo4j_driver(test_config):
@@ -244,7 +239,7 @@ def neo4j_driver(test_config):
 
     driver = GraphDatabase.driver(
         test_config["neo4j_uri"],
-        auth=(test_config["neo4j_user"], test_config["neo4j_password"])
+        auth=(test_config["neo4j_user"], test_config["neo4j_password"]),
     )
 
     # Test connection
@@ -281,6 +276,7 @@ def neo4j_session(neo4j_driver):
 # API testing fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def api_client():
     """
@@ -295,6 +291,7 @@ def api_client():
             assert response.status_code == 200
     """
     from fastapi.testclient import TestClient
+
     # Import here to avoid circular imports
     from api import app
 
@@ -323,9 +320,8 @@ def auth_headers():
 # Parametrized test data
 # =============================================================================
 
-@pytest.fixture(params=[
-    "Company", "Person", "Investor", "Technology", "Product"
-])
+
+@pytest.fixture(params=["Company", "Person", "Investor", "Technology", "Product"])
 def entity_type(request):
     """
     Parametrized fixture for different entity types
@@ -338,9 +334,7 @@ def entity_type(request):
     return request.param
 
 
-@pytest.fixture(params=[
-    "FOUNDED_BY", "FUNDED_BY", "WORKS_AT", "PARTNERS_WITH"
-])
+@pytest.fixture(params=["FOUNDED_BY", "FUNDED_BY", "WORKS_AT", "PARTNERS_WITH"])
 def relationship_type(request):
     """
     Parametrized fixture for different relationship types
@@ -352,10 +346,9 @@ def relationship_type(request):
 # Helper functions for tests
 # =============================================================================
 
+
 def create_test_article(
-    title: str = None,
-    content: str = None,
-    **kwargs
+    title: str = None, content: str = None, **kwargs
 ) -> Dict[str, Any]:
     """
     Helper function to create test articles with custom fields
@@ -399,8 +392,14 @@ def assert_valid_entity(entity: Dict[str, Any]):
     assert "name" in entity, "Entity missing 'name' field"
     assert "type" in entity, "Entity missing 'type' field"
     assert entity["type"] in [
-        "Company", "Person", "Investor", "Technology", "Product",
-        "FundingRound", "Location", "Event"
+        "Company",
+        "Person",
+        "Investor",
+        "Technology",
+        "Product",
+        "FundingRound",
+        "Location",
+        "Event",
     ], f"Invalid entity type: {entity['type']}"
 
 
@@ -421,6 +420,7 @@ def assert_valid_relationship(relationship: Dict[str, Any]):
 # =============================================================================
 # Autouse fixtures (automatically used by all tests)
 # =============================================================================
+
 
 @pytest.fixture(autouse=True)
 def reset_environment():
@@ -456,10 +456,12 @@ def mock_expensive_operations(monkeypatch):
     # Mock sentence transformers (prevent model download)
     def mock_encode(*args, **kwargs):
         import numpy as np
+
         return np.random.rand(384)  # Fake embedding
 
     try:
         from sentence_transformers import SentenceTransformer
+
         monkeypatch.setattr(SentenceTransformer, "encode", mock_encode)
     except ImportError:
         pass
@@ -468,6 +470,7 @@ def mock_expensive_operations(monkeypatch):
 # =============================================================================
 # Test markers and skip conditions
 # =============================================================================
+
 
 def pytest_configure(config):
     """Add custom markers to pytest"""

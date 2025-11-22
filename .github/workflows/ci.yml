@@ -33,7 +33,7 @@ jobs:
       run: black --check .
 
     - name: Check import sorting (isort)
-      run: isort --check .
+      run: isort --check --profile black .
 
     - name: Lint with pylint
       run: |

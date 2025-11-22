@@ -3,10 +3,10 @@ Company URL Extractor
 Extracts company website URLs from article content and entity mentions
 """
 
-import re
-from typing import Dict, List, Set, Optional
-from urllib.parse import urlparse, urljoin
 import logging
+import re
+from typing import Dict, List, Optional, Set
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -17,22 +17,45 @@ class CompanyURLExtractor:
     def __init__(self):
         # Common URL patterns in article content
         self.url_pattern = re.compile(
-            r'https?://(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)'
-            r'(?:/[^\s\)\]\"\'\<]*)?',
-            re.IGNORECASE
+            r"https?://(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)"
+            r"(?:/[^\s\)\]\"\'\<]*)?",
+            re.IGNORECASE,
         )
 
         # Domains to exclude (TechCrunch, social media, etc.)
         self.excluded_domains = {
-            'techcrunch.com', 'crunchbase.com', 'twitter.com', 'x.com',
-            'facebook.com', 'linkedin.com', 'instagram.com', 'youtube.com',
-            'tiktok.com', 'reddit.com', 'medium.com', 'substack.com',
-            'apple.com', 'google.com', 'microsoft.com', 'amazon.com',
-            'github.com', 'gitlab.com', 'bitbucket.org',
-            'wsj.com', 'nytimes.com', 'bloomberg.com', 'forbes.com',
-            'reuters.com', 'apnews.com', 'bbc.com', 'cnn.com',
-            'yahoo.com', 'bing.com', 'duckduckgo.com',
-            'wikipedia.org', 'wikimedia.org'
+            "techcrunch.com",
+            "crunchbase.com",
+            "twitter.com",
+            "x.com",
+            "facebook.com",
+            "linkedin.com",
+            "instagram.com",
+            "youtube.com",
+            "tiktok.com",
+            "reddit.com",
+            "medium.com",
+            "substack.com",
+            "apple.com",
+            "google.com",
+            "microsoft.com",
+            "amazon.com",
+            "github.com",
+            "gitlab.com",
+            "bitbucket.org",
+            "wsj.com",
+            "nytimes.com",
+            "bloomberg.com",
+            "forbes.com",
+            "reuters.com",
+            "apnews.com",
+            "bbc.com",
+            "cnn.com",
+            "yahoo.com",
+            "bing.com",
+            "duckduckgo.com",
+            "wikipedia.org",
+            "wikimedia.org",
         }
 
     def extract_urls_from_article(self, article_data: Dict) -> List[str]:
@@ -48,15 +71,15 @@ class CompanyURLExtractor:
         urls = set()
 
         # Extract from article body text
-        content = article_data.get('content', {})
-        body_text = content.get('body_text', '')
+        content = article_data.get("content", {})
+        body_text = content.get("body_text", "")
 
         if body_text:
             found_urls = self.url_pattern.findall(body_text)
             urls.update(found_urls)
 
         # Extract from paragraphs
-        paragraphs = content.get('paragraphs', [])
+        paragraphs = content.get("paragraphs", [])
         for para in paragraphs:
             if isinstance(para, str):
                 found_urls = self.url_pattern.findall(para)
@@ -73,15 +96,15 @@ class CompanyURLExtractor:
 
         for url in urls:
             # Ensure it has a scheme
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
 
             try:
                 parsed = urlparse(url)
                 domain = parsed.netloc.lower()
 
                 # Remove www. prefix for comparison
-                clean_domain = domain.replace('www.', '')
+                clean_domain = domain.replace("www.", "")
 
                 # Skip excluded domains
                 if any(excluded in clean_domain for excluded in self.excluded_domains):
@@ -89,7 +112,17 @@ class CompanyURLExtractor:
 
                 # Skip URLs with paths that look like articles/blog posts
                 path = parsed.path.lower()
-                if any(keyword in path for keyword in ['/blog/', '/news/', '/press/', '/article/', '/post/', '/category/']):
+                if any(
+                    keyword in path
+                    for keyword in [
+                        "/blog/",
+                        "/news/",
+                        "/press/",
+                        "/article/",
+                        "/post/",
+                        "/category/",
+                    ]
+                ):
                     # Only include base domain
                     normalized.add(f"{parsed.scheme}://{domain}")
                 else:
@@ -103,10 +136,7 @@ class CompanyURLExtractor:
         return normalized
 
     def match_urls_to_companies(
-        self,
-        article_data: Dict,
-        extraction_data: Dict,
-        urls: List[str]
+        self, article_data: Dict, extraction_data: Dict, urls: List[str]
     ) -> Dict[str, Optional[str]]:
         """
         Match extracted URLs to company entities mentioned in the article
@@ -122,31 +152,33 @@ class CompanyURLExtractor:
         company_urls = {}
 
         # Get all company entities
-        entities = extraction_data.get('entities', [])
-        companies = [e for e in entities if e.get('type', '').lower() == 'company']
+        entities = extraction_data.get("entities", [])
+        companies = [e for e in entities if e.get("type", "").lower() == "company"]
 
         if not companies:
             return company_urls
 
         # Get article text for context matching
-        content = article_data.get('content', {})
-        body_text = content.get('body_text', '').lower()
-        paragraphs = content.get('paragraphs', [])
+        content = article_data.get("content", {})
+        body_text = content.get("body_text", "").lower()
+        paragraphs = content.get("paragraphs", [])
 
         # Try to match each URL to a company
         for url in urls:
             try:
                 parsed = urlparse(url)
-                domain = parsed.netloc.replace('www.', '').lower()
-                domain_parts = domain.split('.')[0]  # e.g., 'anthropic' from 'anthropic.com'
+                domain = parsed.netloc.replace("www.", "").lower()
+                domain_parts = domain.split(".")[
+                    0
+                ]  # e.g., 'anthropic' from 'anthropic.com'
 
                 # Find best matching company
                 best_match = None
                 best_score = 0
 
                 for company in companies:
-                    company_name = company.get('name', '').lower()
-                    normalized_name = company.get('normalized_name', '').lower()
+                    company_name = company.get("name", "").lower()
+                    normalized_name = company.get("normalized_name", "").lower()
 
                     # Check if domain contains company name or vice versa
                     score = 0
@@ -155,15 +187,20 @@ class CompanyURLExtractor:
                     if domain_parts in company_name or company_name in domain_parts:
                         score = 10
                     # Normalized name match
-                    elif domain_parts in normalized_name or normalized_name in domain_parts:
+                    elif (
+                        domain_parts in normalized_name
+                        or normalized_name in domain_parts
+                    ):
                         score = 8
                     # Check if URL appears near company mention in text
-                    elif self._check_proximity_in_text(company_name, url, body_text, paragraphs):
+                    elif self._check_proximity_in_text(
+                        company_name, url, body_text, paragraphs
+                    ):
                         score = 6
 
                     if score > best_score:
                         best_score = score
-                        best_match = company.get('name')
+                        best_match = company.get("name")
 
                 # Assign URL to company if good match
                 if best_match and best_score >= 6:
@@ -176,7 +213,9 @@ class CompanyURLExtractor:
                 continue
 
         # Log unmatched companies for debugging
-        unmatched = [c.get('name') for c in companies if c.get('name') not in company_urls]
+        unmatched = [
+            c.get("name") for c in companies if c.get("name") not in company_urls
+        ]
         if unmatched:
             logger.debug(f"Companies without URLs: {unmatched}")
 
@@ -188,7 +227,7 @@ class CompanyURLExtractor:
         url: str,
         body_text: str,
         paragraphs: List[str],
-        proximity_window: int = 200
+        proximity_window: int = 200,
     ) -> bool:
         """
         Check if URL appears near company name in text
@@ -221,9 +260,7 @@ class CompanyURLExtractor:
         return False
 
     def extract_and_match(
-        self,
-        article_data: Dict,
-        extraction_data: Dict
+        self, article_data: Dict, extraction_data: Dict
     ) -> Dict[str, str]:
         """
         Complete workflow: extract URLs and match to companies
@@ -252,8 +289,7 @@ class CompanyURLExtractor:
 
 
 def extract_company_urls_from_extractions(
-    extractions: List[Dict],
-    articles_dir: str
+    extractions: List[Dict], articles_dir: str
 ) -> Dict[str, Dict[str, str]]:
     """
     Process all extractions and extract company URLs
@@ -265,16 +301,16 @@ def extract_company_urls_from_extractions(
     Returns:
         Dictionary mapping article_id -> {company_name: url}
     """
-    import os
     import json
+    import os
     from pathlib import Path
 
     extractor = CompanyURLExtractor()
     all_company_urls = {}
 
     for extraction in extractions:
-        article_metadata = extraction.get('article_metadata', {})
-        article_id = article_metadata.get('article_id')
+        article_metadata = extraction.get("article_metadata", {})
+        article_id = article_metadata.get("article_id")
 
         if not article_id:
             continue
@@ -294,7 +330,7 @@ def extract_company_urls_from_extractions(
             continue
 
         try:
-            with open(article_file, 'r', encoding='utf-8') as f:
+            with open(article_file, "r", encoding="utf-8") as f:
                 article_data = json.load(f)
 
             # Extract and match URLs

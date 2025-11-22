@@ -11,37 +11,43 @@ Version 2.0.0 - Enhanced with:
 - Security improvements
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response, JSONResponse
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict, Any
-import subprocess
-import threading
 import io
 import os
+import subprocess
+import threading
 import time
-from pathlib import Path
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from rag_query import GraphRAGQuery, create_rag_query
+from dotenv import load_dotenv
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
 from query_templates import QueryTemplates
+from rag_query import GraphRAGQuery, create_rag_query
+from utils.cache import EntityCache, QueryCache, get_cache
 
 # Import new utility modules
-from utils.logging_config import setup_logging, get_logger
-from utils.security import SecurityConfig, verify_token, optional_auth, sanitize_error_message
-from utils.cache import get_cache, QueryCache, EntityCache
+from utils.logging_config import get_logger, setup_logging
 from utils.monitoring import (
     PrometheusMiddleware,
     get_metrics,
     get_metrics_content_type,
+    record_cache_operation,
     record_query_execution,
-    record_cache_operation
+)
+from utils.security import (
+    SecurityConfig,
+    optional_auth,
+    sanitize_error_message,
+    verify_token,
 )
 
 # Load environment variables
@@ -51,7 +57,9 @@ load_dotenv()
 setup_logging(
     log_level=os.getenv("LOG_LEVEL", "INFO"),
     json_logs=os.getenv("JSON_LOGS", "true").lower() == "true",
-    log_file=Path("logs/api.log") if os.getenv("ENABLE_FILE_LOGGING") == "true" else None
+    log_file=(
+        Path("logs/api.log") if os.getenv("ENABLE_FILE_LOGGING") == "true" else None
+    ),
 )
 
 # Get logger for this module
@@ -71,66 +79,77 @@ rag_instance = None
 # PYDANTIC MODELS (Request/Response schemas)
 # =============================================================================
 
+
 class QueryRequest(BaseModel):
     """Request model for main query endpoint"""
+
     question: str = Field(..., description="Natural language question", min_length=3)
     return_context: bool = Field(False, description="Include raw context in response")
     use_llm: bool = Field(True, description="Generate LLM answer")
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "question": "Which AI startups raised funding recently?",
-            "return_context": False,
-            "use_llm": True
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "question": "Which AI startups raised funding recently?",
+                "return_context": False,
+                "use_llm": True,
+            }
         }
-    })
+    )
 
 
 class SemanticSearchRequest(BaseModel):
     """Request model for semantic search"""
+
     query: str = Field(..., description="Search query", min_length=2)
     top_k: int = Field(10, description="Number of results", ge=1, le=50)
     entity_type: Optional[str] = Field(None, description="Filter by entity type")
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "query": "artificial intelligence",
-            "top_k": 10,
-            "entity_type": "Company"
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "query": "artificial intelligence",
+                "top_k": 10,
+                "entity_type": "Company",
+            }
         }
-    })
+    )
 
 
 class CompareEntitiesRequest(BaseModel):
     """Request model for entity comparison"""
+
     entity1: str = Field(..., description="First entity name")
     entity2: str = Field(..., description="Second entity name")
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "entity1": "Anthropic",
-            "entity2": "OpenAI"
-        }
-    })
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"entity1": "Anthropic", "entity2": "OpenAI"}}
+    )
 
 
 class BatchQueryRequest(BaseModel):
     """Request model for batch queries"""
-    questions: List[str] = Field(..., description="List of questions", min_length=1, max_length=10)
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "questions": [
-                "What is Anthropic?",
-                "Who are the top investors?",
-                "What are trending technologies?"
-            ]
+    questions: List[str] = Field(
+        ..., description="List of questions", min_length=1, max_length=10
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "questions": [
+                    "What is Anthropic?",
+                    "Who are the top investors?",
+                    "What are trending technologies?",
+                ]
+            }
         }
-    })
+    )
 
 
 class QueryResponse(BaseModel):
     """Response model for query results"""
+
     question: str
     intent: Dict[str, Any]
     answer: Optional[str]
@@ -139,6 +158,7 @@ class QueryResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Error response model"""
+
     error: str
     detail: Optional[str] = None
 
@@ -147,21 +167,29 @@ class ErrorResponse(BaseModel):
 # ADMIN / PIPELINE CONTROL MODELS
 # =============================================================================
 
+
 class PipelineStartRequest(BaseModel):
     """Options for starting the pipeline"""
-    scrape_category: Optional[str] = Field(None, description="TechCrunch category to scrape (e.g., 'startups', 'ai')")
-    scrape_max_pages: Optional[int] = Field(None, description="Max pages to scrape", ge=1)
-    max_articles: Optional[int] = Field(None, description="Limit number of articles", ge=1)
+
+    scrape_category: Optional[str] = Field(
+        None, description="TechCrunch category to scrape (e.g., 'startups', 'ai')"
+    )
+    scrape_max_pages: Optional[int] = Field(
+        None, description="Max pages to scrape", ge=1
+    )
+    max_articles: Optional[int] = Field(
+        None, description="Limit number of articles", ge=1
+    )
     skip_scraping: bool = Field(False, description="Skip scraping phase")
     skip_extraction: bool = Field(False, description="Skip entity extraction phase")
     skip_graph: bool = Field(False, description="Skip graph construction phase")
     no_resume: bool = Field(False, description="Do not resume from checkpoints")
 
 
-
 # =============================================================================
 # LIFESPAN CONTEXT MANAGER
 # =============================================================================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -180,11 +208,7 @@ async def lifespan(app: FastAPI):
         logger.info("cache_initialized", **cache_stats)
 
     except Exception as e:
-        logger.error(
-            "rag_initialization_failed",
-            error=str(e),
-            exc_info=True
-        )
+        logger.error("rag_initialization_failed", error=str(e), exc_info=True)
         raise
 
     yield
@@ -204,12 +228,13 @@ app = FastAPI(
     title="GraphRAG API",
     description="REST API for TechCrunch Knowledge Graph Query System with Security & Monitoring",
     version="2.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add rate limiter state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Add request size limiting middleware
 @app.middleware("http")
@@ -223,15 +248,18 @@ async def limit_upload_size(request: Request, call_next):
                 "request_too_large",
                 size=content_length,
                 max_size=SecurityConfig.MAX_REQUEST_SIZE,
-                path=request.url.path
+                path=request.url.path,
             )
             return JSONResponse(
                 status_code=413,
-                content={"detail": f"Request body too large. Maximum size: {SecurityConfig.MAX_REQUEST_SIZE} bytes"}
+                content={
+                    "detail": f"Request body too large. Maximum size: {SecurityConfig.MAX_REQUEST_SIZE} bytes"
+                },
             )
 
     response = await call_next(request)
     return response
+
 
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware)
@@ -253,6 +281,7 @@ frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # HEALTH CHECK
 # =============================================================================
 
+
 @app.get("/", tags=["Health"])
 async def root():
     """Health check endpoint"""
@@ -266,8 +295,8 @@ async def root():
             "authentication",
             "rate_limiting",
             "caching",
-            "metrics"
-        ]
+            "metrics",
+        ],
     }
 
 
@@ -288,10 +317,14 @@ async def health():
             "components": {
                 "database": "connected",
                 "cache": "enabled" if cache.enabled else "disabled",
-                "authentication": "enabled" if SecurityConfig.ENABLE_AUTH else "disabled",
-                "rate_limiting": "enabled" if SecurityConfig.ENABLE_RATE_LIMITING else "disabled"
+                "authentication": (
+                    "enabled" if SecurityConfig.ENABLE_AUTH else "disabled"
+                ),
+                "rate_limiting": (
+                    "enabled" if SecurityConfig.ENABLE_RATE_LIMITING else "disabled"
+                ),
             },
-            "graph_stats": stats
+            "graph_stats": stats,
         }
 
         logger.info("health_check_success", **health_status)
@@ -310,10 +343,7 @@ async def metrics():
 
     Returns metrics in Prometheus text format for scraping
     """
-    return Response(
-        content=get_metrics(),
-        media_type=get_metrics_content_type()
-    )
+    return Response(content=get_metrics(), media_type=get_metrics_content_type())
 
 
 @app.get("/admin/status", tags=["Admin"])
@@ -332,8 +362,8 @@ async def get_system_status():
             "authentication_enabled": SecurityConfig.ENABLE_AUTH,
             "rate_limiting_enabled": SecurityConfig.ENABLE_RATE_LIMITING,
             "max_request_size": SecurityConfig.MAX_REQUEST_SIZE,
-            "allowed_origins": SecurityConfig.ALLOWED_ORIGINS
-        }
+            "allowed_origins": SecurityConfig.ALLOWED_ORIGINS,
+        },
     }
 
     if rag_instance:
@@ -349,6 +379,7 @@ async def get_system_status():
 # =============================================================================
 # NEO4J ADMIN / AURADB OVERVIEW
 # =============================================================================
+
 
 @app.get("/admin/neo4j/overview", tags=["Admin", "Neo4j"])
 async def neo4j_overview() -> Dict[str, Any]:
@@ -374,28 +405,38 @@ async def neo4j_overview() -> Dict[str, Any]:
         # Run best-effort metadata queries (Aura may restrict some procedures)
         with rag_instance.driver.session() as session:
             try:
-                comp = session.run("CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition")
+                comp = session.run(
+                    "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition"
+                )
                 db_info["components"] = [dict(r) for r in comp]
             except Exception:
                 db_info["components"] = []
             try:
-                labs = session.run("CALL db.labels() YIELD label RETURN label ORDER BY label")
+                labs = session.run(
+                    "CALL db.labels() YIELD label RETURN label ORDER BY label"
+                )
                 labels = [r["label"] for r in labs]
             except Exception:
                 labels = []
             try:
-                rels = session.run("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType")
+                rels = session.run(
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
+                )
                 rel_types = [r["relationshipType"] for r in rels]
             except Exception:
                 rel_types = []
 
         # Top entities
         try:
-            top_connected = rag_instance.query_templates.get_most_connected_entities(limit=10)
+            top_connected = rag_instance.query_templates.get_most_connected_entities(
+                limit=10
+            )
         except Exception:
             top_connected = []
         try:
-            top_important = rag_instance.query_templates.get_entity_importance_scores(limit=10)
+            top_important = rag_instance.query_templates.get_entity_importance_scores(
+                limit=10
+            )
         except Exception:
             top_important = []
 
@@ -406,10 +447,13 @@ async def neo4j_overview() -> Dict[str, Any]:
             "relationship_types": rel_types,
             "graph_stats": stats,
             "top_connected_entities": top_connected,
-            "top_important_entities": top_important
+            "top_important_entities": top_important,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Neo4j overview: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch Neo4j overview: {e}"
+        )
+
 
 # =============================================================================
 # ADMIN / PIPELINE CONTROL ENDPOINTS
@@ -453,16 +497,18 @@ async def start_pipeline(options: PipelineStartRequest):
         if os.path.exists(pipeline_log_path):
             with open(pipeline_log_path, "w") as f:
                 f.write("")
-        
+
         # Open log file in append mode for the new run
         log_fh = open(pipeline_log_path, "ab")
         pipeline_proc = subprocess.Popen(
-            args,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            cwd=os.getcwd()
+            args, stdout=log_fh, stderr=subprocess.STDOUT, cwd=os.getcwd()
         )
-        return {"status": "started", "pid": pipeline_proc.pid, "args": args, "log": pipeline_log_path}
+        return {
+            "status": "started",
+            "pid": pipeline_proc.pid,
+            "args": args,
+            "log": pipeline_log_path,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
 
@@ -514,8 +560,10 @@ async def clear_pipeline_logs():
     global pipeline_proc
     # Don't allow clearing logs if pipeline is currently running
     if pipeline_proc and pipeline_proc.poll() is None:
-        raise HTTPException(status_code=409, detail="Cannot clear logs while pipeline is running")
-    
+        raise HTTPException(
+            status_code=409, detail="Cannot clear logs while pipeline is running"
+        )
+
     try:
         # Clear the log file by truncating it
         if os.path.exists(pipeline_log_path):
@@ -530,9 +578,14 @@ async def clear_pipeline_logs():
 # MAIN QUERY ENDPOINTS
 # =============================================================================
 
+
 @app.post("/query", response_model=QueryResponse, tags=["Query"])
 @limiter.limit("30/minute" if SecurityConfig.ENABLE_RATE_LIMITING else "1000/minute")
-async def query(request: Request, query_request: QueryRequest, user: Optional[Dict] = Depends(optional_auth)):
+async def query(
+    request: Request,
+    query_request: QueryRequest,
+    user: Optional[Dict] = Depends(optional_auth),
+):
     """
     Main query endpoint - natural language questions
 
@@ -556,7 +609,7 @@ async def query(request: Request, query_request: QueryRequest, user: Optional[Di
         "query_received",
         question=query_request.question[:100],  # Truncate for logging
         use_llm=query_request.use_llm,
-        user_id=user.get("sub") if user else "anonymous"
+        user_id=user.get("sub") if user else "anonymous",
     )
 
     try:
@@ -574,7 +627,7 @@ async def query(request: Request, query_request: QueryRequest, user: Optional[Di
         result = rag_instance.query(
             question=query_request.question,
             return_context=query_request.return_context,
-            use_llm=query_request.use_llm
+            use_llm=query_request.use_llm,
         )
 
         # Cache result if LLM was used
@@ -586,7 +639,7 @@ async def query(request: Request, query_request: QueryRequest, user: Optional[Di
             "query_success",
             question=query_request.question[:50],
             duration_ms=duration_ms,
-            cached=False
+            cached=False,
         )
         record_query_execution("natural_language", success=True)
 
@@ -599,7 +652,7 @@ async def query(request: Request, query_request: QueryRequest, user: Optional[Di
             question=query_request.question[:50],
             error=str(e),
             duration_ms=duration_ms,
-            exc_info=True
+            exc_info=True,
         )
         record_query_execution("natural_language", success=False)
 
@@ -622,8 +675,7 @@ async def batch_query(request: BatchQueryRequest):
 
 @app.post("/query/multi-hop", tags=["Query"])
 async def multi_hop_reasoning(
-    question: str = Body(..., embed=True),
-    max_hops: int = Body(3, embed=True)
+    question: str = Body(..., embed=True), max_hops: int = Body(3, embed=True)
 ):
     """Perform multi-hop reasoning across the graph"""
     if not rag_instance:
@@ -640,6 +692,7 @@ async def multi_hop_reasoning(
 # SEARCH ENDPOINTS
 # =============================================================================
 
+
 @app.post("/search/semantic", tags=["Search"])
 async def semantic_search(request: SemanticSearchRequest):
     """
@@ -652,9 +705,7 @@ async def semantic_search(request: SemanticSearchRequest):
 
     try:
         results = rag_instance.semantic_search(
-            query=request.query,
-            top_k=request.top_k,
-            entity_type=request.entity_type
+            query=request.query, top_k=request.top_k, entity_type=request.entity_type
         )
         return {"results": results, "count": len(results)}
     except Exception as e:
@@ -665,7 +716,7 @@ async def semantic_search(request: SemanticSearchRequest):
 async def hybrid_search(
     query: str = Body(..., embed=True),
     top_k: int = Body(10, embed=True),
-    semantic_weight: float = Body(0.7, embed=True)
+    semantic_weight: float = Body(0.7, embed=True),
 ):
     """
     Hybrid search combining semantic and keyword matching
@@ -677,9 +728,7 @@ async def hybrid_search(
 
     try:
         results = rag_instance.hybrid_search(
-            query=query,
-            top_k=top_k,
-            semantic_weight=semantic_weight
+            query=query, top_k=top_k, semantic_weight=semantic_weight
         )
         return {"results": results, "count": len(results)}
     except Exception as e:
@@ -689,27 +738,32 @@ async def hybrid_search(
 @app.get("/search/fulltext", tags=["Search"])
 async def fulltext_search(
     query: str = Query(..., description="Search term"),
-    limit: int = Query(10, description="Max results", ge=1, le=50)
+    limit: int = Query(10, description="Max results", ge=1, le=50),
 ):
     """Full-text search in entity names and descriptions"""
     if not rag_instance:
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
-        results = rag_instance.query_templates.search_entities_full_text(query, limit=limit)
+        results = rag_instance.query_templates.search_entities_full_text(
+            query, limit=limit
+        )
         return {"results": results, "count": len(results)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Full-text search failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Full-text search failed: {str(e)}"
+        )
 
 
 # =============================================================================
 # ENTITY ENDPOINTS
 # =============================================================================
 
+
 @app.get("/entity/{entity_id}", tags=["Entities"])
 async def get_entity(
     entity_id: str,
-    include_relationships: bool = Query(False, description="Include related entities")
+    include_relationships: bool = Query(False, description="Include related entities"),
 ):
     """Get entity details by ID"""
     if not rag_instance:
@@ -735,17 +789,21 @@ async def get_entity(
 @app.get("/entity/name/{entity_name}", tags=["Entities"])
 async def get_entity_by_name(
     entity_name: str,
-    entity_type: Optional[str] = Query(None, description="Entity type filter")
+    entity_type: Optional[str] = Query(None, description="Entity type filter"),
 ):
     """Get entity by name"""
     if not rag_instance:
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
-        entity = rag_instance.query_templates.get_entity_by_name(entity_name, entity_type)
+        entity = rag_instance.query_templates.get_entity_by_name(
+            entity_name, entity_type
+        )
 
         if not entity:
-            raise HTTPException(status_code=404, detail=f"Entity '{entity_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Entity '{entity_name}' not found"
+            )
 
         return entity
     except HTTPException:
@@ -755,16 +813,15 @@ async def get_entity_by_name(
 
 
 @app.get("/entities/type/{entity_type}", tags=["Entities"])
-async def get_entities_by_type(
-    entity_type: str,
-    limit: int = Query(10, ge=1, le=100)
-):
+async def get_entities_by_type(entity_type: str, limit: int = Query(10, ge=1, le=100)):
     """Get entities by type"""
     if not rag_instance:
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
-        entities = rag_instance.query_templates.search_entities_by_type(entity_type, limit=limit)
+        entities = rag_instance.query_templates.search_entities_by_type(
+            entity_type, limit=limit
+        )
         return {"results": entities, "count": len(entities), "type": entity_type}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get entities: {str(e)}")
@@ -793,6 +850,7 @@ async def compare_entities(request: CompareEntitiesRequest):
 # COMPANY ENDPOINTS
 # =============================================================================
 
+
 @app.get("/company/{company_name}", tags=["Companies"])
 async def get_company_profile(company_name: str):
     """Get comprehensive company profile"""
@@ -803,7 +861,9 @@ async def get_company_profile(company_name: str):
         profile = rag_instance.query_templates.get_company_profile(company_name)
 
         if not profile:
-            raise HTTPException(status_code=404, detail=f"Company '{company_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Company '{company_name}' not found"
+            )
 
         return profile
     except HTTPException:
@@ -822,7 +882,9 @@ async def get_funded_companies(min_investors: int = Query(1, ge=1)):
         companies = rag_instance.query_templates.get_companies_by_funding(min_investors)
         return {"results": companies, "count": len(companies)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get companies: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get companies: {str(e)}"
+        )
 
 
 @app.get("/companies/sector/{sector}", tags=["Companies"])
@@ -835,7 +897,9 @@ async def get_companies_by_sector(sector: str):
         companies = rag_instance.query_templates.get_companies_in_sector(sector)
         return {"results": companies, "count": len(companies), "sector": sector}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get companies: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get companies: {str(e)}"
+        )
 
 
 @app.get("/company/{company_name}/competitive-landscape", tags=["Companies"])
@@ -848,18 +912,23 @@ async def get_competitive_landscape(company_name: str):
         landscape = rag_instance.query_templates.get_competitive_landscape(company_name)
 
         if not landscape:
-            raise HTTPException(status_code=404, detail=f"Company '{company_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Company '{company_name}' not found"
+            )
 
         return landscape
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get competitive landscape: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get competitive landscape: {str(e)}"
+        )
 
 
 # =============================================================================
 # INVESTOR ENDPOINTS
 # =============================================================================
+
 
 @app.get("/investor/{investor_name}/portfolio", tags=["Investors"])
 async def get_investor_portfolio(investor_name: str):
@@ -871,13 +940,17 @@ async def get_investor_portfolio(investor_name: str):
         portfolio = rag_instance.query_templates.get_investor_portfolio(investor_name)
 
         if not portfolio:
-            raise HTTPException(status_code=404, detail=f"Investor '{investor_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Investor '{investor_name}' not found"
+            )
 
         return portfolio
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get portfolio: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get portfolio: {str(e)}"
+        )
 
 
 @app.get("/investors/top", tags=["Investors"])
@@ -890,12 +963,15 @@ async def get_top_investors(limit: int = Query(10, ge=1, le=50)):
         investors = rag_instance.query_templates.get_top_investors(limit)
         return {"results": investors, "count": len(investors)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get investors: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get investors: {str(e)}"
+        )
 
 
 # =============================================================================
 # PERSON ENDPOINTS
 # =============================================================================
+
 
 @app.get("/person/{person_name}", tags=["People"])
 async def get_person_profile(person_name: str):
@@ -907,7 +983,9 @@ async def get_person_profile(person_name: str):
         profile = rag_instance.query_templates.get_person_profile(person_name)
 
         if not profile:
-            raise HTTPException(status_code=404, detail=f"Person '{person_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Person '{person_name}' not found"
+            )
 
         return profile
     except HTTPException:
@@ -920,10 +998,10 @@ async def get_person_profile(person_name: str):
 # RELATIONSHIP ENDPOINTS
 # =============================================================================
 
+
 @app.get("/relationships/{entity_id}", tags=["Relationships"])
 async def get_entity_relationships(
-    entity_id: str,
-    max_hops: int = Query(2, ge=1, le=3)
+    entity_id: str, max_hops: int = Query(2, ge=1, le=3)
 ):
     """Get entity's relationship network"""
     if not rag_instance:
@@ -939,33 +1017,48 @@ async def get_entity_relationships(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get relationships: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get relationships: {str(e)}"
+        )
 
 
 @app.get("/connection-path", tags=["Relationships"])
 async def find_connection_path(
     entity1: str = Query(..., description="First entity name"),
     entity2: str = Query(..., description="Second entity name"),
-    max_hops: int = Query(4, ge=1, le=6)
+    max_hops: int = Query(4, ge=1, le=6),
 ):
     """Find shortest path between two entities"""
     if not rag_instance:
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
-        paths = rag_instance.query_templates.find_connection_path(entity1, entity2, max_hops)
+        paths = rag_instance.query_templates.find_connection_path(
+            entity1, entity2, max_hops
+        )
 
         if not paths:
-            return {"message": f"No connection found between {entity1} and {entity2}", "paths": []}
+            return {
+                "message": f"No connection found between {entity1} and {entity2}",
+                "paths": [],
+            }
 
-        return {"entity1": entity1, "entity2": entity2, "paths": paths, "count": len(paths)}
+        return {
+            "entity1": entity1,
+            "entity2": entity2,
+            "paths": paths,
+            "count": len(paths),
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to find connection: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to find connection: {str(e)}"
+        )
 
 
 # =============================================================================
 # COMMUNITY ENDPOINTS
 # =============================================================================
+
 
 @app.get("/communities", tags=["Communities"])
 async def get_communities(min_size: int = Query(3, ge=1)):
@@ -977,7 +1070,9 @@ async def get_communities(min_size: int = Query(3, ge=1)):
         communities = rag_instance.query_templates.get_communities(min_size)
         return {"results": communities, "count": len(communities)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get communities: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get communities: {str(e)}"
+        )
 
 
 @app.get("/community/{community_id}", tags=["Communities"])
@@ -990,18 +1085,23 @@ async def get_community(community_id: int):
         community = rag_instance.query_templates.get_community_by_id(community_id)
 
         if not community:
-            raise HTTPException(status_code=404, detail=f"Community {community_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Community {community_id} not found"
+            )
 
         return community
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get community: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get community: {str(e)}"
+        )
 
 
 # =============================================================================
 # ANALYTICS ENDPOINTS
 # =============================================================================
+
 
 @app.get("/analytics/statistics", tags=["Analytics"])
 async def get_statistics():
@@ -1013,7 +1113,9 @@ async def get_statistics():
         stats = rag_instance.query_templates.get_graph_statistics()
         return stats
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get statistics: {str(e)}"
+        )
 
 
 @app.get("/analytics/most-connected", tags=["Analytics"])
@@ -1039,7 +1141,9 @@ async def get_entity_importance(limit: int = Query(20, ge=1, le=50)):
         entities = rag_instance.query_templates.get_entity_importance_scores(limit)
         return {"results": entities, "count": len(entities)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get importance scores: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get importance scores: {str(e)}"
+        )
 
 
 @app.get("/analytics/insights/{topic}", tags=["Analytics"])
@@ -1059,6 +1163,7 @@ async def get_insights(topic: str, limit: int = Query(5, ge=1, le=10)):
 # TECHNOLOGY & TREND ENDPOINTS
 # =============================================================================
 
+
 @app.get("/technology/{technology_name}", tags=["Technology"])
 async def get_technology_adoption(technology_name: str):
     """Get technology adoption information"""
@@ -1069,13 +1174,17 @@ async def get_technology_adoption(technology_name: str):
         adoption = rag_instance.query_templates.get_technology_adoption(technology_name)
 
         if not adoption:
-            raise HTTPException(status_code=404, detail=f"Technology '{technology_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Technology '{technology_name}' not found"
+            )
 
         return adoption
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get technology info: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get technology info: {str(e)}"
+        )
 
 
 @app.get("/technologies/trending", tags=["Technology"])
@@ -1088,17 +1197,19 @@ async def get_trending_technologies(limit: int = Query(10, ge=1, le=50)):
         technologies = rag_instance.query_templates.get_trending_technologies(limit)
         return {"results": technologies, "count": len(technologies)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get technologies: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get technologies: {str(e)}"
+        )
 
 
 # =============================================================================
 # TEMPORAL ENDPOINTS
 # =============================================================================
 
+
 @app.get("/recent-entities", tags=["Temporal"])
 async def get_recent_entities(
-    days: int = Query(30, ge=1, le=365),
-    limit: int = Query(10, ge=1, le=50)
+    days: int = Query(30, ge=1, le=365), limit: int = Query(10, ge=1, le=50)
 ):
     """Get recently mentioned entities"""
     if not rag_instance:
@@ -1108,7 +1219,9 @@ async def get_recent_entities(
         entities = rag_instance.query_templates.get_recent_entities(days, limit)
         return {"results": entities, "count": len(entities), "days": days}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get recent entities: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get recent entities: {str(e)}"
+        )
 
 
 @app.get("/funding-timeline", tags=["Temporal"])
@@ -1128,6 +1241,7 @@ async def get_funding_timeline(company_name: Optional[str] = Query(None)):
 # DOCUMENTATION ENDPOINTS
 # =============================================================================
 
+
 @app.get("/docs/readme", tags=["Documentation"])
 async def get_readme():
     """Get README.md content"""
@@ -1140,13 +1254,13 @@ async def get_readme():
             if candidate.exists():
                 readme_path = candidate
                 break
-        
+
         if not readme_path:
             raise HTTPException(status_code=404, detail="README.md not found")
-        
+
         with open(readme_path, "r", encoding="utf-8") as f:
             content = f.read()
-        
+
         return Response(content=content, media_type="text/markdown; charset=utf-8")
     except HTTPException:
         raise
@@ -1161,17 +1275,32 @@ async def get_readme():
 # Mount static files and SPA route (must be last, after all API routes)
 if frontend_dist.exists():
     # Serve static assets
-    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
-    
+    app.mount(
+        "/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets"
+    )
+
     # Serve frontend index.html for all non-API routes (catch-all, must be last)
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         """Serve frontend SPA - catch all non-API routes"""
         # Don't serve frontend for API routes
         # Note: /docs/readme is handled by the endpoint above, so it won't reach here
-        if full_path.startswith(("api/", "docs/", "redoc", "openapi.json", "health", "query", "search", "company", "investors", "admin")):
+        if full_path.startswith(
+            (
+                "api/",
+                "docs/",
+                "redoc",
+                "openapi.json",
+                "health",
+                "query",
+                "search",
+                "company",
+                "investors",
+                "admin",
+            )
+        ):
             raise HTTPException(status_code=404, detail="Not found")
-        
+
         index_file = frontend_dist / "index.html"
         if index_file.exists():
             return FileResponse(str(index_file))
@@ -1199,5 +1328,5 @@ if __name__ == "__main__":
         host=host,
         port=port,
         reload=True,  # Auto-reload on code changes (disable in production)
-        log_level="info"
+        log_level="info",
     )

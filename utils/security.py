@@ -3,14 +3,15 @@ Security utilities for API authentication and authorization
 Provides JWT token handling, password hashing, and security helpers
 """
 
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-from fastapi import HTTPException, Security, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 load_dotenv()
 
@@ -31,11 +32,14 @@ class SecurityConfig:
     """
     Security configuration and settings
     """
+
     ENABLE_AUTH = os.getenv("ENABLE_AUTH", "false").lower() == "true"
     ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default
-    API_KEYS = set(os.getenv("API_KEYS", "").split(",")) if os.getenv("API_KEYS") else set()
+    API_KEYS = (
+        set(os.getenv("API_KEYS", "").split(",")) if os.getenv("API_KEYS") else set()
+    )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -65,7 +69,9 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+) -> str:
     """
     Create a JWT access token
 
@@ -116,7 +122,9 @@ def decode_access_token(token: str) -> Dict[str, Any]:
         )
 
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)) -> Dict[str, Any]:
+async def verify_token(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> Dict[str, Any]:
     """
     Verify JWT token from Authorization header
 
@@ -157,7 +165,9 @@ async def verify_api_key(api_key: str) -> bool:
 
 
 async def optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security, auto_error=False)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(
+        security, auto_error=False
+    )
 ) -> Optional[Dict[str, Any]]:
     """
     Optional authentication - allows both authenticated and anonymous access
@@ -265,8 +275,7 @@ def generate_test_token(user_id: str = "test_user", role: str = "user") -> str:
         # Use in requests: headers={"Authorization": f"Bearer {token}"}
     """
     return create_access_token(
-        data={"sub": user_id, "role": role},
-        expires_delta=timedelta(days=1)
+        data={"sub": user_id, "role": role}, expires_delta=timedelta(days=1)
     )
 
 

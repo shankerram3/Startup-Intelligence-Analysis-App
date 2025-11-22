@@ -11,14 +11,15 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Dict, List, Optional, Tuple
 
-from neo4j import GraphDatabase, Driver
+from neo4j import Driver, GraphDatabase
+
 try:
     from neo4j.exceptions import ServiceUnavailable as Neo4jServiceUnavailable
 except Exception:  # pragma: no cover
     Neo4jServiceUnavailable = Exception
 
-from utils.embedding_generator import EmbeddingGenerator
 from rag import vector_index
+from utils.embedding_generator import EmbeddingGenerator
 
 
 @dataclass
@@ -53,7 +54,9 @@ class HybridRAG:
         index_chunk_progress_every: int = 50,
         resume_index: bool = False,
     ):
-        self.driver: Driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+        self.driver: Driver = GraphDatabase.driver(
+            neo4j_uri, auth=(neo4j_user, neo4j_password)
+        )
         self.embedding = EmbeddingGenerator(
             self.driver,
             embedding_model=(embedding_backend or "sentence_transformers"),
@@ -63,12 +66,15 @@ class HybridRAG:
         # Backward-compatible: allow passing via env RAG_VERBOSE=1
         try:
             import os as _os
+
             self.verbose = _os.getenv("RAG_VERBOSE", "0") == "1"
         except Exception:
             self.verbose = False
         # Ensure vector index exists
         if self.embedding.embedding_function is None:
-            raise RuntimeError("Embedding function is not initialized. Install and configure sentence-transformers.")
+            raise RuntimeError(
+                "Embedding function is not initialized. Install and configure sentence-transformers."
+            )
         t0 = perf_counter()
         vector_index.ensure_index(
             articles_dir,
@@ -99,7 +105,9 @@ class HybridRAG:
         t0 = perf_counter()
         similar = self.embedding.find_similar_entities(query, limit=top_k_entities)
         if self.verbose:
-            print(f"[HybridRAG] Found {len(similar)} entities in {perf_counter() - t0:.2f}s")
+            print(
+                f"[HybridRAG] Found {len(similar)} entities in {perf_counter() - t0:.2f}s"
+            )
         entities: List[RetrievedEntity] = [
             RetrievedEntity(
                 id=e.get("id", ""),
@@ -120,7 +128,9 @@ class HybridRAG:
         with self.driver.session() as s:
             # Neighbor relationships
             if self.verbose:
-                print(f"[HybridRAG] Expanding neighbors (hops={neighbor_hops}) and collecting relationships...")
+                print(
+                    f"[HybridRAG] Expanding neighbors (hops={neighbor_hops}) and collecting relationships..."
+                )
             t1 = perf_counter()
             result = s.run(
                 f"""
@@ -143,7 +153,9 @@ class HybridRAG:
                     }
                 )
             if self.verbose:
-                print(f"[HybridRAG] Relationships collected: {len(rels)} in {perf_counter() - t1:.2f}s")
+                print(
+                    f"[HybridRAG] Relationships collected: {len(rels)} in {perf_counter() - t1:.2f}s"
+                )
 
             # Source articles from entities
             if self.verbose:
@@ -161,7 +173,9 @@ class HybridRAG:
             for r in result2:
                 article_ids.append(r["article_id"])
             if self.verbose:
-                print(f"[HybridRAG] Article IDs collected: {len(article_ids)} in {perf_counter() - t2:.2f}s")
+                print(
+                    f"[HybridRAG] Article IDs collected: {len(article_ids)} in {perf_counter() - t2:.2f}s"
+                )
 
         return entities, rels, article_ids
 
@@ -171,9 +185,13 @@ class HybridRAG:
         if self.verbose:
             print(f"[HybridRAG] Vector search (top={top_k_docs})...")
         t0 = perf_counter()
-        docs = vector_index.search(query, self.embedding.embedding_function, top_k=top_k_docs)
+        docs = vector_index.search(
+            query, self.embedding.embedding_function, top_k=top_k_docs
+        )
         if self.verbose:
-            print(f"[HybridRAG] Vector search returned {len(docs)} in {perf_counter() - t0:.2f}s")
+            print(
+                f"[HybridRAG] Vector search returned {len(docs)} in {perf_counter() - t0:.2f}s"
+            )
         return [
             RetrievedDoc(
                 score=d["score"],
@@ -206,10 +224,14 @@ class HybridRAG:
                 )
             except Neo4jServiceUnavailable as e:
                 if self.verbose:
-                    print(f"[HybridRAG] Neo4j unavailable, falling back to vector-only: {e}")
+                    print(
+                        f"[HybridRAG] Neo4j unavailable, falling back to vector-only: {e}"
+                    )
             except Exception as e:
                 if self.verbose:
-                    print(f"[HybridRAG] Graph context error, continuing vector-only: {e}")
+                    print(
+                        f"[HybridRAG] Graph context error, continuing vector-only: {e}"
+                    )
         vector_docs = self._get_vector_docs(question, top_k_docs=top_k_docs)
 
         # Pull best chunks for graph-derived articles from vector index to include text
@@ -219,7 +241,9 @@ class HybridRAG:
         art2chunks = meta.get("article_to_chunk_ids", {}) if meta else {}
         chunk_by_id = {c.chunk_id: c for c in chunks}
         for aid in graph_article_ids[: top_k_docs * 2]:
-            for cid in art2chunks.get(aid, [])[:1]:  # take one representative chunk per article
+            for cid in art2chunks.get(aid, [])[
+                :1
+            ]:  # take one representative chunk per article
                 ch = chunk_by_id.get(cid)
                 if ch:
                     extra_graph_docs.append(
@@ -238,6 +262,7 @@ class HybridRAG:
         max_ent_sim = max((e.similarity for e in entities), default=0.5)
 
         merged: Dict[Tuple[str, str], RetrievedDoc] = {}
+
         def key(d: RetrievedDoc) -> Tuple[str, str]:
             return (d.article_id, d.title)
 
@@ -247,12 +272,16 @@ class HybridRAG:
         for d in extra_graph_docs:
             if key(d) in merged:
                 # Boost existing score using graph signal
-                merged[key(d)].score = float(0.7 * merged[key(d)].score + 0.3 * max_ent_sim)
+                merged[key(d)].score = float(
+                    0.7 * merged[key(d)].score + 0.3 * max_ent_sim
+                )
             else:
                 d.score = float(0.3 * max_ent_sim)
                 merged[key(d)] = d
 
-        final_docs = sorted(merged.values(), key=lambda x: x.score, reverse=True)[: top_k_docs]
+        final_docs = sorted(merged.values(), key=lambda x: x.score, reverse=True)[
+            :top_k_docs
+        ]
         if self.verbose:
             print(
                 f"[HybridRAG] Fusion complete in {perf_counter() - t0:.2f}s | entities={len(entities)} rels={len(rels)} docs={len(final_docs)}"
@@ -260,7 +289,7 @@ class HybridRAG:
 
         # Prepare a compact graph context string
         graph_facts = []
-        for r in rels[: 10]:
+        for r in rels[:10]:
             graph_facts.append(f"{r['source']} -[{r['type']}]-> {r['target']}")
 
         return {
@@ -292,6 +321,7 @@ def _format_answer_input(payload: Dict) -> str:
 def answer_with_openai(payload: Dict, model: str = "gpt-4o-mini") -> str:
     try:
         from openai import OpenAI
+
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     except Exception as e:
         return f"OpenAI not available: {e}"
@@ -299,11 +329,16 @@ def answer_with_openai(payload: Dict, model: str = "gpt-4o-mini") -> str:
     context = _format_answer_input(payload)
     question = payload.get("question", "")
     messages = [
-        {"role": "system", "content": "You are a precise assistant. Cite facts from the provided context only."},
+        {
+            "role": "system",
+            "content": "You are a precise assistant. Cite facts from the provided context only.",
+        },
         {"role": "user", "content": f"Question: {question}\n\nContext:\n{context}"},
     ]
     try:
-        resp = client.chat.completions.create(model=model, messages=messages, temperature=0.2)
+        resp = client.chat.completions.create(
+            model=model, messages=messages, temperature=0.2
+        )
         return resp.choices[0].message.content or ""
     except Exception as e:
         return f"Answer generation failed: {e}"
@@ -311,6 +346,7 @@ def answer_with_openai(payload: Dict, model: str = "gpt-4o-mini") -> str:
 
 def main():
     import argparse
+
     from dotenv import load_dotenv
 
     load_dotenv()
@@ -319,12 +355,37 @@ def main():
     parser.add_argument("--entities", type=int, default=5)
     parser.add_argument("--docs", type=int, default=5)
     parser.add_argument("--hops", type=int, default=1)
-    parser.add_argument("--verbose", action="store_true", help="Print progress and timings")
-    parser.add_argument("--max-files", type=int, default=None, help="Limit number of files for index build")
-    parser.add_argument("--max-chunks-per-file", type=int, default=None, help="Limit chunks per file during index build")
-    parser.add_argument("--chunk-progress-every", type=int, default=50, help="Chunk progress print frequency")
-    parser.add_argument("--vector-only", action="store_true", help="Skip graph step and use vector retrieval only")
-    parser.add_argument("--resume-index", action="store_true", help="Resume/append to existing vector index if present")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print progress and timings"
+    )
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=None,
+        help="Limit number of files for index build",
+    )
+    parser.add_argument(
+        "--max-chunks-per-file",
+        type=int,
+        default=None,
+        help="Limit chunks per file during index build",
+    )
+    parser.add_argument(
+        "--chunk-progress-every",
+        type=int,
+        default=50,
+        help="Chunk progress print frequency",
+    )
+    parser.add_argument(
+        "--vector-only",
+        action="store_true",
+        help="Skip graph step and use vector retrieval only",
+    )
+    parser.add_argument(
+        "--resume-index",
+        action="store_true",
+        help="Resume/append to existing vector index if present",
+    )
     parser.add_argument(
         "--embedding-backend",
         choices=["openai", "sentence-transformers"],
@@ -346,6 +407,7 @@ def main():
     # Allow --verbose to force progress output
     if args.verbose:
         import os as _os
+
         _os.environ["RAG_VERBOSE"] = "1"
 
     if args.resume_index:
@@ -380,5 +442,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
