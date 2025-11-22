@@ -241,8 +241,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=SecurityConfig.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Added OPTIONS
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],  # Added Accept
 )
 
 # Frontend static files path (will be mounted after all API routes)
