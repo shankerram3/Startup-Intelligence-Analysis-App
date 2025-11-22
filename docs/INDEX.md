@@ -29,10 +29,7 @@ Learn how to query the knowledge graph:
 Deploy to production:
 
 ### Cloud Deployment
-- **[Azure Deployment](deployment/AZURE_DEPLOYMENT.md)** - Deploy to Microsoft Azure (Consolidated)
-- **[Azure README](deployment/AZURE_README.md)** - Detailed Azure setup
-- **[Azure Deployment Guide](deployment/AZURE_DEPLOYMENT_GUIDE.md)** - Step-by-step Azure deployment
-- **[Azure Quickstart](deployment/QUICKSTART_AZURE.md)** - Quick Azure setup
+- Azure documentation has been removed.
 
 ### Database Options
 - **[Neo4j Aura Setup](deployment/AURA_SETUP.md)** - Use managed Neo4j cloud (Consolidated)
@@ -120,7 +117,7 @@ See: [Getting Started - Use Case 3](guides/GETTING_STARTED.md#use-case-3-market-
 
 ### Common Issues
 
-- **Neo4j Connection**: See [Azure Deployment - Troubleshooting](deployment/AZURE_DEPLOYMENT.md#troubleshooting)
+- **Neo4j Connection**: See [Aura Setup - Troubleshooting](deployment/AURA_SETUP.md#troubleshooting)
 - **Scraping Issues**: See [Main README - Troubleshooting](../README.md#troubleshooting)
 - **API Errors**: See [API Documentation](api/RAG_DOCUMENTATION.md#error-handling)
 - **Aura Connection**: See [Aura Setup - Troubleshooting](deployment/AURA_SETUP.md#troubleshooting)
@@ -167,12 +164,8 @@ docs/
 │   ├── RAG_DOCUMENTATION.md    # API reference
 │   └── QUERY_EXAMPLES.md       # Query patterns
 ├── deployment/
-│   ├── AZURE_DEPLOYMENT.md     # Azure setup (consolidated)
 │   ├── AURA_SETUP.md          # Neo4j Aura (consolidated)
 │   ├── SSL_SETUP.md           # SSL/HTTPS
-│   ├── AZURE_README.md        # Detailed Azure docs
-│   ├── AZURE_DEPLOYMENT_GUIDE.md
-│   ├── QUICKSTART_AZURE.md
 │   ├── AURA_DB_SETUP.md
 │   └── AURA_CREDENTIALS_GUIDE.md
 └── development/
