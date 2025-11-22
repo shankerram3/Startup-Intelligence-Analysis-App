@@ -167,6 +167,64 @@ class QueryTemplates:
 
             return [dict(record) for record in result]
 
+    def get_recently_funded_companies(self, days: int = 90, sector_keyword: Optional[str] = None) -> List[Dict]:
+        """
+        Get companies with recent funding announcements
+
+        Args:
+            days: Number of days to look back (default: 90)
+            sector_keyword: Optional sector filter
+
+        Returns:
+            List of recently funded companies
+        """
+        with self.driver.session() as session:
+            if sector_keyword:
+                result = session.run("""
+                    MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
+                    WHERE toLower(c.description) CONTAINS toLower($keyword)
+                      AND c.source_articles IS NOT NULL
+
+                    // Use source_articles property to find related articles
+                    WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
+                    UNWIND c.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
+                    WHERE a.published_date IS NOT NULL
+                      AND datetime(a.published_date) > datetime() - duration({days: $days})
+
+                    WITH c, investors, investor_count, max(a.published_date) as latest_announcement
+                    WHERE investor_count > 0
+
+                    RETURN c.id as id, c.name as name, c.description as description,
+                           c.mention_count as mention_count,
+                           investor_count, investors, latest_announcement
+                    ORDER BY latest_announcement DESC, investor_count DESC
+                    LIMIT 20
+                """, keyword=sector_keyword, days=days)
+            else:
+                result = session.run("""
+                    MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
+                    WHERE c.source_articles IS NOT NULL
+                    
+                    // Use source_articles property to find related articles
+                    WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
+                    UNWIND c.source_articles as article_id
+                    MATCH (a:Article {id: article_id})
+                    WHERE a.published_date IS NOT NULL
+                      AND datetime(a.published_date) > datetime() - duration({days: $days})
+
+                    WITH c, investors, investor_count, max(a.published_date) as latest_announcement
+                    WHERE investor_count > 0
+
+                    RETURN c.id as id, c.name as name, c.description as description,
+                           c.mention_count as mention_count,
+                           investor_count, investors, latest_announcement
+                    ORDER BY latest_announcement DESC, investor_count DESC
+                    LIMIT 20
+                """, days=days)
+
+            return [dict(record) for record in result]
+
     # =========================================================================
     # INVESTOR QUERIES
     # =========================================================================

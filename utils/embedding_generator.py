@@ -31,47 +31,25 @@ class EmbeddingGenerator:
     
     def _initialize_embedding_function(self):
         """Initialize embedding function based on model"""
-        model_key = (self.embedding_model or "").lower().replace("-", "_")
-        if model_key == "openai":
-            try:
-                from openai import OpenAI
-                import os
-                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                
-                def openai_embed(text: str) -> List[float]:
-                    response = client.embeddings.create(
-                        model="text-embedding-3-small",
-                        input=text
-                    )
-                    return response.data[0].embedding
-                
-                self.embedding_function = openai_embed
-            except ImportError:
-                print("⚠️  OpenAI library not installed. Install with: pip install openai")
-                self.embedding_function = None
-            except Exception as e:
-                print(f"⚠️  Error initializing OpenAI embeddings: {e}")
-                self.embedding_function = None
-        
-        elif model_key == "sentence_transformers":
-            try:
-                from sentence_transformers import SentenceTransformer
-                import os as _os
-                model_name = self.sentence_model_name or _os.getenv(
-                    'SENTENCE_TRANSFORMERS_MODEL', 'all-MiniLM-L6-v2'
-                )
-                model = SentenceTransformer(model_name)
-                
-                def st_embed(text: str) -> List[float]:
-                    return model.encode(text).tolist()
-                
-                self.embedding_function = st_embed
-            except ImportError:
-                print("⚠️  sentence-transformers not installed. Install with: pip install sentence-transformers")
-                self.embedding_function = None
-            except Exception as e:
-                print(f"⚠️  Error initializing sentence-transformers: {e}")
-                self.embedding_function = None
+        # Force sentence-transformers for embeddings
+        try:
+            from sentence_transformers import SentenceTransformer
+            import os as _os
+            model_name = self.sentence_model_name or _os.getenv(
+                'SENTENCE_TRANSFORMERS_MODEL', 'all-MiniLM-L6-v2'
+            )
+            model = SentenceTransformer(model_name)
+            
+            def st_embed(text: str) -> List[float]:
+                return model.encode(text).tolist()
+            
+            self.embedding_function = st_embed
+        except ImportError:
+            print("⚠️  sentence-transformers not installed. Install with: pip install sentence-transformers")
+            self.embedding_function = None
+        except Exception as e:
+            print(f"⚠️  Error initializing sentence-transformers: {e}")
+            self.embedding_function = None
     
     def generate_entity_embedding(self, entity: Dict) -> Optional[List[float]]:
         """
@@ -118,7 +96,7 @@ class EmbeddingGenerator:
                 query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
-                    RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
+                    RETURN e.id as id, e.name as name, labels(e)[0] as type,
                            e.description as description
                 """
             else:
@@ -194,7 +172,7 @@ class EmbeddingGenerator:
             result = session.run("""
                 MATCH (e)
                 WHERE NOT e:Article AND e.embedding IS NOT NULL
-                RETURN e.id as id, e.name as name, coalesce(e.type, labels(e)[0]) as type,
+                RETURN e.id as id, e.name as name, labels(e)[0] as type,
                        e.description as description, e.embedding as embedding
             """)
             
@@ -207,6 +185,11 @@ class EmbeddingGenerator:
                     continue
                 
                 entity_vec = np.array(entity_embedding)
+                
+                # Skip if embedding dimensions don't match
+                if query_vec.ndim != 1 or entity_vec.ndim != 1 or query_vec.shape[0] != entity_vec.shape[0]:
+                    # Dimension mismatch (e.g., OpenAI 1536 vs ST 384); skip this entity
+                    continue
                 
                 # Calculate cosine similarity
                 similarity = np.dot(query_vec, entity_vec) / (

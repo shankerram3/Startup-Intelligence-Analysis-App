@@ -54,7 +54,7 @@ For each pair of related entities, extract the following information:
 - target_entity: name of the target entity, as identified in step 1
 - relationship_description: explanation as to why you think the source entity and the target entity are related to each other
 - relationship_strength: a numeric score indicating strength of the relationship between the source entity and target entity
-- relationship_type: One of: [FUNDED_BY, FOUNDED_BY, WORKS_AT, ACQUIRED, PARTNERS_WITH, COMPETES_WITH, USES_TECHNOLOGY, LOCATED_IN, ANNOUNCED_AT]
+- relationship_type: One of: [FUNDED_BY, FOUNDED_BY, WORKS_AT, ACQUIRED, PARTNERS_WITH, COMPETES_WITH, USES_TECHNOLOGY, LOCATED_IN, ANNOUNCED_AT, REGULATES, OPPOSES, SUPPORTS, COLLABORATES_WITH, INVESTS_IN, ADVISES, LEADS]
 Note: Do NOT create MENTIONED_IN relationships - entity-to-article relationships are handled separately
 
 Format each relationship as ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_type>{tuple_delimiter}<relationship_strength>)
@@ -288,18 +288,30 @@ Output:
 def load_article_data(json_path: str) -> Dict:
     """Load and extract relevant data from scraped article JSON"""
     with open(json_path, 'r', encoding='utf-8') as f:
-        article = json.load(f)
+        data = json.load(f)
+    
+    # Handle case where file contains a list (metadata files should be filtered out earlier)
+    if isinstance(data, list):
+        raise ValueError(f"File {json_path} contains a list, not an article object. This should be a metadata file.")
+    
+    # Validate it's a dictionary with required fields
+    if not isinstance(data, dict):
+        raise ValueError(f"File {json_path} does not contain a valid article object.")
+    
+    # Check for required fields
+    if "content" not in data or "article_id" not in data:
+        raise ValueError(f"File {json_path} is missing required fields (content or article_id).")
     
     return {
         "content": {
-            "headline": article["content"]["headline"],
-            "paragraphs": article["content"]["paragraphs"]
+            "headline": data["content"]["headline"],
+            "paragraphs": data["content"]["paragraphs"]
         },
         "metadata": {
-            "url": article["url"],
-            "title": article["title"],
-            "published_date": article["published_date"],
-            "article_id": article["article_id"]
+            "url": data.get("url", ""),
+            "title": data.get("title", ""),
+            "published_date": data.get("published_date", ""),
+            "article_id": data["article_id"]
         }
     }
 
@@ -326,9 +338,28 @@ def process_articles_directory(
     
     extractor = TechCrunchEntityExtractor(openai_api_key)
     
-    # Find all JSON files
+    # Find all JSON files, excluding metadata files
     articles_path = Path(articles_dir)
-    json_files = list(articles_path.rglob("*.json"))
+    
+    # Get all JSON files but exclude metadata directory and metadata files
+    json_files = []
+    for json_file in articles_path.rglob("*.json"):
+        # Skip metadata directory
+        if "metadata" in json_file.parts:
+            continue
+        # Skip metadata files (discovered_articles, failed_articles, checkpoints, etc.)
+        if any(pattern in json_file.name for pattern in [
+            "discovered_articles_",
+            "failed_articles_",
+            "extraction_checkpoint_",
+            "scraping_stats_",
+            "discovery_checkpoint_"
+        ]):
+            continue
+        json_files.append(json_file)
+    
+    # Sort by path for consistent processing order
+    json_files.sort()
     
     if max_articles:
         json_files = json_files[:max_articles]

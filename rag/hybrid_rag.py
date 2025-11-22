@@ -1,8 +1,7 @@
 """
 Hybrid RAG: Combine GraphRAG (Neo4j entities/relations) with standard vector RAG over article chunks.
 
-Dependencies: openai, neo4j, numpy (already in requirements). Optionally
-uses sentence-transformers if configured elsewhere.
+Dependencies: neo4j, numpy, sentence-transformers.
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ class HybridRAG:
         neo4j_user: str,
         neo4j_password: str,
         articles_dir: str = "data/articles",
-        embedding_backend: str = "openai",
+        embedding_backend: str = "sentence_transformers",
         sentence_model_name: Optional[str] = None,
         index_max_files: Optional[int] = None,
         index_max_chunks_per_file: Optional[int] = None,
@@ -57,7 +56,7 @@ class HybridRAG:
         self.driver: Driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
         self.embedding = EmbeddingGenerator(
             self.driver,
-            embedding_model=(embedding_backend or "openai"),
+            embedding_model=(embedding_backend or "sentence_transformers"),
             sentence_model_name=sentence_model_name,
         )
         self.verbose = False
@@ -69,7 +68,7 @@ class HybridRAG:
             self.verbose = False
         # Ensure vector index exists
         if self.embedding.embedding_function is None:
-            raise RuntimeError("Embedding function is not initialized. Configure OpenAI or sentence-transformers.")
+            raise RuntimeError("Embedding function is not initialized. Install and configure sentence-transformers.")
         t0 = perf_counter()
         vector_index.ensure_index(
             articles_dir,

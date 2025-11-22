@@ -5,8 +5,11 @@ Provides HTTP endpoints for querying the knowledge graph
 
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
+import subprocess
+import threading
+import io
 import os
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -31,14 +34,13 @@ class QueryRequest(BaseModel):
     return_context: bool = Field(False, description="Include raw context in response")
     use_llm: bool = Field(True, description="Generate LLM answer")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "question": "Which AI startups raised funding recently?",
-                "return_context": False,
-                "use_llm": True
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "question": "Which AI startups raised funding recently?",
+            "return_context": False,
+            "use_llm": True
         }
+    })
 
 
 class SemanticSearchRequest(BaseModel):
@@ -47,14 +49,13 @@ class SemanticSearchRequest(BaseModel):
     top_k: int = Field(10, description="Number of results", ge=1, le=50)
     entity_type: Optional[str] = Field(None, description="Filter by entity type")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "query": "artificial intelligence",
-                "top_k": 10,
-                "entity_type": "Company"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "query": "artificial intelligence",
+            "top_k": 10,
+            "entity_type": "Company"
         }
+    })
 
 
 class CompareEntitiesRequest(BaseModel):
@@ -62,29 +63,27 @@ class CompareEntitiesRequest(BaseModel):
     entity1: str = Field(..., description="First entity name")
     entity2: str = Field(..., description="Second entity name")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "entity1": "Anthropic",
-                "entity2": "OpenAI"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "entity1": "Anthropic",
+            "entity2": "OpenAI"
         }
+    })
 
 
 class BatchQueryRequest(BaseModel):
     """Request model for batch queries"""
     questions: List[str] = Field(..., description="List of questions", min_length=1, max_length=10)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "questions": [
-                    "What is Anthropic?",
-                    "Who are the top investors?",
-                    "What are trending technologies?"
-                ]
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "questions": [
+                "What is Anthropic?",
+                "Who are the top investors?",
+                "What are trending technologies?"
+            ]
         }
+    })
 
 
 class QueryResponse(BaseModel):
@@ -99,6 +98,22 @@ class ErrorResponse(BaseModel):
     """Error response model"""
     error: str
     detail: Optional[str] = None
+
+
+# =============================================================================
+# ADMIN / PIPELINE CONTROL MODELS
+# =============================================================================
+
+class PipelineStartRequest(BaseModel):
+    """Options for starting the pipeline"""
+    scrape_category: Optional[str] = Field(None, description="TechCrunch category to scrape (e.g., 'startups', 'ai')")
+    scrape_max_pages: Optional[int] = Field(None, description="Max pages to scrape", ge=1)
+    max_articles: Optional[int] = Field(None, description="Limit number of articles", ge=1)
+    skip_scraping: bool = Field(False, description="Skip scraping phase")
+    skip_extraction: bool = Field(False, description="Skip entity extraction phase")
+    skip_graph: bool = Field(False, description="Skip graph construction phase")
+    no_resume: bool = Field(False, description="Do not resume from checkpoints")
+
 
 
 # =============================================================================
@@ -179,6 +194,96 @@ async def health():
         }
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database connection failed: {e}")
+
+
+# =============================================================================
+# ADMIN / PIPELINE CONTROL ENDPOINTS
+# =============================================================================
+
+# Simple in-process state for a single pipeline run
+pipeline_proc: Optional[subprocess.Popen] = None
+pipeline_log_path: str = os.getenv("PIPELINE_LOG_PATH", "pipeline.log")
+
+
+def _build_pipeline_args(options: PipelineStartRequest) -> List[str]:
+    args: List[str] = ["python", "pipeline.py"]
+    if options.scrape_category:
+        args += ["--scrape-category", options.scrape_category]
+    if options.scrape_max_pages:
+        args += ["--scrape-max-pages", str(options.scrape_max_pages)]
+    if options.max_articles:
+        args += ["--max-articles", str(options.max_articles)]
+    if options.skip_scraping:
+        args.append("--skip-scraping")
+    if options.skip_extraction:
+        args.append("--skip-extraction")
+    if options.skip_graph:
+        args.append("--skip-graph")
+    if options.no_resume:
+        args.append("--no-resume")
+    return args
+
+
+@app.post("/admin/pipeline/start", tags=["Admin"])
+async def start_pipeline(options: PipelineStartRequest):
+    """Start the ETL pipeline as a background process"""
+    global pipeline_proc
+    if pipeline_proc and pipeline_proc.poll() is None:
+        raise HTTPException(status_code=409, detail="Pipeline is already running")
+
+    args = _build_pipeline_args(options)
+    try:
+        log_fh = open(pipeline_log_path, "ab")
+        pipeline_proc = subprocess.Popen(
+            args,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            cwd=os.getcwd()
+        )
+        return {"status": "started", "pid": pipeline_proc.pid, "args": args, "log": pipeline_log_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
+
+
+@app.get("/admin/pipeline/status", tags=["Admin"])
+async def pipeline_status():
+    """Get current pipeline process status"""
+    if not pipeline_proc:
+        return {"running": False}
+    code = pipeline_proc.poll()
+    return {"running": code is None, "pid": pipeline_proc.pid, "returncode": code}
+
+
+@app.post("/admin/pipeline/stop", tags=["Admin"])
+async def stop_pipeline():
+    """Terminate the pipeline process if running"""
+    global pipeline_proc
+    if not pipeline_proc or pipeline_proc.poll() is not None:
+        raise HTTPException(status_code=409, detail="Pipeline is not running")
+    try:
+        pipeline_proc.terminate()
+        try:
+            pipeline_proc.wait(timeout=10)
+        except Exception:
+            pipeline_proc.kill()
+        return {"status": "stopped"}
+    finally:
+        pipeline_proc = None
+
+
+@app.get("/admin/pipeline/logs", tags=["Admin"])
+async def pipeline_logs(tail: int = Query(200, ge=1, le=5000)):
+    """Return the last N lines of the pipeline log"""
+    if not os.path.exists(pipeline_log_path):
+        return {"log": "(no logs)"}
+    try:
+        with open(pipeline_log_path, "rb") as f:
+            content = f.read()
+        lines = content.splitlines()[-tail:]
+        text = b"\n".join(lines).decode(errors="replace")
+        return {"log": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read logs: {e}")
 
 
 # =============================================================================
