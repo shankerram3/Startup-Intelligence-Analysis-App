@@ -7,10 +7,11 @@ Complete guide for building, running, pushing, and sharing the GraphRAG Docker i
 1. [Building the Docker Image](#building-the-docker-image)
 2. [Running with Docker Compose](#running-with-docker-compose)
 3. [Running Standalone Container](#running-standalone-container)
-4. [Pushing to Registry](#pushing-to-registry)
-5. [Sharing the Image](#sharing-the-image)
-6. [Deploying Downloaded Images](#deploying-downloaded-images)
-7. [Troubleshooting](#troubleshooting)
+4. [Configuring Neo4j Target (Override at Runtime)](#configuring-neo4j-target-override-at-runtime)
+5. [Pushing to Registry](#pushing-to-registry)
+6. [Sharing the Image](#sharing-the-image)
+7. [Deploying Downloaded Images](#deploying-downloaded-images)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -105,6 +106,56 @@ docker run -p 8000:8000 \
 - `API_HOST` - API host (default: `0.0.0.0`)
 - `API_PORT` - API port (default: `8000`)
 - `RAG_EMBEDDING_BACKEND` - Embedding backend: `openai` or `sentence-transformers` (default: `openai`)
+
+---
+
+## Configuring Neo4j Target (Override at Runtime)
+
+The compose file is set up so you can point the API at any Neo4j without editing code or the compose file. It reads:
+
+```
+NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
+```
+
+Meaning: if `NEO4J_URI` is not set, it defaults to the internal compose service `bolt://neo4j:7687`. To temporarily point elsewhere, export env vars before starting:
+
+### Option A — Use environment variables (temporary)
+
+```bash
+# Example 1: Use Neo4j on your host machine (macOS/Windows)
+export NEO4J_URI="bolt://host.docker.internal:7687"
+export NEO4J_USER="neo4j"
+export NEO4J_PASSWORD="your_password"
+docker-compose up -d
+
+# Example 2: Use Neo4j AuraDB (secure + TLS)
+export NEO4J_URI="neo4j+s://<your-aura-host>.databases.neo4j.io:7687"
+export NEO4J_USER="neo4j"
+export NEO4J_PASSWORD="your_aura_password_or_token"
+docker-compose up -d
+```
+
+Clear or change these exports anytime to switch targets.
+
+### Option B — Use docker-compose.override.yml (kept local)
+
+Create a `docker-compose.override.yml` (not committed) to keep overrides:
+
+```yaml
+services:
+  graphrag-api:
+    environment:
+      NEO4J_URI: neo4j+s://<your-aura-host>.databases.neo4j.io:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: your_aura_password_or_token
+```
+
+Then run as usual:
+```bash
+docker-compose up -d
+```
+
+This file is automatically merged by Docker Compose and is ideal for local, per-user overrides.
 
 ---
 
