@@ -40,9 +40,14 @@ export function DashboardView() {
   }, []);
 
   async function onStart() {
+    if (busy || status.running) return;
     setBusy(true);
     try {
-      await startPipeline(opts);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 10000)
+      );
+      await Promise.race([startPipeline(opts), timeoutPromise]);
       await refresh();
     } catch (e: any) {
       alert(e?.message || 'Failed to start pipeline');
@@ -52,14 +57,32 @@ export function DashboardView() {
   }
 
   async function onStop() {
+    if (busy || !status.running) return;
     setBusy(true);
     try {
-      await stopPipeline();
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 10000)
+      );
+      await Promise.race([stopPipeline(), timeoutPromise]);
       await refresh();
     } catch (e: any) {
       alert(e?.message || 'Failed to stop pipeline');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onRefresh() {
+    // Allow refresh even when busy, but don't set busy state
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 8000)
+      );
+      await Promise.race([refresh(), timeoutPromise]);
+    } catch (e: any) {
+      console.error('Refresh failed:', e);
+      // Don't show alert for refresh failures, just log
     }
   }
 
@@ -92,6 +115,7 @@ export function DashboardView() {
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <button onClick={onStart} style={styles.primaryButton} disabled={busy || status.running}>Start</button>
           <button onClick={onStop} style={styles.stopButton} disabled={busy || !status.running}>Stop</button>
+          <button onClick={onRefresh} style={styles.refreshButton}>🔄</button>
         </div>
 
         <div style={{ marginTop: 12, fontSize: 14 }}>
@@ -155,6 +179,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#ef4444',
     color: 'white',
     cursor: 'pointer'
+  },
+  refreshButton: {
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid #0284c7',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    cursor: 'pointer',
+    fontSize: 16
   },
   logs: {
     background: '#0b1220',

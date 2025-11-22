@@ -58,9 +58,14 @@ export function EnhancedDashboardView() {
   }, [logs, autoScroll]);
 
   async function onStart() {
+    if (busy || status.running) return;
     setBusy(true);
     try {
-      await startPipeline(opts);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 10000)
+      );
+      await Promise.race([startPipeline(opts), timeoutPromise]);
       await refresh();
     } catch (e: any) {
       alert(e?.message || 'Failed to start pipeline');
@@ -70,14 +75,32 @@ export function EnhancedDashboardView() {
   }
 
   async function onStop() {
+    if (busy || !status.running) return;
     setBusy(true);
     try {
-      await stopPipeline();
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 10000)
+      );
+      await Promise.race([stopPipeline(), timeoutPromise]);
       await refresh();
     } catch (e: any) {
       alert(e?.message || 'Failed to stop pipeline');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onRefresh() {
+    // Allow refresh even when busy, but don't set busy state
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 8000)
+      );
+      await Promise.race([refresh(), timeoutPromise]);
+    } catch (e: any) {
+      console.error('Refresh failed:', e);
+      // Don't show alert for refresh failures, just log
     }
   }
 
@@ -414,9 +437,8 @@ export function EnhancedDashboardView() {
                 ⏹ Stop
               </button>
               <button
-                onClick={refresh}
+                onClick={onRefresh}
                 style={styles.refreshButton}
-                disabled={busy}
               >
                 🔄 Refresh
               </button>
