@@ -360,6 +360,32 @@ def run_pipeline(
                     finally:
                         builder.close()
 
+                    # Regenerate embeddings for enriched companies
+                    print("\n" + "-"*80)
+                    print("Regenerating embeddings for enriched companies...")
+                    print("-"*80 + "\n")
+
+                    try:
+                        from utils.embedding_generator import EmbeddingGenerator
+
+                        driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+                        try:
+                            generator = EmbeddingGenerator(driver, embedding_model="sentence_transformers")
+                            embed_stats = generator.regenerate_enriched_company_embeddings()
+
+                            if "error" in embed_stats:
+                                print(f"   ⚠️  {embed_stats['error']}")
+                            else:
+                                print(f"   ✓ Regenerated embeddings for {embed_stats.get('regenerated', 0)} enriched companies")
+                                if embed_stats.get('failed', 0) > 0:
+                                    print(f"   ⚠️  Failed: {embed_stats['failed']}")
+                        finally:
+                            driver.close()
+
+                    except Exception as e:
+                        print(f"   ⚠️  Failed to regenerate embeddings: {e}")
+                        # Continue with pipeline
+
                 except Exception as e:
                     print(f"⚠️  Failed to enrich graph with company intelligence: {e}")
                     import traceback
@@ -456,12 +482,15 @@ def run_pipeline(
                 communities = detector.detect_communities(min_community_size=3)
                 print(f"   ✓ Detected {communities.get('total_communities', 0)} communities\n")
                 
-                # 4. Embedding Generation
-                print("4. Embedding Generation")
+                # 4. Embedding Generation (includes enriched company data)
+                print("4. Embedding Generation (with enriched company intelligence)")
                 print("-" * 80)
                 generator = EmbeddingGenerator(driver, embedding_model="sentence_transformers")
                 embed_stats = generator.generate_embeddings_for_all_entities()
-                print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings\n")
+                print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings")
+                if embed_stats.get('enriched', 0) > 0:
+                    print(f"   ✓ Including {embed_stats.get('enriched', 0)} enriched companies with detailed profiles")
+                print()
                 
                 print("="*80)
                 print("✅ POST-PROCESSING COMPLETE!")

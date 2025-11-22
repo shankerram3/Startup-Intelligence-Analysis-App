@@ -317,6 +317,71 @@ Processing 10 articles for company intelligence enrichment
 
 ---
 
+## 🎯 **Enriched Embeddings for Semantic Search**
+
+### **How It Works**
+
+The enrichment system **automatically integrates with vector embeddings** for superior semantic search:
+
+#### **Embedding Generation Process**
+
+1. **Phase 2.5**: After enriching company nodes in Neo4j, embeddings are **immediately regenerated** for enriched companies
+2. **Phase 4**: All remaining entities get embeddings (including non-enriched ones)
+3. **Result**: Enriched companies have embeddings based on comprehensive profiles, not just article mentions
+
+#### **What Goes Into Enriched Embeddings**
+
+For enriched companies, embeddings include:
+
+```python
+# Example embedding text for "Anthropic"
+"Company: Anthropic. Anthropic is an AI safety company building reliable,
+interpretable, and steerable AI systems. Located in San Francisco, CA.
+Founded in 2021. Founded by Dario Amodei, Daniela Amodei. Products: Claude,
+Constitutional AI. Technologies: AI, machine learning, Python, PyTorch, JAX.
+Raised $1.5B in Series B."
+```
+
+vs. non-enriched companies:
+
+```python
+# Before enrichment
+"Company: Anthropic. AI safety company."
+```
+
+### **Impact on Semantic Search**
+
+Enriched embeddings make queries **significantly more powerful**:
+
+| Query | Without Enrichment | With Enrichment |
+|-------|-------------------|----------------|
+| "AI companies in San Francisco" | ❌ No location data | ✅ Matches headquarters |
+| "Companies founded after 2020" | ❌ No founding data | ✅ Matches founded_year |
+| "Startups using PyTorch" | ❌ Limited tech mentions | ✅ Matches technology stack |
+| "Series B companies" | ⚠️ Only if in article | ✅ Matches funding_stage |
+
+### **Automatic Regeneration**
+
+The pipeline **automatically regenerates** embeddings at the right time:
+
+```
+Phase 1.5: Scrape company intelligence
+    ↓
+Phase 2: Build knowledge graph
+    ↓
+Phase 2.5: Enrich company nodes ← Graph updated with enriched data
+    ↓
+    ✓ Regenerate embeddings for enriched companies ← AUTOMATIC!
+    ↓
+Phase 4: Post-processing
+    ↓
+    ✓ Generate embeddings for all other entities
+```
+
+**Result**: Your vector database contains rich, detailed company profiles for semantic search!
+
+---
+
 ## 🔍 Querying Enriched Data
 
 ### **Cypher Queries**
@@ -344,27 +409,54 @@ RETURN c.name, c.enrichment_confidence, c.website_url
 ORDER BY c.enrichment_confidence DESC
 ```
 
-### **GraphRAG API**
+### **GraphRAG API - Powered by Enriched Embeddings**
 
-The enriched fields are automatically available through the RAG API:
+The enriched fields are automatically available through the RAG API via **semantic search**:
 
 ```python
 from rag_query import create_rag_query
 
 rag = create_rag_query()
 
-# Query using enriched data
-result = rag.query("Which AI companies were founded after 2020?")
+# Semantic search now uses enriched company profiles!
+# These queries work because embeddings include enriched data:
+
+# Query by location (uses headquarters from enriched data)
+result = rag.query("Which AI companies are based in San Francisco?")
 print(result['answer'])
 
-# Queries can now use:
-# - Founded year
-# - Location/headquarters
-# - Employee count
-# - Funding information
-# - Technology stack
-# - Product details
+# Query by founding year (uses founded_year from enriched data)
+result = rag.query("What companies were founded after 2020?")
+print(result['answer'])
+
+# Query by technology stack (uses technologies from enriched data)
+result = rag.query("Which startups use PyTorch for machine learning?")
+print(result['answer'])
+
+# Query by funding (uses funding_total and funding_stage from enriched data)
+result = rag.query("Which Series B companies raised over $100M?")
+print(result['answer'])
+
+# Query by founders (uses founders from enriched data)
+result = rag.query("What companies did Dario Amodei found?")
+print(result['answer'])
+
+# Complex multi-faceted queries
+result = rag.query("AI companies in SF founded after 2020 with Series B funding")
+print(result['answer'])
 ```
+
+**How it works:**
+1. Your query is embedded using the same sentence-transformers model
+2. Semantic search finds companies with similar embeddings
+3. Enriched companies match better because their embeddings include:
+   - Detailed descriptions from websites
+   - Location, founding year, team information
+   - Products, technologies, funding details
+4. LLM generates answer using enriched context
+
+**Before enrichment**: Only article mentions available
+**After enrichment**: Full company profiles in embeddings!
 
 ---
 
