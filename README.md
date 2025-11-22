@@ -44,11 +44,12 @@ python pipeline.py \
   --max-articles 10
 ```
 
-This automatically runs all 4 phases:
-1. Web Scraping
-2. Entity Extraction
-3. Graph Construction
-4. Post-Processing (embeddings, deduplication, communities)
+This automatically runs all phases:
+1. **Web Scraping** - TechCrunch article extraction
+2. **Entity Extraction** - GPT-4o NER and relationships
+3. **Company Intelligence Enrichment** 🆕 - Deep company data via Playwright
+4. **Graph Construction** - Build Neo4j knowledge graph
+5. **Post-Processing** - Embeddings, deduplication, communities
 
 ### 4. Start Services
 
@@ -66,8 +67,9 @@ This automatically runs all 4 phases:
 
 ### Core Pipeline
 - ✅ **Web Scraping** - Automated TechCrunch article extraction
-- ✅ **Entity Extraction** - GPT-4o based NER and relationship extraction  
-- ✅ **Knowledge Graph** - Neo4j graph database
+- ✅ **Entity Extraction** - GPT-4o based NER and relationship extraction
+- ✅ **Company Intelligence** 🆕 - Playwright-powered deep company data scraping
+- ✅ **Knowledge Graph** - Neo4j graph database with enriched company profiles
 - ✅ **Auto Post-Processing** - Embeddings, deduplication, communities (automatic!)
 
 ### GraphRAG Query System
@@ -171,13 +173,21 @@ VITE_API_BASE_URL=http://YOUR_VM_PUBLIC_IP:8000
 
 ```
 Phase 0: Web Scraping → Raw JSON
-Phase 1: Entity Extraction → Entities & Relationships  
-Phase 2: Graph Construction → Neo4j Knowledge Graph
+Phase 1: Entity Extraction → Entities & Relationships
+Phase 1.5: Company Intelligence 🆕 → Deep company data via Playwright
+Phase 2: Graph Construction → Neo4j Knowledge Graph (with enriched data)
 Phase 3: Graph Cleanup → Remove noise
 Phase 4: Post-Processing → Embeddings, Deduplication, Communities (AUTOMATIC)
     ↓
 Ready for Queries!
 ```
+
+**NEW**: Phase 1.5 enriches companies with:
+- Founded year, employee count, headquarters
+- Founders, executives, team information
+- Funding rounds and investment data
+- Products, technologies, pricing models
+- Website URLs and social links
 
 ---
 
@@ -339,6 +349,7 @@ http://YOUR_VM_PUBLIC_IP:5173
 
 ## 📚 Additional Documentation
 
+- **[Company Intelligence Enrichment](docs/COMPANY_INTELLIGENCE_ENRICHMENT.md)** 🆕 - Deep company scraping
 - **[API Reference](docs/api/RAG_DOCUMENTATION.md)** - Complete API documentation
 - **[Query Examples](docs/api/QUERY_EXAMPLES.md)** - Query patterns
 - **[Azure Deployment](docs/deployment/AZURE_DEPLOYMENT.md)** - Azure setup

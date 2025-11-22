@@ -17,6 +17,9 @@ pydantic>=2.10.0
 # Async file operations
 aiofiles>=24.1.0
 
+# Playwright for company intelligence scraping (Phase 1.5)
+playwright>=1.40.0
+
 # ============================================================================
 # PHASE 2: Entity Extraction (LLM-based)
 # ============================================================================

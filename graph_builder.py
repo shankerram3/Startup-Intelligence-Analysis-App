@@ -350,7 +350,7 @@ class TechCrunchGraphBuilder:
     def print_statistics(self):
         """Print graph statistics"""
         stats = self.get_statistics()
-        
+
         print("\n" + "="*80)
         print("KNOWLEDGE GRAPH STATISTICS")
         print("="*80)
@@ -361,6 +361,150 @@ class TechCrunchGraphBuilder:
             if count > 0:
                 print(f"  {label}: {count}")
         print("="*80 + "\n")
+
+    def enrich_company_node(self, company_name: str, enriched_data: Dict):
+        """
+        Enrich a Company node with detailed intelligence data
+
+        Args:
+            company_name: Name of the company
+            enriched_data: Enriched intelligence data from aggregator
+        """
+        with self.driver.session() as session:
+            # Find the company node
+            find_result = session.run("""
+                MATCH (c:Company)
+                WHERE c.name =~ $name_pattern
+                RETURN c.id as id
+                LIMIT 1
+            """, name_pattern=f"(?i).*{company_name}.*")
+
+            company_record = find_result.single()
+            if not company_record:
+                print(f"  ⚠ Company not found in graph: {company_name}")
+                return False
+
+            company_id = company_record["id"]
+
+            # Extract enrichment data
+            data = enriched_data.get('data', {})
+            confidence = enriched_data.get('confidence_score', 0.0)
+            timestamp = enriched_data.get('enrichment_timestamp')
+
+            # Update company node with enriched data
+            query = """
+                MATCH (c:Company {id: $company_id})
+                SET c.website_url = $website_url,
+                    c.founded_year = $founded_year,
+                    c.employee_count = $employee_count,
+                    c.headquarters = $headquarters,
+                    c.funding_total = $funding_total,
+                    c.funding_stage = $funding_stage,
+                    c.pricing_model = $pricing_model,
+                    c.enrichment_status = 'enriched',
+                    c.enrichment_timestamp = $enrichment_timestamp,
+                    c.enrichment_confidence = $enrichment_confidence,
+                    c.updated_at = timestamp()
+            """
+
+            # Handle list fields separately (founders, executives, products, technologies)
+            if data.get('founders'):
+                query += """,
+                    c.founders = $founders"""
+
+            if data.get('executives'):
+                query += """,
+                    c.executives = $executives"""
+
+            if data.get('products'):
+                query += """,
+                    c.products = $products"""
+
+            if data.get('technologies'):
+                query += """,
+                    c.technologies = $technologies"""
+
+            # If we have a better description, update it (don't concatenate)
+            if data.get('description') and len(data.get('description', '')) > 50:
+                query += """,
+                    c.enriched_description = $description"""
+
+            query += """
+                RETURN c.id as id
+            """
+
+            # Prepare parameters
+            params = {
+                'company_id': company_id,
+                'website_url': data.get('website_url'),
+                'founded_year': data.get('founded_year'),
+                'employee_count': data.get('employee_count'),
+                'headquarters': data.get('headquarters'),
+                'funding_total': data.get('funding_total'),
+                'funding_stage': data.get('funding_stage'),
+                'pricing_model': data.get('pricing_model'),
+                'enrichment_timestamp': timestamp,
+                'enrichment_confidence': confidence
+            }
+
+            # Add list fields if they exist
+            if data.get('founders'):
+                params['founders'] = data['founders']
+
+            if data.get('executives'):
+                # Convert executives to list of strings (name - title)
+                exec_list = [f"{e.get('name', '')} - {e.get('title', '')}"
+                           for e in data.get('executives', []) if isinstance(e, dict)]
+                params['executives'] = exec_list if exec_list else None
+
+            if data.get('products'):
+                params['products'] = data['products']
+
+            if data.get('technologies'):
+                params['technologies'] = data['technologies']
+
+            if data.get('description'):
+                params['description'] = data['description']
+
+            session.run(query, **params)
+            return True
+
+    def enrich_all_companies(self, enriched_companies: Dict[str, Dict]):
+        """
+        Enrich all companies in the graph with intelligence data
+
+        Args:
+            enriched_companies: Dictionary mapping company names to enriched data
+        """
+        print("\n" + "="*80)
+        print("ENRICHING COMPANY NODES WITH INTELLIGENCE DATA")
+        print("="*80 + "\n")
+
+        enriched_count = 0
+        failed_count = 0
+
+        for company_name, enriched_data in enriched_companies.items():
+            try:
+                success = self.enrich_company_node(company_name, enriched_data)
+                if success:
+                    enriched_count += 1
+                    confidence = enriched_data.get('confidence_score', 0.0)
+                    print(f"  ✓ Enriched: {company_name} (confidence: {confidence:.2f})")
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                print(f"  ✗ Failed to enrich {company_name}: {e}")
+
+        print("\n" + "="*80)
+        print(f"✅ ENRICHMENT COMPLETE: {enriched_count} companies enriched, {failed_count} failed")
+        print("="*80 + "\n")
+
+        return {
+            'enriched': enriched_count,
+            'failed': failed_count,
+            'total': len(enriched_companies)
+        }
 
 
 def build_graph_from_extractions(

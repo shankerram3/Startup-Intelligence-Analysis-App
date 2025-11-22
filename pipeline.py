@@ -72,23 +72,26 @@ def run_pipeline(
     max_articles: int = None,
     skip_scraping: bool = False,
     skip_extraction: bool = False,
+    skip_enrichment: bool = False,
     skip_graph_building: bool = False,
     scrape_category: str = None,
     scrape_max_pages: int = None,
     resume_extraction: bool = True,
     validate_data: bool = True,
     auto_cleanup_graph: bool = True,
-    skip_post_processing: bool = False
+    skip_post_processing: bool = False,
+    max_companies_to_scrape: int = None
 ):
     """
     Run the complete pipeline
-    
+
     Args:
         articles_dir: Directory containing scraped article JSON files
         output_dir: Directory for extracted entities and intermediate files
         max_articles: Limit number of articles to process (None = all)
         skip_scraping: Skip web scraping phase
         skip_extraction: Skip entity extraction (use existing extractions)
+        skip_enrichment: Skip company intelligence enrichment (Phase 1.5)
         skip_graph_building: Skip Neo4j graph construction
         scrape_category: Category to scrape (if scraping is enabled)
         scrape_max_pages: Maximum pages to scrape
@@ -96,6 +99,7 @@ def run_pipeline(
         validate_data: Validate articles and extractions
         auto_cleanup_graph: Automatically clean up graph (fix MENTIONED_IN relationships)
         skip_post_processing: Skip post-processing (embeddings, deduplication, etc.) - NOT RECOMMENDED
+        max_companies_to_scrape: Maximum number of companies to scrape per article (None = all)
     """
     
     print("\n" + "="*80)
@@ -205,15 +209,130 @@ def run_pipeline(
         if not extractions_file.exists():
             print(f"❌ Extractions file not found: {extractions_file}")
             return False
-    
+
+    # Phase 1.5: Company Intelligence Enrichment (NEW!)
+    enriched_companies_file = output_path / "enriched_companies.json"
+
+    if not skip_enrichment:
+        print("\n" + "="*80)
+        print("PHASE 1.5: COMPANY INTELLIGENCE ENRICHMENT")
+        print("="*80 + "\n")
+
+        try:
+            import asyncio
+            import sys
+
+            # Add utils directory to path
+            utils_dir = Path(__file__).parent / "utils"
+            if utils_dir.exists():
+                sys.path.insert(0, str(utils_dir))
+
+            # Add scraper directory to path
+            scraper_dir = Path(__file__).parent / "scraper"
+            if scraper_dir.exists():
+                sys.path.insert(0, str(scraper_dir))
+
+            from utils.company_url_extractor import CompanyURLExtractor, extract_company_urls_from_extractions
+            from scraper.company_intelligence_scraper import CompanyIntelligenceScraper
+            from utils.company_intelligence_aggregator import CompanyIntelligenceAggregator, create_enrichment_summary
+
+            # Load extractions
+            with open(extractions_file, 'r', encoding='utf-8') as f:
+                extractions = json.load(f)
+
+            if max_articles:
+                extractions = extractions[:max_articles]
+
+            print(f"Processing {len(extractions)} articles for company intelligence enrichment")
+
+            # Step 1: Extract company URLs from articles
+            print("\n1. Extracting company URLs from articles...")
+            all_company_urls = extract_company_urls_from_extractions(extractions, articles_dir)
+            total_urls = sum(len(urls) for urls in all_company_urls.values())
+            print(f"   ✓ Extracted {total_urls} company URLs from {len(all_company_urls)} articles")
+
+            # Step 2: Scrape company websites (article by article)
+            print("\n2. Scraping company websites with Playwright...")
+            intelligence_dir = output_path / "company_intelligence"
+            scraper = CompanyIntelligenceScraper(
+                output_dir=str(intelligence_dir),
+                rate_limit_delay=0.5,  # Minimal delay as requested
+                timeout=30000,
+                headless=True
+            )
+
+            total_companies_scraped = 0
+            for article_id, company_urls in all_company_urls.items():
+                print(f"\n   Article {article_id}:")
+                print(f"   - Companies to scrape: {len(company_urls)}")
+
+                # Scrape companies for this article
+                try:
+                    results = asyncio.run(scraper.scrape_companies_batch(
+                        company_urls,
+                        article_id,
+                        max_companies=max_companies_to_scrape
+                    ))
+                    total_companies_scraped += len(results)
+                    print(f"   ✓ Scraped {len(results)} companies")
+                except Exception as e:
+                    print(f"   ✗ Failed to scrape companies for article {article_id}: {e}")
+                    continue
+
+            scraper_stats = scraper.get_stats()
+            print(f"\n   ✓ Scraping complete:")
+            print(f"     - Companies scraped: {scraper_stats['companies_scraped']}")
+            print(f"     - Pages scraped: {scraper_stats['pages_scraped']}")
+            print(f"     - Failed scrapes: {scraper_stats['failed_scrapes']}")
+
+            # Step 3: Aggregate intelligence
+            print("\n3. Aggregating company intelligence...")
+            aggregator = CompanyIntelligenceAggregator()
+            enriched_companies = aggregator.aggregate_all_companies(
+                extractions,
+                str(intelligence_dir)
+            )
+
+            # Save aggregated intelligence
+            aggregator.save_aggregated_intelligence(
+                enriched_companies,
+                str(enriched_companies_file)
+            )
+
+            # Print summary
+            summary = create_enrichment_summary(enriched_companies)
+            print(f"\n   ✓ Enrichment Summary:")
+            print(f"     - Total companies: {summary['total_companies']}")
+            print(f"     - With website URL: {summary['companies_with_website']}")
+            print(f"     - With founded year: {summary['companies_with_founded_year']}")
+            print(f"     - With headquarters: {summary['companies_with_headquarters']}")
+            print(f"     - With founders: {summary['companies_with_founders']}")
+            print(f"     - With funding data: {summary['companies_with_funding']}")
+            print(f"     - Average confidence: {summary['average_confidence']:.2f}")
+            print(f"     - High confidence (>0.7): {summary['high_confidence_companies']}")
+
+            print("\n✅ Company intelligence enrichment complete!")
+
+        except ImportError as e:
+            print(f"⚠️  Enrichment not available: {e}")
+            print("   Install Playwright with: pip install playwright && playwright install")
+            print("   Skipping enrichment phase...")
+        except Exception as e:
+            print(f"⚠️  Enrichment failed: {e}")
+            import traceback
+            traceback.print_exc()
+            print("   Continuing with pipeline...")
+    else:
+        print("\n⏭  Skipping company intelligence enrichment")
+
     # Phase 2: Graph Construction
     if not skip_graph_building:
         print("\n" + "="*80)
         print("PHASE 2: KNOWLEDGE GRAPH CONSTRUCTION")
         print("="*80 + "\n")
-        
-        from graph_builder import build_graph_from_extractions
-        
+
+        from graph_builder import build_graph_from_extractions, TechCrunchGraphBuilder
+
         try:
             build_graph_from_extractions(
                 extractions_file=str(extractions_file),
@@ -221,6 +340,31 @@ def run_pipeline(
                 neo4j_user=neo4j_user,
                 neo4j_password=neo4j_password
             )
+
+            # Phase 2.5: Enrich graph with company intelligence (if available)
+            if not skip_enrichment and enriched_companies_file.exists():
+                print("\n" + "="*80)
+                print("PHASE 2.5: ENRICHING GRAPH WITH COMPANY INTELLIGENCE")
+                print("="*80 + "\n")
+
+                try:
+                    # Load enriched companies
+                    with open(enriched_companies_file, 'r', encoding='utf-8') as f:
+                        enriched_companies = json.load(f)
+
+                    # Connect to graph and enrich
+                    builder = TechCrunchGraphBuilder(neo4j_uri, neo4j_user, neo4j_password)
+                    try:
+                        enrichment_stats = builder.enrich_all_companies(enriched_companies)
+                        print(f"\n✅ Enriched {enrichment_stats['enriched']} companies in the graph")
+                    finally:
+                        builder.close()
+
+                except Exception as e:
+                    print(f"⚠️  Failed to enrich graph with company intelligence: {e}")
+                    import traceback
+                    traceback.print_exc()
+
         except Exception as e:
             print(f"❌ Graph construction failed: {e}")
             print("\nMake sure Neo4j is running:")
@@ -438,7 +582,20 @@ def main():
         action="store_true",
         help="Skip graph construction phase"
     )
-    
+
+    parser.add_argument(
+        "--skip-enrichment",
+        action="store_true",
+        help="Skip company intelligence enrichment phase (Phase 1.5)"
+    )
+
+    parser.add_argument(
+        "--max-companies-per-article",
+        type=int,
+        default=None,
+        help="Maximum number of companies to scrape per article (default: all)"
+    )
+
     parser.add_argument(
         "--scrape-category",
         type=str,
@@ -496,13 +653,15 @@ def main():
         max_articles=args.max_articles,
         skip_scraping=args.skip_scraping,
         skip_extraction=args.skip_extraction,
+        skip_enrichment=args.skip_enrichment,
         skip_graph_building=args.skip_graph,
         scrape_category=args.scrape_category,
         scrape_max_pages=args.scrape_max_pages,
         resume_extraction=not args.no_resume,
         validate_data=not args.no_validation,
         auto_cleanup_graph=not args.no_cleanup,
-        skip_post_processing=args.skip_post_processing
+        skip_post_processing=args.skip_post_processing,
+        max_companies_to_scrape=args.max_companies_per_article
     )
     
     sys.exit(0 if success else 1)
