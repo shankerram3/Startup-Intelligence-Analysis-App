@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { postJson, QueryRequest, QueryResponse } from '../lib/api';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 type ChatMessage = {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   meta?: any;
+  isTyping?: boolean;
 };
 
 // Polyfill for crypto.randomUUID (not available in all browsers)
@@ -32,10 +35,95 @@ export function ChatView() {
   const [input, setInput] = useState('What AI startups raised funding recently?');
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const lastMessageIdRef = useRef<string>('m0');
 
+  // Auto-scroll function - use useCallback to stabilize the reference
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (listRef.current) {
+      // Always scroll if shouldAutoScroll is true, or if content is growing
+      if (shouldAutoScrollRef.current) {
+        // Use requestAnimationFrame for smoother scrolling
+        requestAnimationFrame(() => {
+          if (listRef.current) {
+            listRef.current.scrollTo({
+              top: listRef.current.scrollHeight,
+              behavior
+            });
+          }
+        });
+      }
+    }
+  }, []);
+
+  // Check if user scrolled up manually
+  const handleScroll = useCallback(() => {
+    if (listRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const isNearBottom = distanceFromBottom < 100; // 100px threshold
+      shouldAutoScrollRef.current = isNearBottom;
+      
+      // If user scrolls back to bottom, re-enable autoscroll
+      if (isNearBottom) {
+        shouldAutoScrollRef.current = true;
+      }
+    }
+  }, []);
+
+  // Auto-scroll when new messages are added
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages.length]);
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.id !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = lastMessage.id;
+      // Ensure autoscroll is enabled when new message arrives
+      shouldAutoScrollRef.current = true;
+      // Use instant scroll for new messages, then smooth for typing
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+    }
+  }, [messages.length, scrollToBottom]);
+
+  // Auto-scroll when user sends a message
+  useEffect(() => {
+    if (loading) {
+      // Scroll immediately when user sends message
+      requestAnimationFrame(() => {
+        scrollToBottom('smooth');
+      });
+    }
+  }, [loading, scrollToBottom]);
+
+  // Continuous autoscroll during typing - use interval for more reliable scrolling
+  useEffect(() => {
+    const hasTypingMessage = messages.some(m => {
+      // Check if message is assistant and either isTyping is true or undefined (defaults to typing)
+      return m.role === 'assistant' && (m.isTyping === true || m.isTyping === undefined);
+    });
+    
+    if (hasTypingMessage) {
+      // Always enable autoscroll when typing
+      shouldAutoScrollRef.current = true;
+      
+      const interval = setInterval(() => {
+        if (listRef.current) {
+          const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+          
+          // Always scroll to bottom during typing if autoscroll is enabled
+          if (shouldAutoScrollRef.current && distanceFromBottom > 5) {
+            listRef.current.scrollTo({
+              top: scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }
+      }, 50); // Check more frequently (every 50ms) for smoother scrolling
+      
+      return () => clearInterval(interval);
+    }
+  }, [messages]);
 
   async function send() {
     const text = input.trim();
@@ -53,7 +141,8 @@ export function ChatView() {
         id: generateUUID(),
         role: 'assistant',
         content: answer,
-        meta: { intent: res.intent }
+        meta: { intent: res.intent },
+        isTyping: true
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
@@ -75,19 +164,13 @@ export function ChatView() {
 
   return (
     <div style={styles.root}>
-      <div ref={listRef} style={styles.messages}>
+      <div 
+        ref={listRef} 
+        style={styles.messages}
+        onScroll={handleScroll}
+      >
         {messages.map((m) => (
-          <div key={m.id} style={{ ...styles.bubble, ...bubbleStyleFor(m.role) }}>
-            {m.role !== 'system' && (
-              <div style={styles.bubbleHeader}>
-                <span style={styles.badge}>{m.role === 'user' ? 'You' : 'Assistant'}</span>
-                {m.meta?.intent?.intent && (
-                  <span style={styles.intentTag}>{m.meta.intent.intent}</span>
-                )}
-              </div>
-            )}
-            <div style={styles.bubbleContent}>{m.content}</div>
-          </div>
+          <ChatMessageBubble key={m.id} message={m} onContentChange={scrollToBottom} />
         ))}
       </div>
 
@@ -103,6 +186,93 @@ export function ChatView() {
         <button onClick={send} style={styles.sendButton} disabled={loading || !input.trim()}>
           {loading ? 'Sending...' : 'Send'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatMessageBubble({ 
+  message: m, 
+  onContentChange 
+}: { 
+  message: ChatMessage;
+  onContentChange?: () => void;
+}) {
+  const shouldType = m.role === 'assistant' && (m.isTyping === true || m.isTyping === undefined);
+  const { displayedText, isTyping } = useTypewriter(
+    m.content,
+    { enabled: shouldType }
+  );
+
+  // Trigger scroll on content change during typing (debounced)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout>();
+  const prevIsTypingRef = useRef(false);
+  const prevDisplayedLengthRef = useRef(0);
+  
+  useEffect(() => {
+    // Scroll immediately when typing starts
+    if (isTyping && !prevIsTypingRef.current && onContentChange) {
+      requestAnimationFrame(() => {
+        onContentChange();
+      });
+    }
+    prevIsTypingRef.current = isTyping;
+
+    // Scroll during typing as content changes (debounced)
+    if (isTyping && onContentChange && displayedText.length > prevDisplayedLengthRef.current) {
+      // Clear any pending scroll
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      // Scroll more frequently during typing for smoother experience
+      scrollTimeoutRef.current = setTimeout(() => {
+        onContentChange();
+      }, 20); // Reduced debounce for more responsive scrolling
+    }
+    prevDisplayedLengthRef.current = displayedText.length;
+    
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [displayedText, isTyping, onContentChange]);
+
+  return (
+    <div style={{ ...styles.bubble, ...bubbleStyleFor(m.role) }}>
+      {m.role !== 'system' && (
+        <div style={styles.bubbleHeader}>
+          <span style={styles.badge}>{m.role === 'user' ? 'You' : 'Assistant'}</span>
+          {m.meta?.intent?.intent && (
+            <span style={styles.intentTag}>{m.meta.intent.intent}</span>
+          )}
+          {isTyping && <span style={styles.typingIndicator}>●</span>}
+        </div>
+      )}
+      <div style={styles.bubbleContent}>
+        {m.role === 'assistant' ? (
+          <>
+            {displayedText ? (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p style={{ margin: '0 0 12px 0' }}>{children}</p>,
+                  strong: ({ children }) => <strong style={{ fontWeight: 600, color: 'inherit' }}>{children}</strong>,
+                  ul: ({ children }) => <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ul>,
+                  ol: ({ children }) => <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ol>,
+                  li: ({ children }) => <li style={{ margin: '4px 0' }}>{children}</li>,
+                  em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>
+                }}
+              >
+                {displayedText}
+              </ReactMarkdown>
+            ) : (
+              <span style={{ opacity: 0.5 }}>...</span>
+            )}
+            {isTyping && <span style={styles.typewriterCursor}>▊</span>}
+          </>
+        ) : (
+          m.content
+        )}
       </div>
     </div>
   );
@@ -147,7 +317,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #cbd5e1'
   },
   bubbleSystem: {
-    margin: '0 auto',
+    margin: '10px auto',
     background: '#fff7ed',
     border: '1px solid #fed7aa'
   },
@@ -171,8 +341,20 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     color: '#334155'
   },
+  typingIndicator: {
+    fontSize: 10,
+    color: '#0ea5e9',
+    animation: 'pulse 1.5s ease-in-out infinite',
+    marginLeft: 4
+  },
+  typewriterCursor: {
+    display: 'inline-block',
+    marginLeft: 2,
+    color: '#0ea5e9',
+    animation: 'blink 1s infinite',
+    fontWeight: 'bold'
+  },
   bubbleContent: {
-    whiteSpace: 'pre-wrap',
     lineHeight: 1.55
   },
   composer: {

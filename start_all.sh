@@ -16,9 +16,9 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}🚀 Starting GraphRAG Services...${NC}\n"
 
 # Check if virtual environment exists
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo -e "${RED}❌ Virtual environment not found!${NC}"
-    echo "Please run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+    echo "Please run: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
     exit 1
 fi
 
@@ -47,7 +47,7 @@ tmux split-window -h -t graphrag-services:services
 
 # Start API in left pane
 tmux send-keys -t graphrag-services:services.0 \
-    "cd '$SCRIPT_DIR' && source venv/bin/activate && \
+    "cd '$SCRIPT_DIR' && source .venv/bin/activate && \
      echo -e '${GREEN}🚀 Starting GraphRAG API...${NC}' && \
      python api.py" C-m
 

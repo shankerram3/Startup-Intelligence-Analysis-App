@@ -6,9 +6,21 @@
     <title>GraphRAG Dashboard</title>
     <meta name="description" content="Web UI for GraphRAG queries" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+    <style>
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Optional: Inject API base URL at runtime -->
+    <!-- <script>window.__API_BASE_URL__ = 'http://your-api-url:8000';</script> -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
   </html>

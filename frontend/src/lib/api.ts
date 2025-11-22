@@ -1,4 +1,31 @@
-export const API_BASE_URL: string = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
+// Runtime-configurable API base URL
+// Priority: window.__API_BASE_URL__ > VITE_API_BASE_URL > auto-detect > localhost
+function getApiBaseUrl(): string {
+  // 1. Check for runtime config (injected via script tag in index.html)
+  if (typeof window !== 'undefined' && (window as any).__API_BASE_URL__) {
+    return (window as any).__API_BASE_URL__;
+  }
+  
+  // 2. Check for build-time env var (for development)
+  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // 3. Auto-detect from current hostname (for production deployments)
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // If not localhost, use the same hostname with port 8000
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `http://${hostname}:8000`;
+    }
+  }
+  
+  // 4. Default to localhost
+  return 'http://localhost:8000';
+}
+
+export const API_BASE_URL: string = getApiBaseUrl();
 
 export type QueryRequest = {
   question: string;

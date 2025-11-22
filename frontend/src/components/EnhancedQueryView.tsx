@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { postJson, QueryRequest, QueryResponse } from '../lib/api';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 type QueryTemplate = {
   name: string;
@@ -181,9 +183,7 @@ export function EnhancedQueryView() {
               ) : null}
             </div>
 
-            <div style={styles.answerBox}>
-              {result.answer ?? 'No answer returned.'}
-            </div>
+            <AnswerDisplay answer={result.answer} />
 
             {/* Intent Details */}
             <details style={{ marginTop: 16 }}>
@@ -255,6 +255,31 @@ export function EnhancedQueryView() {
           </div>
         </section>
       </aside>
+    </div>
+  );
+}
+
+function AnswerDisplay({ answer }: { answer: string | null | undefined }) {
+  const { displayedText, isTyping } = useTypewriter(answer || '', { enabled: !!answer });
+
+  if (!answer) {
+    return <div style={styles.answerBox}>No answer returned.</div>;
+  }
+
+  return (
+    <div style={styles.answerBox}>
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p style={{ margin: '0 0 12px 0' }}>{children}</p>,
+          strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+          ul: ({ children }) => <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ul>,
+          ol: ({ children }) => <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ol>,
+          li: ({ children }) => <li style={{ margin: '4px 0' }}>{children}</li>
+        }}
+      >
+        {displayedText}
+      </ReactMarkdown>
+      {isTyping && <span style={styles.typewriterCursor}>▊</span>}
     </div>
   );
 }
@@ -426,7 +451,14 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
     fontSize: 15,
     lineHeight: 1.7,
-    whiteSpace: 'pre-wrap'
+    position: 'relative'
+  },
+  typewriterCursor: {
+    display: 'inline-block',
+    marginLeft: 2,
+    color: '#10b981',
+    animation: 'blink 1s infinite',
+    fontWeight: 'bold'
   },
   detailsSummary: {
     cursor: 'pointer',
