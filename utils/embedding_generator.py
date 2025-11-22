@@ -182,9 +182,10 @@ class EmbeddingGenerator:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:
-            # All entity nodes now have enrichment properties initialized (even if null)
-            # So we can safely query them without warnings
+            # Only Company nodes have enrichment properties, so we conditionally access them
             if entity_type:
+                if entity_type == "Company":
+                    # Company nodes: include all enrichment properties
                 query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
@@ -200,19 +201,36 @@ class EmbeddingGenerator:
                            e.funding_stage as funding_stage
                 """
             else:
+                    # Non-Company nodes: exclude enrichment properties
+                    query = f"""
+                        MATCH (e:{entity_type})
+                        WHERE NOT e:Article
+                        RETURN e.id as id, e.name as name, labels(e)[0] as type,
+                               COALESCE(e.description, '') as description,
+                               null as enriched_description,
+                               null as headquarters,
+                               null as founded_year,
+                               null as founders,
+                               null as products,
+                               null as technologies,
+                               null as funding_total,
+                               null as funding_stage
+                    """
+            else:
+                # All entities: conditionally access enrichment properties only for Company nodes
                 query = """
                     MATCH (e)
                     WHERE NOT e:Article
                     RETURN e.id as id, e.name as name, labels(e)[0] as type,
                            COALESCE(e.description, '') as description,
-                           e.enriched_description as enriched_description,
-                           e.headquarters as headquarters,
-                           e.founded_year as founded_year,
-                           e.founders as founders,
-                           e.products as products,
-                           e.technologies as technologies,
-                           e.funding_total as funding_total,
-                           e.funding_stage as funding_stage
+                           CASE WHEN 'Company' IN labels(e) THEN e.enriched_description ELSE null END as enriched_description,
+                           CASE WHEN 'Company' IN labels(e) THEN e.headquarters ELSE null END as headquarters,
+                           CASE WHEN 'Company' IN labels(e) THEN e.founded_year ELSE null END as founded_year,
+                           CASE WHEN 'Company' IN labels(e) THEN e.founders ELSE null END as founders,
+                           CASE WHEN 'Company' IN labels(e) THEN e.products ELSE null END as products,
+                           CASE WHEN 'Company' IN labels(e) THEN e.technologies ELSE null END as technologies,
+                           CASE WHEN 'Company' IN labels(e) THEN e.funding_total ELSE null END as funding_total,
+                           CASE WHEN 'Company' IN labels(e) THEN e.funding_stage ELSE null END as funding_stage
                 """
 
             result = session.run(query)

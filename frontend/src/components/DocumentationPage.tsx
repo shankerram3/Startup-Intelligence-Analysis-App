@@ -28,8 +28,8 @@ const DocumentationPage: React.FC = () => {
     }
   };
 
-  return (
-    <div style={styles.container}>
+    return (
+      <div style={styles.container}>
       <style>{`
         /* Quick link hover effects */
         a[style*="quickLinkCard"]:hover {
@@ -87,20 +87,20 @@ const DocumentationPage: React.FC = () => {
             <div style={styles.statCard}>
               <div style={styles.statNumber}>38+</div>
               <div style={styles.statLabel}>API Endpoints</div>
-            </div>
+      </div>
             <div style={styles.statCard}>
               <div style={styles.statNumber}>8</div>
               <div style={styles.statLabel}>Entity Types</div>
-            </div>
+          </div>
             <div style={styles.statCard}>
               <div style={styles.statNumber}>15+</div>
               <div style={styles.statLabel}>Relationship Types</div>
-            </div>
+        </div>
             <div style={styles.statCard}>
               <div style={styles.statNumber}>6</div>
               <div style={styles.statLabel}>Pipeline Phases</div>
-            </div>
-          </div>
+      </div>
+    </div>
 
           <div style={styles.featureGrid}>
             <div style={styles.featureCard}>

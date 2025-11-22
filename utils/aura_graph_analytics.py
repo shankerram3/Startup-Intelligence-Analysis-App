@@ -132,6 +132,8 @@ class AuraGraphAnalytics:
         try:
             # Remote projection: project graph from AuraDB to GDS Session
             # We need to include id and name properties so we can map back
+            # NOTE: Exclude relationship properties with String values (like 'description')
+            #       Community detection algorithms only need graph structure, not relationship properties
             G, result = self.gds.graph.project(
                 graph_name=graph_name,
                 query=f"""
@@ -151,7 +153,7 @@ class AuraGraphAnalytics:
                         sourceNodeLabels: labels(source),
                         targetNodeLabels: labels(target),
                         relationshipType: type(rel),
-                        relationshipProperties: properties(rel)
+                        relationshipProperties: {{}}
                     }}
                 )
                 """

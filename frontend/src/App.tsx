@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { CombinedQueryChatView } from './components/CombinedQueryChatView';
 import { SemanticSearchView } from './components/SemanticSearchView';
-import { DashboardView } from './components/DashboardView';
 import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
 import { LandingPage } from './components/LandingPage';
 import DocumentationPage from './components/DocumentationPage';
 
-type TabKey = 'home' | 'query' | 'semantic' | 'dashboard' | 'pipeline' | 'auradb' | 'docs';
+type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'docs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -15,13 +14,13 @@ export default function App() {
   // Handle hash routing
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && ['home', 'query', 'semantic', 'dashboard', 'pipeline', 'auradb', 'docs'].includes(hash)) {
+    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'docs'].includes(hash)) {
       setActiveTab(hash as TabKey);
     }
 
     const handleHashChange = () => {
       const newHash = window.location.hash.slice(1);
-      if (newHash && ['home', 'query', 'semantic', 'dashboard', 'pipeline', 'auradb', 'docs'].includes(newHash)) {
+      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'docs'].includes(newHash)) {
         setActiveTab(newHash as TabKey);
       }
     };
@@ -91,14 +90,6 @@ export default function App() {
             </button>
             <button
               data-nav-button
-              style={{ ...styles.navButton, ...(activeTab === 'dashboard' ? styles.navButtonActive : {}) }}
-              onClick={() => { setActiveTab('dashboard'); window.location.hash = 'dashboard'; }}
-            >
-              <span style={styles.navIcon}>📊</span>
-              <span>Stats</span>
-            </button>
-            <button
-              data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'docs' ? styles.navButtonActive : {}) }}
               onClick={() => { setActiveTab('docs'); window.location.hash = 'docs'; }}
             >
@@ -120,7 +111,6 @@ export default function App() {
         {activeTab === 'query' && <CombinedQueryChatView />}
         {activeTab === 'semantic' && <SemanticSearchView />}
         {activeTab === 'pipeline' && <EnhancedDashboardView />}
-        {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'auradb' && <Neo4jDashboard />}
         {activeTab === 'docs' && <DocumentationPage />}
       </main>

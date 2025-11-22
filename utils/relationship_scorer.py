@@ -210,6 +210,29 @@ class RelationshipScorer:
             Statistics dictionary
         """
         with self.driver.session() as session:
+            # First, get total count for progress tracking
+            if rel_type:
+                count_query = """
+                    MATCH (s)-[r]->(t)
+                    WHERE type(r) = $type
+                    RETURN count(r) as total
+                """
+                count_result = session.run(count_query, type=rel_type)
+            else:
+                count_query = """
+                    MATCH (s)-[r]->(t)
+                    RETURN count(r) as total
+                """
+                count_result = session.run(count_query)
+            
+            total_count = count_result.single()["total"] if count_result else 0
+            
+            if total_count == 0:
+                print(f"   ℹ️  No relationships found to update")
+                return {"updated": 0, "total": 0}
+            
+            print(f"   📊 Found {total_count} relationships to process")
+            
             if rel_type:
                 query = f"""
                     MATCH (s)-[r]->(t)
@@ -227,6 +250,8 @@ class RelationshipScorer:
                 result = session.run(query)
             
             updated_count = 0
+            processed_count = 0
+            log_interval = max(1, total_count // 20)  # Log every 5% or at least every relationship
             
             for record in result:
                 relationship = {
@@ -248,6 +273,7 @@ class RelationshipScorer:
                 
                 # Calculate new strength (simplified - would need article metadata)
                 # For now, use frequency-based update
+                old_strength = relationship["strength"]
                 new_strength = self._calculate_frequency_score(relationship)
                 
                 # Update relationship
@@ -262,9 +288,19 @@ class RelationshipScorer:
                           target=relationship["target"],
                           type=relationship["type"],
                           strength=new_strength)
+                
                 updated_count += 1
+                processed_count += 1
+                
+                # Log progress
+                if processed_count % log_interval == 0 or processed_count == total_count:
+                    percentage = (processed_count / total_count) * 100
+                    print(f"   ⏳ Processing relationship [{processed_count}/{total_count}] ({percentage:.1f}%) - {relationship['type']}: {relationship['source']} → {relationship['target']}")
+            
+            print(f"   ✓ Completed: Updated {updated_count} relationship strengths")
             
             return {
-                "updated": updated_count
+                "updated": updated_count,
+                "total": total_count
             }
 
