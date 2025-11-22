@@ -167,7 +167,7 @@ export function EnhancedDashboardView() {
     const bracketMatch = logLines.match(/\[(\d+)\/(\d+)\]/);
     
     // Pattern 2: "Processing X of Y" or "X of Y"
-    const processingMatch = logLines.match(/(?:Processing|Calculating|Scoring).*?(\d+)\s+(?:of|/)\s*(\d+)/i);
+    const processingMatch = logLines.match(/(?:Processing|Calculating|Scoring).*?(\d+)\s+(?:of|\/)\s*(\d+)/i);
     
     // Pattern 3: "Relationship Strength" specific
     const relationshipMatch = logLines.match(/Relationship\s+Strength.*?(\d+)\s*\/\s*(\d+)/i);

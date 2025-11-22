@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { QueryView } from './components/QueryView';
-import { EnhancedQueryView } from './components/EnhancedQueryView';
+import { CombinedQueryChatView } from './components/CombinedQueryChatView';
 import { SemanticSearchView } from './components/SemanticSearchView';
-import { ChatView } from './components/ChatView';
 import { DashboardView } from './components/DashboardView';
 import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
 
-type TabKey = 'query' | 'semantic' | 'chat' | 'dashboard' | 'pipeline' | 'auradb';
+type TabKey = 'query' | 'semantic' | 'dashboard' | 'pipeline' | 'auradb';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('query');
@@ -39,19 +37,13 @@ export default function App() {
           style={{ ...styles.tabButton, ...(activeTab === 'query' ? styles.tabButtonActive : {}) }}
           onClick={() => setActiveTab('query')}
         >
-          🔍 Query
+          💬 Query & Chat
         </button>
         <button
           style={{ ...styles.tabButton, ...(activeTab === 'semantic' ? styles.tabButtonActive : {}) }}
           onClick={() => setActiveTab('semantic')}
         >
           🎯 Semantic Search
-        </button>
-        <button
-          style={{ ...styles.tabButton, ...(activeTab === 'chat' ? styles.tabButtonActive : {}) }}
-          onClick={() => setActiveTab('chat')}
-        >
-          💬 Chat
         </button>
         <button
           style={{ ...styles.tabButton, ...(activeTab === 'pipeline' ? styles.tabButtonActive : {}) }}
@@ -73,10 +65,9 @@ export default function App() {
         </button>
       </nav>
 
-      <main style={activeTab === 'pipeline' ? styles.mainWide : styles.main}>
-        {activeTab === 'query' && (useEnhanced ? <EnhancedQueryView /> : <QueryView />)}
+      <main style={activeTab === 'pipeline' ? styles.mainWide : activeTab === 'query' ? styles.mainFull : styles.main}>
+        {activeTab === 'query' && <CombinedQueryChatView />}
         {activeTab === 'semantic' && <SemanticSearchView />}
-        {activeTab === 'chat' && <ChatView />}
         {activeTab === 'pipeline' && (useEnhanced ? <EnhancedDashboardView /> : <DashboardView />)}
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'auradb' && <Neo4jDashboard />}
@@ -147,6 +138,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     maxWidth: 1100,
     margin: '0 auto'
+  },
+  mainFull: {
+    padding: 24,
+    width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    overflowX: 'hidden'
   },
   mainWide: {
     padding: 24,
