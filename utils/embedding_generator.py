@@ -141,35 +141,38 @@ class EmbeddingGenerator:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:
+            # Use keys() to check which properties exist, avoiding warnings for missing properties
             if entity_type:
                 query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
+                    WITH e, keys(e) as props
                     RETURN e.id as id, e.name as name, labels(e)[0] as type,
-                           e.description as description,
-                           e.enriched_description as enriched_description,
-                           e.headquarters as headquarters,
-                           e.founded_year as founded_year,
-                           e.founders as founders,
-                           e.products as products,
-                           e.technologies as technologies,
-                           e.funding_total as funding_total,
-                           e.funding_stage as funding_stage
+                           CASE WHEN 'description' IN props THEN e.description ELSE '' END as description,
+                           CASE WHEN 'enriched_description' IN props THEN e.enriched_description ELSE null END as enriched_description,
+                           CASE WHEN 'headquarters' IN props THEN e.headquarters ELSE null END as headquarters,
+                           CASE WHEN 'founded_year' IN props THEN e.founded_year ELSE null END as founded_year,
+                           CASE WHEN 'founders' IN props THEN e.founders ELSE null END as founders,
+                           CASE WHEN 'products' IN props THEN e.products ELSE null END as products,
+                           CASE WHEN 'technologies' IN props THEN e.technologies ELSE null END as technologies,
+                           CASE WHEN 'funding_total' IN props THEN e.funding_total ELSE null END as funding_total,
+                           CASE WHEN 'funding_stage' IN props THEN e.funding_stage ELSE null END as funding_stage
                 """
             else:
                 query = """
                     MATCH (e)
                     WHERE NOT e:Article
+                    WITH e, keys(e) as props
                     RETURN e.id as id, e.name as name, labels(e)[0] as type,
-                           e.description as description,
-                           e.enriched_description as enriched_description,
-                           e.headquarters as headquarters,
-                           e.founded_year as founded_year,
-                           e.founders as founders,
-                           e.products as products,
-                           e.technologies as technologies,
-                           e.funding_total as funding_total,
-                           e.funding_stage as funding_stage
+                           CASE WHEN 'description' IN props THEN e.description ELSE '' END as description,
+                           CASE WHEN 'enriched_description' IN props THEN e.enriched_description ELSE null END as enriched_description,
+                           CASE WHEN 'headquarters' IN props THEN e.headquarters ELSE null END as headquarters,
+                           CASE WHEN 'founded_year' IN props THEN e.founded_year ELSE null END as founded_year,
+                           CASE WHEN 'founders' IN props THEN e.founders ELSE null END as founders,
+                           CASE WHEN 'products' IN props THEN e.products ELSE null END as products,
+                           CASE WHEN 'technologies' IN props THEN e.technologies ELSE null END as technologies,
+                           CASE WHEN 'funding_total' IN props THEN e.funding_total ELSE null END as funding_total,
+                           CASE WHEN 'funding_stage' IN props THEN e.funding_stage ELSE null END as funding_stage
                 """
 
             result = session.run(query)
@@ -308,17 +311,18 @@ class EmbeddingGenerator:
             query = """
                 MATCH (c:Company)
                 WHERE c.enrichment_status = 'enriched'
+                WITH c, keys(c) as props
                 RETURN c.id as id, c.name as name, labels(c)[0] as type,
-                       c.description as description,
-                       c.enriched_description as enriched_description,
-                       c.headquarters as headquarters,
-                       c.founded_year as founded_year,
-                       c.founders as founders,
-                       c.products as products,
-                       c.technologies as technologies,
-                       c.funding_total as funding_total,
-                       c.funding_stage as funding_stage,
-                       c.enrichment_confidence as confidence
+                       CASE WHEN 'description' IN props THEN c.description ELSE '' END as description,
+                       CASE WHEN 'enriched_description' IN props THEN c.enriched_description ELSE null END as enriched_description,
+                       CASE WHEN 'headquarters' IN props THEN c.headquarters ELSE null END as headquarters,
+                       CASE WHEN 'founded_year' IN props THEN c.founded_year ELSE null END as founded_year,
+                       CASE WHEN 'founders' IN props THEN c.founders ELSE null END as founders,
+                       CASE WHEN 'products' IN props THEN c.products ELSE null END as products,
+                       CASE WHEN 'technologies' IN props THEN c.technologies ELSE null END as technologies,
+                       CASE WHEN 'funding_total' IN props THEN c.funding_total ELSE null END as funding_total,
+                       CASE WHEN 'funding_stage' IN props THEN c.funding_stage ELSE null END as funding_stage,
+                       CASE WHEN 'enrichment_confidence' IN props THEN c.enrichment_confidence ELSE null END as confidence
             """
 
             result = session.run(query)
