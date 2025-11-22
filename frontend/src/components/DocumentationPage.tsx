@@ -79,13 +79,14 @@ const DocumentationPage: React.FC = () => {
           <p style={styles.lead}>
             A production-ready knowledge graph and GraphRAG system powered by GPT-4o that extracts entities 
             and relationships from TechCrunch articles, enriches them with deep company intelligence via Playwright, 
-            stores them in Neo4j Aura, and provides intelligent querying through 38+ REST API endpoints with 
-            hybrid semantic search capabilities.
+            stores them in Neo4j Aura, and provides intelligent querying through 40+ REST API endpoints with 
+            hybrid semantic search capabilities. Features a modern React frontend with futuristic UI design, 
+            professional dark theme, interactive chat interface, and comprehensive monitoring.
           </p>
 
           <div style={styles.statsGrid}>
             <div style={styles.statCard}>
-              <div style={styles.statNumber}>38+</div>
+              <div style={styles.statNumber}>40+</div>
               <div style={styles.statLabel}>API Endpoints</div>
       </div>
             <div style={styles.statCard}>
@@ -130,8 +131,8 @@ const DocumentationPage: React.FC = () => {
             </div>
             <div style={styles.featureCard}>
               <div style={styles.featureIcon}>⚡</div>
-              <h3 style={styles.featureTitle}>38 REST Endpoints</h3>
-              <p style={styles.featureDesc}>FastAPI with Pydantic validation, CORS, health checks, and Swagger UI</p>
+              <h3 style={styles.featureTitle}>40+ REST Endpoints</h3>
+              <p style={styles.featureDesc}>FastAPI with Pydantic validation, CORS, health checks, Swagger UI, rate limiting, and security</p>
             </div>
             <div style={styles.featureCard}>
               <div style={styles.featureIcon}>✨</div>
@@ -141,7 +142,17 @@ const DocumentationPage: React.FC = () => {
             <div style={styles.featureCard}>
               <div style={styles.featureIcon}>🎯</div>
               <h3 style={styles.featureTitle}>Production Ready</h3>
-              <p style={styles.featureDesc}>Checkpoint system, progress tracking, validation, Docker support, and tmux orchestration</p>
+              <p style={styles.featureDesc}>Checkpoint system, progress tracking, validation, Docker support, Redis caching, Prometheus metrics, and structured logging</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>🎨</div>
+              <h3 style={styles.featureTitle}>Modern UI</h3>
+              <p style={styles.featureDesc}>Futuristic header design, professional dark theme, interactive chat with history, collapsible templates, and minimal scrollbars</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>⚡</div>
+              <h3 style={styles.featureTitle}>Performance</h3>
+              <p style={styles.featureDesc}>Redis caching for queries and relationships, optimized pipeline logging, and enhanced community detection with Aura Graph Analytics</p>
             </div>
           </div>
         </section>
@@ -164,12 +175,17 @@ const DocumentationPage: React.FC = () => {
                   <div style={{...styles.component, ...styles.componentReact}}>
                     <div style={styles.componentIcon}>💬</div>
                     <div style={styles.componentName}>Chat Interface</div>
-                    <div style={styles.componentDesc}>Real-time queries</div>
+                    <div style={styles.componentDesc}>Real-time queries with history</div>
                   </div>
                   <div style={{...styles.component, ...styles.componentReact}}>
                     <div style={styles.componentIcon}>📊</div>
                     <div style={styles.componentName}>Dashboard</div>
                     <div style={styles.componentDesc}>Analytics & Viz</div>
+                  </div>
+                  <div style={{...styles.component, ...styles.componentReact}}>
+                    <div style={styles.componentIcon}>🎨</div>
+                    <div style={styles.componentName}>Modern UI</div>
+                    <div style={styles.componentDesc}>Dark theme, futuristic design</div>
                   </div>
                 </div>
               </div>
@@ -193,6 +209,21 @@ const DocumentationPage: React.FC = () => {
                     <div style={styles.componentIcon}>🧠</div>
                     <div style={styles.componentName}>RAG Engine</div>
                     <div style={styles.componentDesc}>Hybrid search</div>
+                  </div>
+                  <div style={{...styles.component, ...styles.componentApi}}>
+                    <div style={styles.componentIcon}>🔒</div>
+                    <div style={styles.componentName}>Security</div>
+                    <div style={styles.componentDesc}>JWT auth, rate limiting</div>
+                  </div>
+                  <div style={{...styles.component, ...styles.componentApi}}>
+                    <div style={styles.componentIcon}>📊</div>
+                    <div style={styles.componentName}>Monitoring</div>
+                    <div style={styles.componentDesc}>Prometheus metrics</div>
+                  </div>
+                  <div style={{...styles.component, ...styles.componentApi}}>
+                    <div style={styles.componentIcon}>💾</div>
+                    <div style={styles.componentName}>Cache</div>
+                    <div style={styles.componentDesc}>Redis caching</div>
                   </div>
                 </div>
               </div>
@@ -239,6 +270,11 @@ const DocumentationPage: React.FC = () => {
                     <div style={styles.componentIcon}>📁</div>
                     <div style={styles.componentName}>File Storage</div>
                     <div style={styles.componentDesc}>Raw data cache</div>
+                  </div>
+                  <div style={{...styles.component, ...styles.componentData}}>
+                    <div style={styles.componentIcon}>⚡</div>
+                    <div style={styles.componentName}>Redis Cache</div>
+                    <div style={styles.componentDesc}>Query & entity caching</div>
                   </div>
                 </div>
               </div>
@@ -1234,7 +1270,7 @@ tmux kill-session -t graphrag
             <div style={styles.footerSection}>
               <h4 style={styles.footerTitle}>Project Info</h4>
               <div style={styles.projectInfo}>
-                <div style={styles.projectInfoItem}>📦 38+ API Endpoints</div>
+                <div style={styles.projectInfoItem}>📦 40+ API Endpoints</div>
                 <div style={styles.projectInfoItem}>🗄️ Neo4j Aura Cloud</div>
                 <div style={styles.projectInfoItem}>🤖 GPT-4o Powered</div>
                 <div style={styles.projectInfoItem}>⚡ Production Ready</div>
