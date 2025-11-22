@@ -73,8 +73,8 @@ export function SemanticSearchView() {
       </section>
 
       {error && (
-        <section style={{ ...styles.card, borderColor: '#fecaca', background: '#fef2f2' }}>
-          <strong style={{ color: '#b91c1c' }}>Error:</strong> {error}
+        <section style={{ ...styles.card, borderColor: 'rgba(239, 68, 68, 0.5)', background: 'rgba(239, 68, 68, 0.1)' }}>
+          <strong style={{ color: '#fca5a5' }}>Error:</strong> {error}
         </section>
       )}
 
@@ -110,15 +110,17 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     display: 'block',
     fontWeight: 600,
-    marginBottom: 6
+    marginBottom: 6,
+    color: '#f1f5f9'
   },
   input: {
     width: '100%',
     borderRadius: 8,
-    border: '1px solid #cbd5e1',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
     padding: 10,
     fontSize: 14,
-    background: '#f8fafc'
+    background: '#334155',
+    color: '#f1f5f9'
   },
   row: {
     display: 'flex',
@@ -130,7 +132,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     borderRadius: 8,
     border: '1px solid #0284c7',
-    background: '#0ea5e9',
+    background: '#3b82f6',
     color: 'white',
     cursor: 'pointer'
   },

@@ -297,7 +297,10 @@ export function CombinedQueryChatView() {
     : QUERY_TEMPLATES.filter(t => t.category === selectedCategory);
 
   return (
-    <div style={styles.root}>
+    <div style={{
+      ...styles.root,
+      gridTemplateColumns: showTemplates ? '240px 1fr 290px' : '240px 1fr'
+    }}>
       <style>{`
         @keyframes bounce {
           0%, 80%, 100% {
@@ -431,7 +434,7 @@ export function CombinedQueryChatView() {
       {showTemplates && (
         <aside style={styles.templatesSidebar}>
           <section style={styles.card}>
-            <h3 style={{ marginTop: 0 }}>📋 Query Templates</h3>
+            <h3 style={{ marginTop: 0, color: '#ffffff' }}>📋 Query Templates</h3>
             <p style={styles.hint}>Click any template to use it</p>
 
             <div style={styles.categoryFilter}>
@@ -462,17 +465,6 @@ export function CombinedQueryChatView() {
                 </button>
               ))}
             </div>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={{ marginTop: 0 }}>💡 Tips</h3>
-            <ul style={styles.tipsList}>
-              <li>Be specific with company names</li>
-              <li>Use time references (e.g., "recently", "in 2023")</li>
-              <li>Ask about relationships (e.g., "funded by", "founded by")</li>
-              <li>Filter by location, technology, or funding stage</li>
-              <li>Combine multiple criteria in one query</li>
-            </ul>
           </section>
         </aside>
       )}
@@ -536,7 +528,10 @@ function ChatMessageBubble({
           {(isTyping || isLoading) && <span style={styles.typingIndicator}>●</span>}
         </div>
       )}
-      <div style={styles.bubbleContent}>
+      <div style={{
+        ...styles.bubbleContent,
+        ...(m.role === 'system' ? { textAlign: 'center' } : {})
+      }}>
         {m.role === 'assistant' ? (
           <>
             {isLoading ? (
@@ -545,12 +540,12 @@ function ChatMessageBubble({
               <>
               <ReactMarkdown
                 components={{
-                  p: ({ children }) => <p style={{ margin: '0 0 12px 0' }}>{children}</p>,
-                  strong: ({ children }) => <strong style={{ fontWeight: 600, color: 'inherit' }}>{children}</strong>,
-                  ul: ({ children }) => <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ul>,
-                  ol: ({ children }) => <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ol>,
-                  li: ({ children }) => <li style={{ margin: '4px 0' }}>{children}</li>,
-                  em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>
+                  p: ({ children }) => <p style={{ margin: '0 0 12px 0', color: '#ffffff' }}>{children}</p>,
+                  strong: ({ children }) => <strong style={{ fontWeight: 600, color: '#ffffff' }}>{children}</strong>,
+                  ul: ({ children }) => <ul style={{ margin: '8px 0', paddingLeft: '20px', color: '#ffffff' }}>{children}</ul>,
+                  ol: ({ children }) => <ol style={{ margin: '8px 0', paddingLeft: '20px', color: '#ffffff' }}>{children}</ol>,
+                  li: ({ children }) => <li style={{ margin: '4px 0', color: '#ffffff' }}>{children}</li>,
+                  em: ({ children }) => <em style={{ fontStyle: 'italic', color: '#ffffff' }}>{children}</em>
                 }}
               >
                 {displayedText}
@@ -562,7 +557,7 @@ function ChatMessageBubble({
             )}
           </>
         ) : (
-          m.content
+          <span style={{ color: '#ffffff' }}>{m.content}</span>
         )}
       </div>
       {m.role === 'assistant' && m.meta?.context && (
@@ -631,7 +626,7 @@ function ContextDataDisplay({ context }: { context: any }) {
                   
                   {item.url && (
                     <div style={styles.contextMetaRow}>
-                      <strong>Source:</strong>{' '}
+                      <strong style={{ color: '#ffffff' }}>Source:</strong>{' '}
                       <a 
                         href={item.url} 
                         target="_blank" 
@@ -651,7 +646,7 @@ function ContextDataDisplay({ context }: { context: any }) {
                   
                   {item.article_id && (
                     <div style={styles.contextMetaRow}>
-                      <strong>Article ID:</strong> <code style={styles.contextCode}>{item.article_id}</code>
+                      <strong style={{ color: '#ffffff' }}>Article ID:</strong> <code style={styles.contextCode}>{item.article_id}</code>
                     </div>
                   )}
                 </div>
@@ -674,7 +669,7 @@ function ContextDataDisplay({ context }: { context: any }) {
                 
                 {(item.url || (item.article_urls && item.article_urls.length > 0)) && (
                   <div style={styles.contextMetaRow}>
-                    <strong>Source {item.article_urls && item.article_urls.length > 1 ? 'Articles' : 'Article'}:</strong>
+                    <strong style={{ color: '#ffffff' }}>Source {item.article_urls && item.article_urls.length > 1 ? 'Articles' : 'Article'}:</strong>
                     <div style={styles.contextUrls}>
                       {item.url ? (
                         <a 
@@ -708,7 +703,7 @@ function ContextDataDisplay({ context }: { context: any }) {
                 <div style={styles.contextMeta}>
                   {item.investors && Array.isArray(item.investors) && item.investors.length > 0 && (
                     <div style={styles.contextMetaRow}>
-                      <strong>Investors:</strong>
+                      <strong style={{ color: '#ffffff' }}>Investors:</strong>
                       <div style={styles.contextTags}>
                         {item.investors.map((investor: string, i: number) => (
                           <span key={i} style={styles.contextTag}>{investor}</span>
@@ -719,13 +714,13 @@ function ContextDataDisplay({ context }: { context: any }) {
                   
                   {item.investor_count !== undefined && item.investor_count > 0 && (
                     <div style={styles.contextMetaRow}>
-                      <strong>Investor Count:</strong> {item.investor_count}
+                      <strong style={{ color: '#ffffff' }}>Investor Count:</strong> {item.investor_count}
                     </div>
                   )}
                   
                   {item.latest_announcement && (
                     <div style={styles.contextMetaRow}>
-                      <strong>Latest Announcement:</strong>{' '}
+                      <strong style={{ color: '#ffffff' }}>Latest Announcement:</strong>{' '}
                       {new Date(item.latest_announcement).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
@@ -738,7 +733,7 @@ function ContextDataDisplay({ context }: { context: any }) {
                   
                   {item.id && (
                     <div style={styles.contextMetaRow}>
-                      <strong>ID:</strong> <code style={styles.contextCode}>{item.id}</code>
+                      <strong style={{ color: '#ffffff' }}>ID:</strong> <code style={styles.contextCode}>{item.id}</code>
                     </div>
                   )}
                 </div>
@@ -776,7 +771,7 @@ function bubbleStyleFor(role: ChatMessage['role']): React.CSSProperties {
 const styles: Record<string, React.CSSProperties> = {
   root: {
     display: 'grid',
-    gridTemplateColumns: '200px 2fr 290px',
+    gridTemplateColumns: '240px 2fr 290px',
     gap: 16,
     height: '100%',
     minHeight: 0,
@@ -789,8 +784,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -800,8 +795,8 @@ const styles: Record<string, React.CSSProperties> = {
   chatContainer: {
     display: 'grid',
     gridTemplateRows: '1fr auto',
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     overflow: 'hidden',
     height: '100%',
@@ -810,7 +805,7 @@ const styles: Record<string, React.CSSProperties> = {
   messages: {
     padding: 16,
     overflowY: 'auto',
-    background: '#f8fafc',
+    background: '#1e293b',
     flex: 1,
     minHeight: 0
   },
@@ -823,18 +818,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bubbleUser: {
     marginLeft: 'auto',
-    background: '#dbeafe',
+    background: 'rgba(59, 130, 246, 0.2)',
     border: '1px solid #93c5fd'
   },
   bubbleAssistant: {
     marginRight: 'auto',
-    background: '#f1f5f9',
+    background: '#334155',
     border: '1px solid #cbd5e1'
   },
   bubbleSystem: {
     margin: '10px auto',
-    background: '#fff7ed',
-    border: '1px solid #fed7aa'
+    background: 'rgba(245, 158, 11, 0.1)',
+    border: '1px solid #fed7aa',
+    textAlign: 'center'
   },
   bubbleHeader: {
     display: 'flex',
@@ -845,36 +841,36 @@ const styles: Record<string, React.CSSProperties> = {
   badge: {
     fontSize: 12,
     padding: '2px 6px',
-    background: '#0ea5e9',
+    background: '#3b82f6',
     color: 'white',
     borderRadius: 999
   },
   intentTag: {
     fontSize: 12,
     padding: '2px 6px',
-    background: '#e2e8f0',
+    background: '#475569',
     borderRadius: 999,
-    color: '#334155'
+    color: '#ffffff'
   },
   typingIndicator: {
     fontSize: 10,
-    color: '#0ea5e9',
+    color: '#ffffff',
     animation: 'pulse 1.5s ease-in-out infinite',
     marginLeft: 4
   },
   typewriterCursor: {
     display: 'inline-block',
     marginLeft: 2,
-    color: '#0ea5e9',
+    color: '#ffffff',
     animation: 'blink 1s infinite',
     fontWeight: 'bold'
   },
   bubbleContent: {
-    lineHeight: 1.55
+    lineHeight: 1.55,
+    color: '#ffffff'
   },
   composer: {
-    borderTop: '1px solid #e2e8f0',
-    background: 'white',
+    background: '#1e293b',
     padding: 12
   },
   optionsBar: {
@@ -889,16 +885,18 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     cursor: 'pointer',
-    fontSize: 13
+    fontSize: 13,
+    color: '#ffffff'
   },
   templatesToggle: {
     padding: '4px 10px',
     borderRadius: 6,
-    border: '1px solid #cbd5e1',
-    background: '#f8fafc',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
+    background: '#1e293b',
     cursor: 'pointer',
     fontSize: 12,
-    marginLeft: 'auto'
+    marginLeft: 'auto',
+    color: '#ffffff'
   },
   inputRow: {
     display: 'flex',
@@ -907,18 +905,19 @@ const styles: Record<string, React.CSSProperties> = {
   input: {
     flex: 1,
     borderRadius: 10,
-    border: '1px solid #cbd5e1',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
     padding: 10,
     fontSize: 14,
-    background: '#f8fafc',
+    background: '#334155',
+    color: '#f1f5f9',
     fontFamily: 'inherit',
     resize: 'none'
   },
   sendButton: {
     padding: '10px 16px',
     borderRadius: 10,
-    border: '1px solid #0284c7',
-    background: '#0ea5e9',
+    border: '1px solid #2563eb',
+    background: '#3b82f6',
     color: 'white',
     cursor: 'pointer',
     fontWeight: 600,
@@ -943,8 +942,8 @@ const styles: Record<string, React.CSSProperties> = {
   newChatButton: {
     padding: '4px 8px',
     borderRadius: 6,
-    border: '1px solid #cbd5e1',
-    background: '#f8fafc',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
+    background: '#1e293b',
     cursor: 'pointer',
     fontSize: 16,
     lineHeight: 1,
@@ -964,15 +963,15 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     padding: 10,
     borderRadius: 8,
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    background: '#1e293b',
     cursor: 'pointer',
     transition: 'all 0.2s',
     position: 'relative'
   },
   historyItemActive: {
-    background: '#dbeafe',
-    borderColor: '#93c5fd'
+    background: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#3b82f6'
   },
   historyItemContent: {
     flex: 1,
@@ -984,11 +983,13 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 4,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
+    whiteSpace: 'nowrap',
+    color: '#ffffff'
   },
   historyMeta: {
     fontSize: 11,
-    opacity: 0.6
+    opacity: 0.6,
+    color: '#ffffff'
   },
   deleteButton: {
     padding: '2px 6px',
@@ -1007,11 +1008,12 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
     textAlign: 'center',
     padding: 20,
-    fontStyle: 'italic'
+    fontStyle: 'italic',
+    color: '#ffffff'
   },
   card: {
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -1023,7 +1025,8 @@ const styles: Record<string, React.CSSProperties> = {
   hint: {
     fontSize: 13,
     opacity: 0.7,
-    margin: '0 0 12px'
+    margin: '0 0 12px',
+    color: '#ffffff'
   },
   categoryFilter: {
     display: 'flex',
@@ -1034,14 +1037,15 @@ const styles: Record<string, React.CSSProperties> = {
   categoryButton: {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    background: '#1e293b',
     cursor: 'pointer',
     fontSize: 12,
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    color: '#ffffff'
   },
   categoryButtonActive: {
-    background: '#0ea5e9',
+    background: '#3b82f6',
     borderColor: '#0284c7',
     color: 'white'
   },
@@ -1057,39 +1061,42 @@ const styles: Record<string, React.CSSProperties> = {
   templateCard: {
     padding: 10,
     borderRadius: 8,
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    background: '#1e293b',
     cursor: 'pointer',
     textAlign: 'left',
     transition: 'all 0.2s'
   },
   templateCategory: {
     fontSize: 11,
-    color: '#0ea5e9',
+    color: '#ffffff',
     fontWeight: 600,
     marginBottom: 4
   },
   templateName: {
     fontSize: 13,
     fontWeight: 600,
-    marginBottom: 4
+    marginBottom: 4,
+    color: '#ffffff'
   },
   templateQuestion: {
     fontSize: 12,
     opacity: 0.7,
-    lineHeight: 1.4
+    lineHeight: 1.4,
+    color: '#ffffff'
   },
   detailsSummary: {
     cursor: 'pointer',
     fontWeight: 600,
     fontSize: 12,
     padding: 6,
-    background: '#f8fafc',
-    borderRadius: 6
+    background: '#1e293b',
+    borderRadius: 6,
+    color: '#ffffff'
   },
   jsonPre: {
     background: '#0f172a',
-    color: '#e2e8f0',
+    color: '#ffffff',
     padding: 12,
     borderRadius: 8,
     overflow: 'auto',
@@ -1098,8 +1105,8 @@ const styles: Record<string, React.CSSProperties> = {
     maxHeight: 300
   },
   contextContainer: {
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 8,
     padding: 12,
     marginTop: 8,
@@ -1109,10 +1116,10 @@ const styles: Record<string, React.CSSProperties> = {
   contextHeader: {
     fontSize: 13,
     fontWeight: 600,
-    color: '#0f172a',
+    color: '#f1f5f9',
     marginBottom: 12,
     paddingBottom: 8,
-    borderBottom: '1px solid #e2e8f0'
+    borderBottom: '1px solid rgba(51, 65, 85, 0.5)'
   },
   contextList: {
     display: 'flex',
@@ -1120,8 +1127,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12
   },
   contextItem: {
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 8,
     padding: 12,
     transition: 'all 0.2s'
@@ -1136,30 +1143,31 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontSize: 15,
     fontWeight: 600,
-    color: '#0f172a'
+    color: '#f1f5f9'
   },
   contextBadge: {
     fontSize: 11,
     padding: '4px 8px',
-    background: '#dbeafe',
-    color: '#1e40af',
+    background: 'rgba(59, 130, 246, 0.2)',
+    color: '#ffffff',
     borderRadius: 4,
     fontWeight: 500
   },
   contextDescription: {
     fontSize: 13,
     lineHeight: 1.6,
-    color: '#475569',
+    color: '#ffffff',
     marginBottom: 10,
     padding: 8,
-    background: '#f8fafc',
+    background: '#1e293b',
     borderRadius: 6
   },
   contextMeta: {
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
-    fontSize: 12
+    fontSize: 12,
+    color: '#ffffff'
   },
   contextMetaRow: {
     display: 'flex',
@@ -1176,16 +1184,16 @@ const styles: Record<string, React.CSSProperties> = {
   contextTag: {
     fontSize: 11,
     padding: '3px 8px',
-    background: '#e2e8f0',
-    color: '#334155',
+    background: '#475569',
+    color: '#ffffff',
     borderRadius: 4,
     whiteSpace: 'nowrap'
   },
   contextCode: {
     fontSize: 11,
     padding: '2px 6px',
-    background: '#f1f5f9',
-    color: '#0f172a',
+    background: '#334155',
+    color: '#f1f5f9',
     borderRadius: 4,
     fontFamily: 'monospace'
   },
@@ -1196,7 +1204,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 4
   },
   contextLink: {
-    color: '#0ea5e9',
+    color: '#ffffff',
     textDecoration: 'none',
     fontSize: 12,
     wordBreak: 'break-all',
@@ -1206,14 +1214,15 @@ const styles: Record<string, React.CSSProperties> = {
   contextEmpty: {
     padding: 16,
     textAlign: 'center',
-    color: '#64748b',
+    color: '#ffffff',
     fontSize: 13
   },
   tipsList: {
     margin: 0,
     paddingLeft: 20,
     fontSize: 13,
-    lineHeight: 2
+    lineHeight: 2,
+    color: '#ffffff'
   },
   loadingContainer: {
     display: 'flex',
@@ -1229,11 +1238,11 @@ const styles: Record<string, React.CSSProperties> = {
     width: 8,
     height: 8,
     borderRadius: '50%',
-    background: '#0ea5e9',
+    background: '#3b82f6',
     animation: 'bounce 1.4s ease-in-out infinite both'
   },
   loadingText: {
-    color: '#64748b',
+    color: '#ffffff',
     fontSize: 14,
     fontStyle: 'italic'
   }

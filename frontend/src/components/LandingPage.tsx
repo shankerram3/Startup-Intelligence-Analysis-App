@@ -102,6 +102,12 @@ export function LandingPage() {
           <div style={styles.pipelineArrow}>→</div>
           <div style={styles.pipelineStep}>
             <div style={styles.stepNumber}>5</div>
+            <h3 style={styles.stepTitle}>Post-Processing</h3>
+            <p style={styles.stepDescription}>Embeddings, communities, scoring</p>
+          </div>
+          <div style={styles.pipelineArrow}>→</div>
+          <div style={styles.pipelineStep}>
+            <div style={styles.stepNumber}>6</div>
             <h3 style={styles.stepTitle}>Query</h3>
             <p style={styles.stepDescription}>Ask questions and get answers</p>
           </div>
@@ -154,19 +160,20 @@ python pipeline.py \\
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    width: '100%',
+    width: '93%',
     maxWidth: 1200,
     margin: '0 auto',
     padding: '40px 24px',
-    background: '#ffffff'
+    background: '#0f172a'
   },
   hero: {
     textAlign: 'center' as const,
     padding: '80px 24px 60px',
-    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
     borderRadius: 20,
     marginBottom: 60,
-    color: 'white'
+    color: '#f1f5f9',
+    border: '1px solid rgba(51, 65, 85, 0.5)'
   },
   heroContent: {
     maxWidth: 800,
@@ -204,13 +211,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 28px',
     fontSize: 16,
     fontWeight: 600,
-    background: 'white',
-    color: '#0284c7',
+    background: '#3b82f6',
+    color: '#f1f5f9',
     border: 'none',
     borderRadius: 12,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
   },
   secondaryButton: {
     display: 'flex',
@@ -219,9 +226,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 28px',
     fontSize: 16,
     fontWeight: 600,
-    background: 'rgba(255, 255, 255, 0.2)',
-    color: 'white',
-    border: '2px solid rgba(255, 255, 255, 0.3)',
+    background: 'rgba(51, 65, 85, 0.4)',
+    color: '#f1f5f9',
+    border: '2px solid rgba(71, 85, 105, 0.5)',
     borderRadius: 12,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -235,7 +242,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     textAlign: 'center' as const,
     margin: '0 0 40px 0',
-    color: '#0f172a',
+    color: '#f1f5f9',
     letterSpacing: '-0.02em'
   },
   featuresGrid: {
@@ -246,10 +253,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   featureCard: {
     padding: 32,
-    background: '#ffffff',
+    background: '#1e293b',
     borderRadius: 16,
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
     transition: 'all 0.2s ease',
     cursor: 'default'
   },
@@ -261,26 +268,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 20,
     fontWeight: 600,
     margin: '0 0 12px 0',
-    color: '#0f172a'
+    color: '#f1f5f9'
   },
   featureDescription: {
     fontSize: 15,
     lineHeight: 1.6,
-    color: '#64748b',
+    color: '#cbd5e1',
     margin: 0
   },
   pipeline: {
     marginBottom: 80,
     padding: 40,
-    background: '#f8fafc',
-    borderRadius: 20
+    background: '#1e293b',
+    borderRadius: 20,
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    width: '93%'
   },
   pipelineFlow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    flexWrap: 'wrap' as const,
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'nowrap' as const,
     marginTop: 40
   },
   pipelineStep: {
@@ -288,37 +297,41 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     textAlign: 'center' as const,
-    minWidth: 140
+    flex: '1 1 0',
+    minWidth: 0
   },
   stepNumber: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-    color: 'white',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    color: '#f1f5f9',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 700,
-    marginBottom: 12,
-    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
+    marginBottom: 10,
+    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+    flexShrink: 0
   },
   stepTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 600,
-    margin: '0 0 8px 0',
-    color: '#0f172a'
+    margin: '0 0 6px 0',
+    color: '#f1f5f9'
   },
   stepDescription: {
-    fontSize: 13,
-    color: '#64748b',
-    margin: 0
+    fontSize: 12,
+    color: '#cbd5e1',
+    margin: 0,
+    lineHeight: 1.4
   },
   pipelineArrow: {
-    fontSize: 24,
-    color: '#94a3b8',
-    fontWeight: 300
+    fontSize: 20,
+    color: '#64748b',
+    fontWeight: 300,
+    flexShrink: 0
   },
   quickStart: {
     marginBottom: 80
@@ -353,32 +366,33 @@ const styles: Record<string, React.CSSProperties> = {
   cta: {
     textAlign: 'center' as const,
     padding: '60px 24px',
-    background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
     borderRadius: 20,
-    marginBottom: 40
+    marginBottom: 40,
+    border: '1px solid rgba(51, 65, 85, 0.5)'
   },
   ctaTitle: {
     fontSize: 32,
     fontWeight: 700,
     margin: '0 0 12px 0',
-    color: '#0f172a'
+    color: '#f1f5f9'
   },
   ctaSubtitle: {
     fontSize: 18,
-    color: '#64748b',
+    color: '#cbd5e1',
     margin: '0 0 32px 0'
   },
   ctaButton: {
     padding: '16px 40px',
     fontSize: 18,
     fontWeight: 600,
-    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-    color: 'white',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    color: '#f1f5f9',
     border: 'none',
     borderRadius: 12,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
+    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
   }
 };
 

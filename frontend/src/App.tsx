@@ -38,13 +38,64 @@ export default function App() {
         }
         /* Hover effects for nav buttons */
         [data-nav-button]:hover {
-          background: rgba(255, 255, 255, 0.15) !important;
+          background: rgba(59, 130, 246, 0.15) !important;
+          color: #60a5fa !important;
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), inset 0 0 20px rgba(59, 130, 246, 0.1) !important;
+          transform: translateY(-1px) !important;
         }
         [data-nav-button]:active {
-          transform: scale(0.98);
+          transform: scale(0.98) translateY(0) !important;
+        }
+        
+        /* Futuristic header glow animation */
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.2), 0 0 40px rgba(59, 130, 246, 0.1);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2);
+          }
+        }
+        
+        @keyframes scanLine {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        
+        /* Minimal scrollbar styling for all elements */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+        }
+        
+        *::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        
+        *::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        *::-webkit-scrollbar-thumb {
+          background: rgba(100, 116, 139, 0.3);
+          border-radius: 3px;
+        }
+        
+        *::-webkit-scrollbar-thumb:hover {
+          background: rgba(100, 116, 139, 0.5);
+        }
+        
+        *::-webkit-scrollbar-corner {
+          background: transparent;
         }
       `}</style>
       <header style={styles.header}>
+        <div style={styles.headerGlow}></div>
         <div style={styles.headerContainer}>
           <div style={styles.headerLeft}>
             <div style={styles.logoContainer}>
@@ -121,34 +172,52 @@ export default function App() {
 const styles: Record<string, React.CSSProperties> = {
   appRoot: {
     fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
-    color: '#0f172a',
-    background: '#f8fafc',
+    color: '#f1f5f9',
+    background: '#0f172a',
     height: '100vh',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden'
   },
   header: {
-    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 50%, rgba(15, 23, 42, 0.95) 100%)',
+    borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(59, 130, 246, 0.1) inset, 0 0 60px rgba(59, 130, 246, 0.1)',
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    flexShrink: 0
+    flexShrink: 0,
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    position: 'relative',
+    overflow: 'hidden'
   },
   headerContainer: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '12px 24px',
-    gap: 24,
-    maxWidth: '100%'
+    padding: '16px 32px',
+    gap: 32,
+    maxWidth: '100%',
+    position: 'relative',
+    zIndex: 1
+  },
+  headerGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '2px',
+    background: 'linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.8) 50%, transparent 100%)',
+    animation: 'scanLine 3s linear infinite',
+    zIndex: 0
   },
   headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    flexShrink: 0
+    flexShrink: 0,
+    position: 'relative',
+    zIndex: 1
   },
   logoContainer: {
     display: 'flex',
@@ -156,9 +225,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12
   },
   logoIcon: {
-    fontSize: 32,
+    fontSize: 36,
     lineHeight: 1,
-    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))'
+    filter: 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
+    animation: 'pulseGlow 3s ease-in-out infinite',
+    transform: 'perspective(1000px) rotateY(-5deg)',
+    transition: 'all 0.3s ease'
   },
   logoText: {
     display: 'flex',
@@ -167,25 +239,32 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: 22,
-    fontWeight: 700,
-    color: 'white',
+    fontSize: 24,
+    fontWeight: 800,
+    background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
     lineHeight: 1.2,
-    letterSpacing: '-0.02em'
+    letterSpacing: '-0.03em',
+    textShadow: '0 0 30px rgba(59, 130, 246, 0.3)',
+    fontFamily: 'system-ui, -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif'
   },
   subtitle: {
     margin: 0,
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: 400,
-    lineHeight: 1.2
+    fontSize: 11,
+    color: 'rgba(148, 163, 184, 0.9)',
+    fontWeight: 500,
+    lineHeight: 1.2,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: 'system-ui, -apple-system, "SF Mono", "Monaco", monospace'
   },
   nav: {
     display: 'flex',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     flex: 1,
-    justifyContent: 'center',
     overflowX: 'auto',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none'
@@ -193,31 +272,39 @@ const styles: Record<string, React.CSSProperties> = {
   navButton: {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    padding: '10px 16px',
-    borderRadius: 10,
-    border: 'none',
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'rgba(255, 255, 255, 0.9)',
+    gap: 8,
+    padding: '10px 18px',
+    borderRadius: 12,
+    border: '1px solid rgba(59, 130, 246, 0.1)',
+    background: 'rgba(15, 23, 42, 0.3)',
+    color: 'rgba(203, 213, 225, 0.9)',
     cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 500,
-    transition: 'all 0.2s ease',
+    fontSize: 13,
+    fontWeight: 600,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     whiteSpace: 'nowrap',
     backdropFilter: 'blur(10px)',
-    position: 'relative'
+    WebkitBackdropFilter: 'blur(10px)',
+    position: 'relative',
+    overflow: 'hidden',
+    letterSpacing: '0.01em',
+    fontFamily: 'system-ui, -apple-system, "SF Pro Display", sans-serif'
   },
   navButtonActive: {
-    background: 'rgba(255, 255, 255, 0.2)',
-    color: 'white',
-    fontWeight: 600,
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.15) 100%)',
+    color: '#60a5fa',
+    fontWeight: 700,
+    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3), 0 0 0 1px rgba(59, 130, 246, 0.2) inset, 0 0 30px rgba(59, 130, 246, 0.15)',
+    border: '1px solid rgba(59, 130, 246, 0.4)',
+    transform: 'translateY(-1px)'
   },
   navIcon: {
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 1,
     display: 'inline-flex',
-    alignItems: 'center'
+    alignItems: 'center',
+    filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.3))',
+    transition: 'all 0.3s ease'
   },
   main: {
     padding: 24,
@@ -227,7 +314,9 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     overflow: 'auto',
     flex: 1,
-    minHeight: 0
+    minHeight: 0,
+    background: '#0f172a',
+    color: '#f1f5f9'
   },
   mainFull: {
     padding: 24,
@@ -238,7 +327,9 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     overflowY: 'auto',
     flex: 1,
-    minHeight: 0
+    minHeight: 0,
+    background: '#0f172a',
+    color: '#f1f5f9'
   },
   mainWide: {
     padding: 24,
@@ -248,7 +339,9 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     overflow: 'auto',
     flex: 1,
-    minHeight: 0
+    minHeight: 0,
+    background: '#0f172a',
+    color: '#f1f5f9'
   }
 };
 

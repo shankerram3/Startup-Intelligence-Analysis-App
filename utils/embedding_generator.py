@@ -186,7 +186,7 @@ class EmbeddingGenerator:
             if entity_type:
                 if entity_type == "Company":
                     # Company nodes: include all enrichment properties
-                query = f"""
+                    query = f"""
                     MATCH (e:{entity_type})
                     WHERE NOT e:Article
                     RETURN e.id as id, e.name as name, labels(e)[0] as type,
@@ -199,8 +199,8 @@ class EmbeddingGenerator:
                            e.technologies as technologies,
                            e.funding_total as funding_total,
                            e.funding_stage as funding_stage
-                """
-            else:
+                    """
+                else:
                     # Non-Company nodes: exclude enrichment properties
                     query = f"""
                         MATCH (e:{entity_type})

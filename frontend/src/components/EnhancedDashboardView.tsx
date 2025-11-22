@@ -1496,11 +1496,12 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative' as const
   },
   headerCard: {
-    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
     borderRadius: 12,
     padding: 20,
-    color: 'white',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    color: '#f1f5f9',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     pointerEvents: 'auto' as const,
     position: 'sticky' as const,
     top: 0,
@@ -1534,9 +1535,9 @@ const styles: Record<string, React.CSSProperties> = {
   presetButton: {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid rgba(255,255,255,0.3)',
-    background: 'rgba(255,255,255,0.2)',
-    color: 'white',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
+    background: 'rgba(51, 65, 85, 0.4)',
+    color: '#f1f5f9',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
@@ -1555,11 +1556,11 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'start'
   },
   historyPanel: {
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
     height: 'calc(100vh - 200px)',
     maxHeight: 800,
     minHeight: 400,
@@ -1573,13 +1574,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     marginBottom: 12,
     paddingBottom: 12,
-    borderBottom: '1px solid #e2e8f0'
+    borderBottom: '1px solid rgba(51, 65, 85, 0.5)'
   },
   clearHistoryButton: {
     padding: '4px 8px',
     borderRadius: 6,
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
     background: 'transparent',
+    color: '#cbd5e1',
     cursor: 'pointer',
     fontSize: 16,
     lineHeight: 1,
@@ -1588,7 +1590,7 @@ const styles: Record<string, React.CSSProperties> = {
   emptyHistory: {
     textAlign: 'center',
     padding: '40px 20px',
-    color: '#64748b',
+    color: '#94a3b8',
     fontSize: 14
   },
   historyList: {
@@ -1600,12 +1602,13 @@ const styles: Record<string, React.CSSProperties> = {
     paddingRight: 4
   },
   historyItem: {
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
+    background: '#334155',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 8,
     padding: 12,
     transition: 'all 0.2s',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    color: '#f1f5f9'
   },
   historyItemHeader: {
     display: 'flex',
@@ -1627,7 +1630,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   historyTime: {
     fontSize: 11,
-    color: '#64748b'
+    color: '#94a3b8'
   },
   historyItemDetails: {
     display: 'flex',
@@ -1640,9 +1643,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8
   },
   currentRunItem: {
-    border: '2px solid #0ea5e9',
-    background: '#eff6ff',
-    boxShadow: '0 0 0 3px rgba(14, 165, 233, 0.1)'
+    border: '2px solid #3b82f6',
+    background: 'rgba(59, 130, 246, 0.1)',
+    boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.2)'
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -1655,14 +1658,15 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 16
   },
   card: {
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+    color: '#f1f5f9'
   },
   statusCard: {
-    background: 'linear-gradient(to right, #f8fafc, white)'
+    background: 'linear-gradient(to right, #1e293b, #334155)'
   },
   statusHeader: {
     display: 'flex',
@@ -1689,9 +1693,9 @@ const styles: Record<string, React.CSSProperties> = {
   statusSummary: {
     marginTop: 12,
     padding: 12,
-    background: '#f8fafc',
+    background: '#334155',
     borderRadius: 8,
-    border: '1px solid #e2e8f0'
+    border: '1px solid rgba(51, 65, 85, 0.5)'
   },
   summaryContent: {
     fontSize: 13
@@ -1702,11 +1706,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     marginTop: 8,
     paddingTop: 8,
-    borderTop: '1px solid #e2e8f0'
+    borderTop: '1px solid rgba(51, 65, 85, 0.5)'
   },
   summaryStat: {
     fontSize: 12,
-    color: '#475569'
+    color: '#cbd5e1'
   },
   sectionTabs: {
     display: 'grid',
@@ -1716,18 +1720,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionTab: {
     padding: '8px 4px',
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
+    background: '#334155',
     borderRadius: 8,
     cursor: 'pointer',
     fontSize: 12,
     fontWeight: 500,
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    color: '#cbd5e1'
   },
   sectionTabActive: {
-    background: '#0ea5e9',
-    borderColor: '#0284c7',
-    color: 'white'
+    background: '#3b82f6',
+    borderColor: '#2563eb',
+    color: '#f1f5f9'
   },
   sectionContent: {
     minHeight: 320
@@ -1744,19 +1749,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   label: {
     fontWeight: 600,
-    fontSize: 14
+    fontSize: 14,
+    color: '#f1f5f9'
   },
   input: {
     borderRadius: 8,
-    border: '1px solid #cbd5e1',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
     padding: 8,
     fontSize: 14,
-    background: '#f8fafc'
+    background: '#334155',
+    color: '#f1f5f9'
   },
   hint: {
     fontSize: 12,
     opacity: 0.7,
-    fontStyle: 'italic'
+    fontStyle: 'italic',
+    color: '#94a3b8'
   },
   checkbox: {
     display: 'flex',
@@ -1768,24 +1776,26 @@ const styles: Record<string, React.CSSProperties> = {
   description: {
     fontSize: 14,
     opacity: 0.8,
-    margin: '0 0 12px'
+    margin: '0 0 12px',
+    color: '#cbd5e1'
   },
   infoBox: {
-    background: '#eff6ff',
-    border: '1px solid #bfdbfe',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 13,
-    marginTop: 8
-  },
-  warningBox: {
-    background: '#fef2f2',
-    border: '1px solid #fecaca',
+    background: 'rgba(59, 130, 246, 0.1)',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
     borderRadius: 8,
     padding: 12,
     fontSize: 13,
     marginTop: 8,
-    color: '#991b1b'
+    color: '#cbd5e1'
+  },
+  warningBox: {
+    background: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 13,
+    marginTop: 8,
+    color: '#fca5a5'
   },
   actions: {
     display: 'flex',
@@ -1816,19 +1826,19 @@ const styles: Record<string, React.CSSProperties> = {
   refreshButton: {
     padding: '12px 16px',
     borderRadius: 8,
-    border: '1px solid #0284c7',
-    background: '#f0f9ff',
-    color: '#0284c7',
+    border: '1px solid #3b82f6',
+    background: 'rgba(59, 130, 246, 0.1)',
+    color: '#60a5fa',
     cursor: 'pointer',
     fontWeight: 600,
     transition: 'all 0.2s'
   },
   logsCard: {
-    background: 'white',
-    border: '1px solid #e2e8f0',
+    background: '#1e293b',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     borderRadius: 12,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
     display: 'flex',
     flexDirection: 'column',
     height: 'calc(100vh - 300px)',
@@ -1849,9 +1859,9 @@ const styles: Record<string, React.CSSProperties> = {
   clearLogsButton: {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
-    color: '#64748b',
+    border: '1px solid rgba(71, 85, 105, 0.5)',
+    background: '#334155',
+    color: '#cbd5e1',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
@@ -1883,7 +1893,7 @@ const styles: Record<string, React.CSSProperties> = {
   progressContainer: {
     marginTop: 16,
     paddingTop: 16,
-    borderTop: '1px solid #e2e8f0'
+    borderTop: '1px solid rgba(51, 65, 85, 0.5)'
   },
   progressHeader: {
     display: 'flex',
@@ -1894,22 +1904,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressLabel: {
     fontWeight: 600,
-    color: '#0f172a'
+    color: '#f1f5f9'
   },
   progressText: {
-    color: '#64748b',
+    color: '#94a3b8',
     fontSize: 12
   },
   progressBar: {
     width: '100%',
     height: 8,
-    background: '#e2e8f0',
+    background: '#334155',
     borderRadius: 4,
     overflow: 'hidden'
   },
   progressFill: {
     height: '100%',
-    background: 'linear-gradient(90deg, #0ea5e9, #0284c7)',
+    background: 'linear-gradient(90deg, #3b82f6, #2563eb)',
     borderRadius: 4,
     transition: 'width 0.3s ease'
   }

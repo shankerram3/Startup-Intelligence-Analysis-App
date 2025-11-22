@@ -13,6 +13,8 @@ class RelationshipScorer:
     
     def __init__(self, driver: GraphDatabase):
         self.driver = driver
+        # Cache for frequency scores to avoid redundant database queries
+        self._frequency_cache: Dict[str, float] = {}
     
     def calculate_strength(self, relationship: Dict, article_metadata: Dict) -> float:
         """
@@ -60,15 +62,24 @@ class RelationshipScorer:
     def _calculate_frequency_score(self, relationship: Dict) -> float:
         """
         Calculate frequency score based on how often relationship is mentioned
+        Uses caching to avoid redundant database queries
         
         Returns:
             Score 0-10 (10 = very frequent, 0 = rare)
         """
+        source = relationship.get("source", "")
+        target = relationship.get("target", "")
+        rel_type = relationship.get("type", "")
+        
+        # Create cache key
+        cache_key = f"{source}::{target}::{rel_type}"
+        
+        # Check cache first
+        if cache_key in self._frequency_cache:
+            return self._frequency_cache[cache_key]
+        
+        # Calculate frequency from database
         with self.driver.session() as session:
-            source = relationship.get("source", "")
-            target = relationship.get("target", "")
-            rel_type = relationship.get("type", "")
-            
             # Count occurrences in graph
             query = """
                 MATCH (s)-[r]->(t)
@@ -82,13 +93,17 @@ class RelationshipScorer:
             
             # Normalize: 1 mention = 5, 5+ mentions = 10
             if count == 0:
-                return 0.0
+                score = 0.0
             elif count == 1:
-                return 5.0
+                score = 5.0
             elif count <= 5:
-                return 5.0 + (count - 1) * 1.25  # 5 -> 10 over 4 steps
+                score = 5.0 + (count - 1) * 1.25  # 5 -> 10 over 4 steps
             else:
-                return 10.0
+                score = 10.0
+            
+            # Cache the result
+            self._frequency_cache[cache_key] = score
+            return score
     
     def _calculate_recency_score(self, relationship: Dict, article_metadata: Dict) -> float:
         """
@@ -209,6 +224,9 @@ class RelationshipScorer:
         Returns:
             Statistics dictionary
         """
+        # Clear cache at the start of each update run to ensure fresh data
+        self._frequency_cache.clear()
+        
         with self.driver.session() as session:
             # First, get total count for progress tracking
             if rel_type:

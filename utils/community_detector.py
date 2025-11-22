@@ -50,14 +50,20 @@ class CommunityDetector:
         Returns:
             Dictionary with community information
         """
+        print(f"   🔍 Starting community detection with {algorithm} algorithm...")
+        print(f"   📊 Minimum community size: {min_community_size} nodes")
+        
         # Try Aura Graph Analytics first (if available)
         if self.aura_gds:
             try:
-                print(f"🚀 Using Aura Graph Analytics for {algorithm} algorithm...")
+                print(f"   🚀 Attempting Aura Graph Analytics for {algorithm} algorithm...")
                 result = self.aura_gds.detect_communities(
                     algorithm=algorithm,
                     min_community_size=min_community_size
                 )
+                
+                print(f"   ✅ Aura Graph Analytics completed successfully")
+                print(f"   📈 Found {result['total_communities']} communities")
                 
                 # Results already written back by AuraGraphAnalytics
                 return {
@@ -67,17 +73,21 @@ class CommunityDetector:
                     "method": result.get("method", "aura_graph_analytics")
                 }
             except Exception as e:
-                print(f"⚠️  Aura Graph Analytics failed: {e}")
-                print("   Falling back to simple community detection...")
+                print(f"   ⚠️  Aura Graph Analytics failed: {e}")
+                print(f"   🔄 Falling back to simple community detection...")
                 # Fall through to simple detection
         
         # Fallback: Use simple community detection or try direct GDS
+        print(f"   🔧 Checking for local GDS library...")
         with self.driver.session() as session:
             if algorithm == "leiden":
+                print(f"   📋 Attempting Leiden algorithm via local GDS...")
                 return self._detect_leiden_communities(session, min_community_size)
             elif algorithm == "louvain":
+                print(f"   📋 Attempting Louvain algorithm via local GDS...")
                 return self._detect_louvain_communities(session, min_community_size)
             elif algorithm == "label_propagation":
+                print(f"   📋 Attempting Label Propagation algorithm via local GDS...")
                 return self._detect_label_propagation_communities(session, min_community_size)
             else:
                 raise ValueError(f"Unknown algorithm: {algorithm}")
@@ -100,6 +110,7 @@ class CommunityDetector:
                 raise Exception("GDS library not available")
             
             # Drop existing graph if it exists (check first to avoid warnings)
+            print(f"   🔍 Checking for existing graph projection...")
             try:
                 graph_exists = session.run("""
                     CALL gds.graph.exists('entity-graph') 
@@ -108,29 +119,60 @@ class CommunityDetector:
                 """)
                 exists_record = graph_exists.single()
                 if exists_record and exists_record.get("exists"):
+                    print(f"   🗑️  Dropping existing graph projection...")
                     session.run("CALL gds.graph.drop('entity-graph') YIELD graphName")
+                    print(f"   ✓ Existing graph dropped")
             except Exception:
                 # Graph doesn't exist or can't check - that's fine, continue
-                pass
+                print(f"   ℹ️  No existing graph found (or can't check)")
             
             # Create projection
-            session.run("""
-                CALL gds.graph.project(
-                    'entity-graph',
-                    ['Company', 'Person', 'Investor', 'Technology', 'Product', 'Location', 'Event'],
-                    {
-                        FUNDED_BY: {orientation: 'UNDIRECTED'},
-                        FOUNDED_BY: {orientation: 'UNDIRECTED'},
-                        WORKS_AT: {orientation: 'UNDIRECTED'},
-                        PARTNERS_WITH: {orientation: 'UNDIRECTED'},
-                        COMPETES_WITH: {orientation: 'UNDIRECTED'},
-                        USES_TECHNOLOGY: {orientation: 'UNDIRECTED'},
-                        LOCATED_IN: {orientation: 'UNDIRECTED'}
-                    }
-                )
-            """)
+            print(f"   📊 Creating graph projection (this may take a while for large graphs)...")
+            try:
+                projection_result = session.run("""
+                    CALL gds.graph.project(
+                        'entity-graph',
+                        ['Company', 'Person', 'Investor', 'Technology', 'Product', 'Location', 'Event'],
+                        {
+                            FUNDED_BY: {orientation: 'UNDIRECTED'},
+                            FOUNDED_BY: {orientation: 'UNDIRECTED'},
+                            WORKS_AT: {orientation: 'UNDIRECTED'},
+                            PARTNERS_WITH: {orientation: 'UNDIRECTED'},
+                            COMPETES_WITH: {orientation: 'UNDIRECTED'},
+                            USES_TECHNOLOGY: {orientation: 'UNDIRECTED'},
+                            LOCATED_IN: {orientation: 'UNDIRECTED'}
+                        }
+                    )
+                    YIELD graphName, nodeCount, relationshipCount
+                    RETURN graphName, nodeCount, relationshipCount
+                """)
+                
+                proj_record = projection_result.single()
+                if proj_record:
+                    print(f"   ✓ Graph projection created: {proj_record.get('nodeCount', 0)} nodes, {proj_record.get('relationshipCount', 0)} relationships")
+                else:
+                    print(f"   ✓ Graph projection created")
+            except Exception as e:
+                # Some GDS versions don't support YIELD, just run without it
+                session.run("""
+                    CALL gds.graph.project(
+                        'entity-graph',
+                        ['Company', 'Person', 'Investor', 'Technology', 'Product', 'Location', 'Event'],
+                        {
+                            FUNDED_BY: {orientation: 'UNDIRECTED'},
+                            FOUNDED_BY: {orientation: 'UNDIRECTED'},
+                            WORKS_AT: {orientation: 'UNDIRECTED'},
+                            PARTNERS_WITH: {orientation: 'UNDIRECTED'},
+                            COMPETES_WITH: {orientation: 'UNDIRECTED'},
+                            USES_TECHNOLOGY: {orientation: 'UNDIRECTED'},
+                            LOCATED_IN: {orientation: 'UNDIRECTED'}
+                        }
+                    )
+                """)
+                print(f"   ✓ Graph projection created")
             
             # Run Leiden algorithm
+            print(f"   🔄 Running Leiden algorithm...")
             result = session.run("""
                 CALL gds.leiden.stream('entity-graph')
                 YIELD nodeId, communityId
@@ -140,6 +182,7 @@ class CommunityDetector:
             """)
             
             communities = {}
+            processed = 0
             for record in result:
                 community_id = record["community"]
                 entity_name = record["name"]
@@ -147,16 +190,28 @@ class CommunityDetector:
                 if community_id not in communities:
                     communities[community_id] = []
                 communities[community_id].append(entity_name)
+                processed += 1
+                
+                if processed % 1000 == 0:
+                    print(f"   ⏳ Processing results... [{processed} nodes processed, {len(communities)} communities found]")
+            
+            print(f"   ✓ Algorithm completed: Found {len(communities)} raw communities from {processed} nodes")
             
             # Filter by minimum size
+            print(f"   📊 Filtering communities (min size: {min_size})...")
             filtered_communities = {
                 cid: entities for cid, entities in communities.items() 
                 if len(entities) >= min_size
             }
             
+            print(f"   ✓ Filtered to {len(filtered_communities)} communities")
+            print(f"   💾 Writing community IDs to database...")
+            
             # Store community IDs on nodes
             # Only store filtered communities (size >= min_size) to match the return value
             self._store_communities(session, filtered_communities)
+            
+            print(f"   ✅ Leiden algorithm complete!")
             
             return {
                 "algorithm": "leiden",
@@ -166,8 +221,8 @@ class CommunityDetector:
             
         except Exception as e:
             # Fallback if GDS not available
-            print(f"⚠️  GDS library not available: {e}")
-            print("Falling back to simple community detection...")
+            print(f"   ⚠️  Local GDS library not available: {e}")
+            print(f"   🔄 Falling back to simple community detection (connected components)...")
             return self._detect_simple_communities(session, min_size)
     
     def _detect_louvain_communities(self, session, min_size: int) -> Dict:
@@ -315,6 +370,7 @@ class CommunityDetector:
         Simple community detection using connected components (fallback)
         Uses entity IDs instead of deprecated id() function
         """
+        print(f"   📊 Step 1: Loading all entity nodes...")
         # Find connected components (communities)
         # Use entity IDs instead of internal Neo4j IDs
         result = session.run("""
@@ -326,17 +382,26 @@ class CommunityDetector:
         
         # Build a graph of connections
         nodes = {}
+        node_count = 0
         
         for record in result:
             entity_name = record["name"]
             entity_id = record.get("entity_id") or entity_name
             nodes[entity_id] = entity_name
+            node_count += 1
+        
+        print(f"   ✓ Loaded {node_count} entity nodes")
+        print(f"   📊 Step 2: Finding connected components (this may take a while for large graphs)...")
         
         # Find connected components using breadth-first search
         # Use the session passed as parameter (already created in detect_communities)
         visited = set()
         communities = {}
         community_counter = 0
+        processed_count = 0
+        log_interval = max(1, node_count // 20)  # Log every 5%
+        
+        print(f"   🔄 Processing {node_count} nodes to find communities...")
         
         for entity_id, entity_name in nodes.items():
             if entity_id in visited:
@@ -355,6 +420,12 @@ class CommunityDetector:
                 current_id = queue.pop(0)
                 current_name = nodes[current_id]
                 communities[community_id].append(current_name)
+                processed_count += 1
+                
+                # Log progress periodically
+                if processed_count % log_interval == 0 or processed_count == node_count:
+                    percentage = (processed_count / node_count) * 100
+                    print(f"   ⏳ Processing node [{processed_count}/{node_count}] ({percentage:.1f}%) - Found {len(communities)} communities so far...")
                 
                 # Find connected nodes (within 3 hops) - using entity IDs, not Neo4j internal IDs
                 connected = session.run("""
@@ -371,14 +442,22 @@ class CommunityDetector:
                         if conn_id in nodes:
                             queue.append(conn_id)
         
+        print(f"   ✓ Completed BFS traversal: Found {len(communities)} raw communities")
+        
+        print(f"   📊 Step 3: Filtering communities (min size: {min_size})...")
         filtered_communities = {
             cid: entities for cid, entities in communities.items() 
             if len(entities) >= min_size
         }
         
+        print(f"   ✓ Filtered to {len(filtered_communities)} communities (from {len(communities)} raw communities)")
+        print(f"   💾 Step 4: Writing community IDs to database...")
+        
         # Store community IDs on nodes so downstream queries can use n.community_id
         # Only store filtered communities (size >= min_size) to match the return value
         self._store_communities(session, filtered_communities)
+        
+        print(f"   ✅ Community detection complete!")
 
         return {
             "algorithm": "connected_components",
@@ -388,15 +467,26 @@ class CommunityDetector:
     
     def _store_communities(self, session, communities: Dict):
         """Store community IDs on nodes"""
+        total_entities = sum(len(entities) for entities in communities.values())
+        processed = 0
+        log_interval = max(1, total_entities // 20)  # Log every 5%
+        
         # Use the original community_id from the dict (not enumerate index)
         for community_id, entities in communities.items():
-            for entity_name in entities:
-                # Store the original community_id from the algorithm
-                session.run("""
-                    MATCH (e {name: $name})
-                    WHERE NOT e:Article
-                    SET e.community_id = $community_id
-                """, name=entity_name, community_id=community_id)
+            # Batch update for better performance
+            session.run("""
+                UNWIND $entities AS entity_name
+                MATCH (e {name: entity_name})
+                WHERE NOT e:Article
+                SET e.community_id = $community_id
+            """, entities=entities, community_id=community_id)
+            
+            processed += len(entities)
+            if processed % log_interval == 0 or processed == total_entities:
+                percentage = (processed / total_entities) * 100 if total_entities > 0 else 0
+                print(f"   ⏳ Writing community IDs [{processed}/{total_entities}] ({percentage:.1f}%)...")
+        
+        print(f"   ✓ Wrote community IDs for {processed} entities")
     
     def _write_communities_to_db(self, communities: Dict):
         """

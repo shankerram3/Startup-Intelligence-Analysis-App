@@ -1268,12 +1268,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   container: {
     display: 'flex',
     minHeight: '100vh',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0f172a',
   },
   sidebar: {
     width: '280px',
-    backgroundColor: '#ffffff',
-    borderRight: '1px solid #e2e8f0',
+    backgroundColor: '#1e293b',
+    borderRight: '1px solid rgba(51, 65, 85, 0.5)',
     position: 'sticky' as const,
     top: 0,
     height: '100vh',
@@ -1282,13 +1282,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   sidebarHeader: {
     padding: '24px 20px',
-    borderBottom: '1px solid #e2e8f0',
+    borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
   },
   sidebarTitle: {
     margin: 0,
     fontSize: '20px',
     fontWeight: 700,
-    color: '#1e293b',
+    color: '#f1f5f9',
   },
   nav: {
     padding: '16px 8px',
@@ -1303,7 +1303,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '12px 16px',
     border: 'none',
     backgroundColor: 'transparent',
-    color: '#64748b',
+    color: '#cbd5e1',
     fontSize: '15px',
     fontWeight: 500,
     cursor: 'pointer',
@@ -1312,8 +1312,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: 'left' as const,
   },
   navItemActive: {
-    backgroundColor: '#f1f5f9',
-    color: '#3b82f6',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    color: '#60a5fa',
     fontWeight: 600,
   },
   navIcon: {
@@ -1332,13 +1332,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   h1: {
     fontSize: '36px',
     fontWeight: 700,
-    color: '#0f172a',
+    color: '#f1f5f9',
     marginBottom: '16px',
     marginTop: 0,
   },
   lead: {
     fontSize: '18px',
-    color: '#475569',
+    color: '#cbd5e1',
     lineHeight: 1.7,
     marginBottom: '40px',
   },
@@ -1349,10 +1349,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '32px',
   },
   featureCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '28px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     transition: 'all 0.3s',
     cursor: 'default',
   },
@@ -1363,27 +1363,27 @@ const styles: { [key: string]: React.CSSProperties } = {
   featureTitle: {
     fontSize: '18px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '8px',
     marginTop: 0,
   },
   featureDesc: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     lineHeight: 1.6,
     margin: 0,
   },
   diagramCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '32px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     marginBottom: '24px',
   },
   diagramTitle: {
     fontSize: '20px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '28px',
   },
@@ -1400,7 +1400,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   layerTitle: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#64748b',
+    color: '#cbd5e1',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
   },
@@ -1439,17 +1439,17 @@ const styles: { [key: string]: React.CSSProperties } = {
   componentName: {
     fontSize: '15px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '4px',
   },
   componentDesc: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#cbd5e1',
   },
   arrow: {
     textAlign: 'center' as const,
     fontSize: '24px',
-    color: '#94a3b8',
+    color: '#cbd5e1',
     fontWeight: 'bold',
   },
   pipelineFlow: {
@@ -1462,7 +1462,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   pipelineStep: {
     minWidth: '180px',
     padding: '20px',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     borderRadius: '8px',
     border: '2px solid',
     textAlign: 'center' as const,
@@ -1485,18 +1485,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   pipelineTitle: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '6px',
   },
   pipelineDesc: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#cbd5e1',
     lineHeight: 1.4,
     marginBottom: '8px',
   },
   pipelineTech: {
     fontSize: '10px',
-    color: '#94a3b8',
+    color: '#cbd5e1',
     fontFamily: 'monospace',
     fontStyle: 'italic' as const,
   },
@@ -1535,21 +1535,21 @@ const styles: { [key: string]: React.CSSProperties } = {
   queryStepTitle: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '6px',
   },
   queryStepDesc: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     marginBottom: '12px',
   },
   queryExample: {
     padding: '12px 16px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#334155',
     borderLeft: '3px solid #3b82f6',
     borderRadius: '4px',
     fontSize: '14px',
-    color: '#475569',
+    color: '#cbd5e1',
     fontStyle: 'italic' as const,
   },
   queryTypes: {
@@ -1573,11 +1573,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   searchMethod: {
     flex: 1,
     padding: '12px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#334155',
     borderRadius: '6px',
     textAlign: 'center' as const,
     fontSize: '13px',
-    color: '#475569',
+    color: '#cbd5e1',
     fontWeight: 500,
   },
   searchIcon: {
@@ -1624,7 +1624,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   entityGroupTitle: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#64748b',
+    color: '#cbd5e1',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
   },
@@ -1679,12 +1679,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   entityName: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '4px',
   },
   entityProps: {
     fontSize: '11px',
-    color: '#64748b',
+    color: '#cbd5e1',
   },
   relationshipLines: {
     margin: '0 auto',
@@ -1694,7 +1694,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   subsectionTitle: {
     fontSize: '18px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '16px',
     marginTop: '32px',
   },
@@ -1708,8 +1708,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   relationshipBadge: {
     padding: '8px 14px',
-    backgroundColor: '#f1f5f9',
-    color: '#475569',
+    backgroundColor: '#334155',
+    color: '#cbd5e1',
     borderRadius: '6px',
     fontSize: '12px',
     fontWeight: 600,
@@ -1729,7 +1729,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   codeTitle: {
     fontSize: '13px',
     fontWeight: 600,
-    color: '#94a3b8',
+    color: '#cbd5e1',
   },
   code: {
     margin: 0,
@@ -1775,7 +1775,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     padding: '24px',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     borderRadius: '12px',
     border: '2px solid #e2e8f0',
     textDecoration: 'none',
@@ -1789,12 +1789,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   quickLinkTitle: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '6px',
   },
   quickLinkUrl: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#cbd5e1',
     fontFamily: 'monospace',
   },
   apiGrid: {
@@ -1803,10 +1803,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '24px',
   },
   apiCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   apiMethod: {
     display: 'inline-block',
@@ -1821,13 +1821,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   apiEndpoint: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     fontFamily: 'monospace',
     marginBottom: '8px',
   },
   apiDesc: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     marginBottom: '16px',
   },
   configSection: {
@@ -1840,15 +1840,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '20px',
   },
   configCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   configTitle: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '16px',
   },
@@ -1858,10 +1858,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '24px',
   },
   deploymentCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '28px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   deploymentIcon: {
     fontSize: '48px',
@@ -1870,13 +1870,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   deploymentTitle: {
     fontSize: '20px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '8px',
     marginTop: 0,
   },
   deploymentDesc: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     marginBottom: '20px',
   },
   quickstartSteps: {
@@ -1908,24 +1908,24 @@ const styles: { [key: string]: React.CSSProperties } = {
   quickstartTitle: {
     fontSize: '20px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '12px',
   },
   quickstartList: {
     margin: 0,
     paddingLeft: '20px',
-    color: '#475569',
+    color: '#cbd5e1',
     fontSize: '15px',
     lineHeight: 1.8,
   },
   quickstartNote: {
     marginTop: '12px',
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     lineHeight: 1.7,
     padding: '12px 16px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#334155',
     borderRadius: '6px',
     borderLeft: '3px solid #3b82f6',
   },
@@ -1939,15 +1939,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '20px',
   },
   commandCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   commandTitle: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '16px',
   },
@@ -1961,10 +1961,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '20px',
   },
   troubleshootingCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   troubleshootingTitle: {
     fontSize: '15px',
@@ -1992,7 +1992,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   footerTitle: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
     marginTop: 0,
@@ -2016,15 +2016,15 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   techBadge: {
     padding: '6px 12px',
-    backgroundColor: '#f1f5f9',
-    color: '#475569',
+    backgroundColor: '#334155',
+    color: '#cbd5e1',
     borderRadius: '6px',
     fontSize: '12px',
     fontWeight: 600,
   },
   footerBottom: {
     textAlign: 'center' as const,
-    color: '#94a3b8',
+    color: '#cbd5e1',
     fontSize: '14px',
     paddingTop: '24px',
     borderTop: '1px solid #f1f5f9',
@@ -2037,7 +2037,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: '32px',
   },
   statCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
     border: '2px solid #e2e8f0',
@@ -2051,7 +2051,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   statLabel: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     fontWeight: 500,
   },
   techStackSection: {
@@ -2060,15 +2060,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '32px',
   },
   techCategory: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '28px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   techCategoryTitle: {
     fontSize: '18px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '20px',
   },
@@ -2079,9 +2079,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   techItem: {
     padding: '16px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#334155',
     borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     textAlign: 'center' as const,
   },
   techItemIcon: {
@@ -2091,12 +2091,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   techItemName: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginBottom: '4px',
   },
   techItemDesc: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#cbd5e1',
   },
   projectInfo: {
     display: 'flex',
@@ -2105,7 +2105,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   projectInfoItem: {
     fontSize: '14px',
-    color: '#64748b',
+    color: '#cbd5e1',
     fontWeight: 500,
   },
   utilitySection: {
@@ -2118,10 +2118,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '20px',
   },
   utilityCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '20px',
     borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
     textAlign: 'center' as const,
   },
   utilityIcon: {
@@ -2131,14 +2131,14 @@ const styles: { [key: string]: React.CSSProperties } = {
   utilityTitle: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '8px',
     fontFamily: 'monospace',
   },
   utilityDesc: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#cbd5e1',
     lineHeight: 1.5,
     margin: 0,
   },
@@ -2152,15 +2152,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '20px',
   },
   propertyCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     padding: '24px',
     borderRadius: '12px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid rgba(51, 65, 85, 0.5)',
   },
   propertyTitle: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#f1f5f9',
     marginTop: 0,
     marginBottom: '12px',
   },
@@ -2168,7 +2168,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: 0,
     paddingLeft: '20px',
     fontSize: '13px',
-    color: '#64748b',
+    color: '#cbd5e1',
     lineHeight: 1.8,
   },
 };
