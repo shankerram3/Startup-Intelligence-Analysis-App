@@ -444,7 +444,7 @@ class TechCrunchGraphBuilder:
 
     def enrich_company_node(self, company_name: str, enriched_data: Dict):
         """
-        Enrich a Company node with detailed intelligence data
+        Dynamically enrich a Company node with all available intelligence data
 
         Args:
             company_name: Name of the company
@@ -470,84 +470,85 @@ class TechCrunchGraphBuilder:
             data = enriched_data.get('data', {})
             confidence = enriched_data.get('confidence_score', 0.0)
             timestamp = enriched_data.get('enrichment_timestamp')
-
-            # Update company node with enriched data
-            query = """
-                MATCH (c:Company {id: $company_id})
-                SET c.website_url = $website_url,
-                    c.founded_year = $founded_year,
-                    c.employee_count = $employee_count,
-                    c.headquarters = $headquarters,
-                    c.funding_total = $funding_total,
-                    c.funding_stage = $funding_stage,
-                    c.pricing_model = $pricing_model,
-                    c.enrichment_status = 'enriched',
-                    c.enrichment_timestamp = $enrichment_timestamp,
-                    c.enrichment_confidence = $enrichment_confidence,
-                    c.updated_at = timestamp()
-            """
-
-            # Handle list fields separately (founders, executives, products, technologies)
-            if data.get('founders'):
-                query += """,
-                    c.founders = $founders"""
-
-            if data.get('executives'):
-                query += """,
-                    c.executives = $executives"""
-
-            if data.get('products'):
-                query += """,
-                    c.products = $products"""
-
-            if data.get('technologies'):
-                query += """,
-                    c.technologies = $technologies"""
-
-            # If we have a better description, update it (don't concatenate)
-            if data.get('description') and len(data.get('description', '')) > 50:
-                query += """,
-                    c.enriched_description = $description"""
-
-            query += """
+            
+            # Build SET clause dynamically from all available properties
+            set_clauses = []
+            params = {'company_id': company_id}
+            
+            # Always set enrichment metadata
+            set_clauses.append("c.enrichment_status = 'enriched'")
+            set_clauses.append("c.enrichment_timestamp = $enrichment_timestamp")
+            set_clauses.append("c.enrichment_confidence = $enrichment_confidence")
+            set_clauses.append("c.updated_at = timestamp()")
+            params['enrichment_timestamp'] = timestamp
+            params['enrichment_confidence'] = confidence
+            
+            # Process all properties in the enriched data dynamically
+            for key, value in data.items():
+                if value is None:
+                    continue
+                
+                # Skip metadata fields that aren't node properties
+                if key in ['relationships', 'mentions_count']:
+                    continue
+                
+                # Handle special cases
+                if key == 'description':
+                    # Only use enriched description if it's substantial
+                    if isinstance(value, str) and len(value) > 50:
+                        set_clauses.append("c.enriched_description = $enriched_description")
+                        params['enriched_description'] = value
+                    continue
+                
+                if key == 'executives':
+                    # Convert executives list to list of strings (name - title)
+                    if isinstance(value, list) and value:
+                        exec_list = []
+                        for e in value:
+                            if isinstance(e, dict):
+                                exec_list.append(f"{e.get('name', '')} - {e.get('title', '')}")
+                            elif isinstance(e, str):
+                                exec_list.append(e)
+                        if exec_list:
+                            set_clauses.append(f"c.{key} = ${key}")
+                            params[key] = exec_list
+                    continue
+                
+                # Handle list fields (founders, products, technologies, etc.)
+                if isinstance(value, list):
+                    if value:  # Only set if list is not empty
+                        set_clauses.append(f"c.{key} = ${key}")
+                        params[key] = value
+                # Handle dict fields (like social_links)
+                elif isinstance(value, dict):
+                    if value:  # Only set if dict is not empty
+                        set_clauses.append(f"c.{key} = ${key}")
+                        params[key] = value
+                # Handle primitive values (strings, numbers, booleans)
+                else:
+                    set_clauses.append(f"c.{key} = ${key}")
+                    params[key] = value
+            
+            # Build the final query
+            if not set_clauses:
+                print(f"  ⚠ No enrichment data to set for {company_name}")
+                return False
+            
+            query = f"""
+                MATCH (c:Company {{id: $company_id}})
+                SET {', '.join(set_clauses)}
                 RETURN c.id as id
             """
-
-            # Prepare parameters
-            params = {
-                'company_id': company_id,
-                'website_url': data.get('website_url'),
-                'founded_year': data.get('founded_year'),
-                'employee_count': data.get('employee_count'),
-                'headquarters': data.get('headquarters'),
-                'funding_total': data.get('funding_total'),
-                'funding_stage': data.get('funding_stage'),
-                'pricing_model': data.get('pricing_model'),
-                'enrichment_timestamp': timestamp,
-                'enrichment_confidence': confidence
-            }
-
-            # Add list fields if they exist
-            if data.get('founders'):
-                params['founders'] = data['founders']
-
-            if data.get('executives'):
-                # Convert executives to list of strings (name - title)
-                exec_list = [f"{e.get('name', '')} - {e.get('title', '')}"
-                           for e in data.get('executives', []) if isinstance(e, dict)]
-                params['executives'] = exec_list if exec_list else None
-
-            if data.get('products'):
-                params['products'] = data['products']
-
-            if data.get('technologies'):
-                params['technologies'] = data['technologies']
-
-            if data.get('description'):
-                params['description'] = data['description']
-
-            session.run(query, **params)
-            return True
+            
+            try:
+                session.run(query, **params)
+                # Log which properties were set
+                property_count = len([k for k in params.keys() if k != 'company_id' and k not in ['enrichment_timestamp', 'enrichment_confidence']])
+                print(f"  ✓ Enriched {company_name} with {property_count} properties")
+                return True
+            except Exception as e:
+                print(f"  ❌ Error enriching {company_name}: {e}")
+                return False
 
     def enrich_all_companies(self, enriched_companies: Dict[str, Dict]):
         """

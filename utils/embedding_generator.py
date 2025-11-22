@@ -79,36 +79,51 @@ class EmbeddingGenerator:
 
         # For Company entities, include enriched fields for richer embeddings
         if entity_type == "Company":
-            # Add headquarters/location
+            # Known enrichment fields (in priority order)
+            known_fields = {
+                "headquarters": lambda v: f"Located in {v}",
+                "founded_year": lambda v: f"Founded in {v}",
+                "founders": lambda v: f"Founded by {', '.join(str(f) for f in (v[:3] if isinstance(v, list) else [v]))}",
+                "products": lambda v: f"Products: {', '.join(str(p) for p in (v[:5] if isinstance(v, list) else [v]))}",
+                "technologies": lambda v: f"Technologies: {', '.join(str(t) for t in (v[:10] if isinstance(v, list) else [v]))}",
+                "funding_total": lambda v: f"Raised {v}",
+                "funding_stage": None,  # Handled with funding_total
+                "employee_count": lambda v: f"{v} employees",
+                "pricing_model": lambda v: f"Pricing: {v}",
+                "website_url": None,  # Skip URL in embedding text
+                "description": None,  # Already handled above
+                "enriched_description": None,  # Already handled above
+                "enrichment_status": None,  # Metadata, skip
+                "enrichment_timestamp": None,  # Metadata, skip
+                "enrichment_confidence": None,  # Metadata, skip
+            }
+            
+            # Process known fields first
             if entity.get("headquarters"):
                 text_parts.append(f"Located in {entity['headquarters']}")
-
-            # Add founding information
+            
             if entity.get("founded_year"):
                 text_parts.append(f"Founded in {entity['founded_year']}")
-
-            # Add founders
+            
             if entity.get("founders"):
                 founders = entity["founders"]
                 if isinstance(founders, list) and founders:
-                    founders_str = ", ".join(str(f) for f in founders[:3])  # Limit to first 3
+                    founders_str = ", ".join(str(f) for f in founders[:3])
                     text_parts.append(f"Founded by {founders_str}")
-
-            # Add products
+            
             if entity.get("products"):
                 products = entity["products"]
                 if isinstance(products, list) and products:
-                    products_str = ", ".join(str(p) for p in products[:5])  # Limit to first 5
+                    products_str = ", ".join(str(p) for p in products[:5])
                     text_parts.append(f"Products: {products_str}")
-
-            # Add technologies
+            
             if entity.get("technologies"):
                 technologies = entity["technologies"]
                 if isinstance(technologies, list) and technologies:
-                    tech_str = ", ".join(str(t) for t in technologies[:10])  # Limit to first 10
+                    tech_str = ", ".join(str(t) for t in technologies[:10])
                     text_parts.append(f"Technologies: {tech_str}")
-
-            # Add funding information
+            
+            # Funding information (combine total and stage)
             if entity.get("funding_total"):
                 funding = entity["funding_total"]
                 stage = entity.get("funding_stage", "")
@@ -116,6 +131,32 @@ class EmbeddingGenerator:
                     text_parts.append(f"Raised {funding} in {stage}")
                 else:
                     text_parts.append(f"Raised {funding}")
+            
+            if entity.get("employee_count"):
+                text_parts.append(f"{entity['employee_count']} employees")
+            
+            if entity.get("pricing_model"):
+                text_parts.append(f"Pricing: {entity['pricing_model']}")
+            
+            # Dynamically include any other enrichment properties not in known_fields
+            # This allows new properties to be automatically included in embeddings
+            skip_keys = set(known_fields.keys()) | {'id', 'name', 'type', 'description', 'enriched_description'}
+            for key, value in entity.items():
+                if key in skip_keys or value is None:
+                    continue
+                
+                # Handle lists
+                if isinstance(value, list) and value:
+                    value_str = ", ".join(str(v) for v in value[:5])
+                    text_parts.append(f"{key.replace('_', ' ').title()}: {value_str}")
+                # Handle dicts (like social_links)
+                elif isinstance(value, dict) and value:
+                    # Include key info from dict
+                    keys_str = ", ".join(str(k) for k in list(value.keys())[:3])
+                    text_parts.append(f"{key.replace('_', ' ').title()}: {keys_str}")
+                # Handle primitives
+                elif not isinstance(value, (dict, list)):
+                    text_parts.append(f"{key.replace('_', ' ').title()}: {value}")
 
         # Combine all parts
         text = ". ".join(text_parts)
