@@ -1,27 +1,67 @@
 """
 FastAPI REST API for GraphRAG Query System
 Provides HTTP endpoints for querying the knowledge graph
+
+Version 2.0.0 - Enhanced with:
+- Structured logging
+- Authentication & authorization
+- Rate limiting
+- Caching
+- Prometheus metrics
+- Security improvements
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import subprocess
 import threading
 import io
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from rag_query import GraphRAGQuery, create_rag_query
 from query_templates import QueryTemplates
 
+# Import new utility modules
+from utils.logging_config import setup_logging, get_logger
+from utils.security import SecurityConfig, verify_token, optional_auth, sanitize_error_message
+from utils.cache import get_cache, QueryCache, EntityCache
+from utils.monitoring import (
+    PrometheusMiddleware,
+    get_metrics,
+    get_metrics_content_type,
+    record_query_execution,
+    record_cache_operation
+)
+
 # Load environment variables
 load_dotenv()
+
+# Initialize structured logging
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    json_logs=os.getenv("JSON_LOGS", "true").lower() == "true",
+    log_file=Path("logs/api.log") if os.getenv("ENABLE_FILE_LOGGING") == "true" else None
+)
+
+# Get logger for this module
+logger = get_logger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+# Initialize cache
+cache = get_cache()
 
 # Global RAG instance
 rag_instance = None
@@ -129,21 +169,31 @@ async def lifespan(app: FastAPI):
     global rag_instance
 
     # Startup
-    print("🚀 Starting GraphRAG API...")
+    logger.info("api_starting", version="2.0.0")
+
     try:
         rag_instance = create_rag_query()
-        print("✅ GraphRAG instance initialized")
+        logger.info("rag_instance_initialized", status="success")
+
+        # Log cache status
+        cache_stats = cache.get_stats()
+        logger.info("cache_initialized", **cache_stats)
+
     except Exception as e:
-        print(f"❌ Failed to initialize GraphRAG: {e}")
+        logger.error(
+            "rag_initialization_failed",
+            error=str(e),
+            exc_info=True
+        )
         raise
 
     yield
 
     # Shutdown
-    print("🛑 Shutting down GraphRAG API...")
+    logger.info("api_shutting_down")
     if rag_instance:
         rag_instance.close()
-        print("✅ GraphRAG instance closed")
+        logger.info("rag_instance_closed", status="success")
 
 
 # =============================================================================
@@ -152,18 +202,47 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="GraphRAG API",
-    description="REST API for TechCrunch Knowledge Graph Query System",
-    version="1.0.0",
+    description="REST API for TechCrunch Knowledge Graph Query System with Security & Monitoring",
+    version="2.0.0",
     lifespan=lifespan
 )
 
-# Add CORS middleware
+# Add rate limiter state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add request size limiting middleware
+@app.middleware("http")
+async def limit_upload_size(request: Request, call_next):
+    """Limit request body size to prevent DoS"""
+    content_length = request.headers.get("content-length")
+    if content_length:
+        content_length = int(content_length)
+        if content_length > SecurityConfig.MAX_REQUEST_SIZE:
+            logger.warning(
+                "request_too_large",
+                size=content_length,
+                max_size=SecurityConfig.MAX_REQUEST_SIZE,
+                path=request.url.path
+            )
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body too large. Maximum size: {SecurityConfig.MAX_REQUEST_SIZE} bytes"}
+            )
+
+    response = await call_next(request)
+    return response
+
+# Add Prometheus metrics middleware
+app.add_middleware(PrometheusMiddleware)
+
+# Add CORS middleware with security restrictions
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=SecurityConfig.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
 
 # Frontend static files path (will be mounted after all API routes)
@@ -177,29 +256,94 @@ frontend_dist = Path(__file__).parent / "frontend" / "dist"
 @app.get("/", tags=["Health"])
 async def root():
     """Health check endpoint"""
+    logger.info("root_endpoint_accessed")
     return {
         "status": "healthy",
         "service": "GraphRAG API",
-        "version": "1.0.0"
+        "version": "2.0.0",
+        "features": [
+            "structured_logging",
+            "authentication",
+            "rate_limiting",
+            "caching",
+            "metrics"
+        ]
     }
 
 
 @app.get("/health", tags=["Health"])
 async def health():
-    """Detailed health check"""
+    """Detailed health check with component status"""
     if not rag_instance:
+        logger.error("health_check_failed", reason="rag_not_initialized")
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
         # Test database connection
         stats = rag_instance.query_templates.get_graph_statistics()
-        return {
+
+        health_status = {
             "status": "healthy",
-            "database": "connected",
+            "version": "2.0.0",
+            "components": {
+                "database": "connected",
+                "cache": "enabled" if cache.enabled else "disabled",
+                "authentication": "enabled" if SecurityConfig.ENABLE_AUTH else "disabled",
+                "rate_limiting": "enabled" if SecurityConfig.ENABLE_RATE_LIMITING else "disabled"
+            },
             "graph_stats": stats
         }
+
+        logger.info("health_check_success", **health_status)
+        return health_status
+
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Database connection failed: {e}")
+        logger.error("health_check_failed", error=str(e), exc_info=True)
+        error_msg = sanitize_error_message(e, include_details=False)
+        raise HTTPException(status_code=503, detail=error_msg)
+
+
+@app.get("/metrics", tags=["Monitoring"])
+async def metrics():
+    """
+    Prometheus metrics endpoint
+
+    Returns metrics in Prometheus text format for scraping
+    """
+    return Response(
+        content=get_metrics(),
+        media_type=get_metrics_content_type()
+    )
+
+
+@app.get("/admin/status", tags=["Admin"])
+async def get_system_status():
+    """
+    Get detailed system status including all components
+
+    Returns:
+        Comprehensive system status
+    """
+    status = {
+        "api_version": "2.0.0",
+        "rag_initialized": rag_instance is not None,
+        "cache": cache.get_stats(),
+        "security": {
+            "authentication_enabled": SecurityConfig.ENABLE_AUTH,
+            "rate_limiting_enabled": SecurityConfig.ENABLE_RATE_LIMITING,
+            "max_request_size": SecurityConfig.MAX_REQUEST_SIZE,
+            "allowed_origins": SecurityConfig.ALLOWED_ORIGINS
+        }
+    }
+
+    if rag_instance:
+        try:
+            status["graph_stats"] = rag_instance.query_templates.get_graph_statistics()
+        except Exception as e:
+            status["graph_stats"] = {"error": str(e)}
+
+    logger.info("system_status_requested", **status)
+    return status
 
 
 # =============================================================================
@@ -387,25 +531,80 @@ async def clear_pipeline_logs():
 # =============================================================================
 
 @app.post("/query", response_model=QueryResponse, tags=["Query"])
-async def query(request: QueryRequest):
+@limiter.limit("30/minute" if SecurityConfig.ENABLE_RATE_LIMITING else "1000/minute")
+async def query(request: Request, query_request: QueryRequest, user: Optional[Dict] = Depends(optional_auth)):
     """
     Main query endpoint - natural language questions
 
     This endpoint handles natural language questions and returns AI-generated answers
     based on the knowledge graph context.
+
+    Features:
+    - Rate limiting (30 queries/minute)
+    - Result caching (1 hour TTL)
+    - Structured logging
+    - Optional authentication
     """
+    start_time = time.time()
+
     if not rag_instance:
+        logger.error("query_failed", reason="rag_not_initialized")
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
+    # Log query request
+    logger.info(
+        "query_received",
+        question=query_request.question[:100],  # Truncate for logging
+        use_llm=query_request.use_llm,
+        user_id=user.get("sub") if user else "anonymous"
+    )
+
     try:
+        # Check cache first
+        cached_result = QueryCache.get(query_request.question)
+        if cached_result and query_request.use_llm:
+            logger.info("query_cache_hit", question=query_request.question[:50])
+            record_cache_operation("query", hit=True)
+            record_query_execution("cached", success=True)
+            return cached_result
+
+        record_cache_operation("query", hit=False)
+
+        # Execute query
         result = rag_instance.query(
-            question=request.question,
-            return_context=request.return_context,
-            use_llm=request.use_llm
+            question=query_request.question,
+            return_context=query_request.return_context,
+            use_llm=query_request.use_llm
         )
+
+        # Cache result if LLM was used
+        if query_request.use_llm and result:
+            QueryCache.set(query_request.question, result, ttl=3600)  # 1 hour
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(
+            "query_success",
+            question=query_request.question[:50],
+            duration_ms=duration_ms,
+            cached=False
+        )
+        record_query_execution("natural_language", success=True)
+
         return result
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(
+            "query_failed",
+            question=query_request.question[:50],
+            error=str(e),
+            duration_ms=duration_ms,
+            exc_info=True
+        )
+        record_query_execution("natural_language", success=False)
+
+        error_msg = sanitize_error_message(e, include_details=False)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.post("/query/batch", tags=["Query"])

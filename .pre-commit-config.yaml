@@ -1,0 +1,90 @@
+# Pre-commit hooks configuration
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^frontend/
+      - id: end-of-file-fixer
+        exclude: ^frontend/
+      - id: check-yaml
+      - id: check-json
+        exclude: ^frontend/
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+
+  # Python code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3
+        exclude: ^frontend/
+
+  # Python import sorting
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        exclude: ^frontend/
+
+  # Python linting
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.0.3
+    hooks:
+      - id: pylint
+        args: ['--rcfile=.pylintrc', '--disable=C0111,R0903']
+        exclude: ^(frontend/|tests/)
+
+  # Python type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        args: ['--ignore-missing-imports', '--no-strict-optional']
+        additional_dependencies: [types-requests]
+        exclude: ^(frontend/|tests/)
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-ll', '-i', '--exclude', 'tests/']
+        exclude: ^frontend/
+
+  # Secrets detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(frontend/|\.env\.aura\.template)
+
+# Configuration
+default_language_version:
+  python: python3
+
+# Files to exclude globally
+exclude: |
+  (?x)^(
+      frontend/.*|
+      \.venv/.*|
+      venv/.*|
+      node_modules/.*|
+      __pycache__/.*|
+      \.git/.*|
+      \.pytest_cache/.*|
+      \.mypy_cache/.*|
+      htmlcov/.*|
+      \.coverage.*|
+      dist/.*|
+      build/.*
+  )$
