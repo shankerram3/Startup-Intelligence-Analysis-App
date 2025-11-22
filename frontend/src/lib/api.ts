@@ -82,6 +82,25 @@ export async function getJson<TRes>(path: string): Promise<TRes> {
   return handleResponse<TRes>(res);
 }
 
+// Neo4j/AuraDB admin
+export type Neo4jOverview = {
+  status: string;
+  db_info: { components: Array<{ name?: string; versions?: string[]; edition?: string }> };
+  labels: string[];
+  relationship_types: string[];
+  graph_stats: {
+    node_counts: Array<{ label: string; count: number }>;
+    relationship_counts: Array<{ type: string; count: number }>;
+    community_count: number;
+  };
+  top_connected_entities: Array<{ id: string; name: string; type: string; degree: number }>;
+  top_important_entities: Array<{ id: string; name: string; type: string; importance_score: number }>;
+};
+
+export async function fetchNeo4jOverview(): Promise<Neo4jOverview> {
+  return getJson<Neo4jOverview>('/admin/neo4j/overview');
+}
+
 export async function getText(path: string): Promise<string> {
   const res = await fetch(`${API_BASE_URL}${path}`);
   if (!res.ok) {

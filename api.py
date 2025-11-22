@@ -203,6 +203,71 @@ async def health():
 
 
 # =============================================================================
+# NEO4J ADMIN / AURADB OVERVIEW
+# =============================================================================
+
+@app.get("/admin/neo4j/overview", tags=["Admin", "Neo4j"])
+async def neo4j_overview() -> Dict[str, Any]:
+    """
+    Return an overview of the connected Neo4j (AuraDB) instance:
+    - dbms components (version/edition) when available
+    - labels, relationship types
+    - node/relationship counts, community count
+    - top entities by connectivity and importance
+    """
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        stats = rag_instance.query_templates.get_graph_statistics()
+
+        db_info: Dict[str, Any] = {"components": []}
+        labels: List[str] = []
+        rel_types: List[str] = []
+        top_connected: List[Dict[str, Any]] = []
+        top_important: List[Dict[str, Any]] = []
+
+        # Run best-effort metadata queries (Aura may restrict some procedures)
+        with rag_instance.driver.session() as session:
+            try:
+                comp = session.run("CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition")
+                db_info["components"] = [dict(r) for r in comp]
+            except Exception:
+                db_info["components"] = []
+            try:
+                labs = session.run("CALL db.labels() YIELD label RETURN label ORDER BY label")
+                labels = [r["label"] for r in labs]
+            except Exception:
+                labels = []
+            try:
+                rels = session.run("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType")
+                rel_types = [r["relationshipType"] for r in rels]
+            except Exception:
+                rel_types = []
+
+        # Top entities
+        try:
+            top_connected = rag_instance.query_templates.get_most_connected_entities(limit=10)
+        except Exception:
+            top_connected = []
+        try:
+            top_important = rag_instance.query_templates.get_entity_importance_scores(limit=10)
+        except Exception:
+            top_important = []
+
+        return {
+            "status": "ok",
+            "db_info": db_info,
+            "labels": labels,
+            "relationship_types": rel_types,
+            "graph_stats": stats,
+            "top_connected_entities": top_connected,
+            "top_important_entities": top_important
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Neo4j overview: {e}")
+
+# =============================================================================
 # ADMIN / PIPELINE CONTROL ENDPOINTS
 # =============================================================================
 

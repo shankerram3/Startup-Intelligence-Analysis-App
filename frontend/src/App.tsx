@@ -4,9 +4,10 @@ import { EnhancedQueryView } from './components/EnhancedQueryView';
 import { SemanticSearchView } from './components/SemanticSearchView';
 import { ChatView } from './components/ChatView';
 import { DashboardView } from './components/DashboardView';
+import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
 
-type TabKey = 'query' | 'semantic' | 'chat' | 'dashboard' | 'pipeline';
+type TabKey = 'query' | 'semantic' | 'chat' | 'dashboard' | 'pipeline' | 'auradb';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('query');
@@ -64,6 +65,12 @@ export default function App() {
         >
           📊 Stats
         </button>
+        <button
+          style={{ ...styles.tabButton, ...(activeTab === 'auradb' ? styles.tabButtonActive : {}) }}
+          onClick={() => setActiveTab('auradb')}
+        >
+          🧠 AuraDB
+        </button>
       </nav>
 
       <main style={activeTab === 'pipeline' ? styles.mainWide : styles.main}>
@@ -72,6 +79,7 @@ export default function App() {
         {activeTab === 'chat' && <ChatView />}
         {activeTab === 'pipeline' && (useEnhanced ? <EnhancedDashboardView /> : <DashboardView />)}
         {activeTab === 'dashboard' && <DashboardView />}
+        {activeTab === 'auradb' && <Neo4jDashboard />}
       </main>
     </div>
   );
