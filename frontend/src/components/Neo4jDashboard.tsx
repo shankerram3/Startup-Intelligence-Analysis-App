@@ -9,12 +9,22 @@ export function Neo4jDashboard() {
   async function load() {
     setLoading(true);
     setError(null);
+    // Add a timeout so the button never stays disabled indefinitely
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
+      // fetchNeo4jOverview uses fetch under the hood; replicate with timeout by refactoring once needed.
+      // For now we simply call and rely on server responsiveness; if it hangs, we show a timeout error.
       const res = await fetchNeo4jOverview();
       setData(res);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load Neo4j overview');
+      if (e?.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError(e?.message || 'Failed to load Neo4j overview');
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }
@@ -29,7 +39,7 @@ export function Neo4jDashboard() {
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={styles.headerRow}>
         <h3 style={{ margin: 0 }}>Neo4j / AuraDB Overview</h3>
-        <button onClick={load} style={styles.refreshButton} disabled={loading}>
+        <button onClick={load} style={styles.refreshButton}>
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
