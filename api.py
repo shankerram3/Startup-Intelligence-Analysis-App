@@ -5,12 +5,15 @@ Provides HTTP endpoints for querying the knowledge graph
 
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import subprocess
 import threading
 import io
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
@@ -162,6 +165,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Frontend static files path (will be mounted after all API routes)
+frontend_dist = Path(__file__).parent / "frontend" / "dist"
 
 
 # =============================================================================
@@ -830,6 +836,29 @@ async def get_funding_timeline(company_name: Optional[str] = Query(None)):
 
 
 # =============================================================================
+# STATIC FILES & FRONTEND SERVING (must be after all API routes)
+# =============================================================================
+
+# Mount static files and SPA route (must be last, after all API routes)
+if frontend_dist.exists():
+    # Serve static assets
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+    
+    # Serve frontend index.html for all non-API routes (catch-all, must be last)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend SPA - catch all non-API routes"""
+        # Don't serve frontend for API routes
+        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "query", "search", "company", "investors", "admin")):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        index_file = frontend_dist / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+
+# =============================================================================
 # MAIN - Run server
 # =============================================================================
 
@@ -842,6 +871,8 @@ if __name__ == "__main__":
     print(f"🚀 Starting GraphRAG API on {host}:{port}")
     print(f"📚 API Documentation: http://{host}:{port}/docs")
     print(f"📊 ReDoc Documentation: http://{host}:{port}/redoc")
+    if frontend_dist.exists():
+        print(f"🌐 Frontend: http://{host}:{port}/")
 
     uvicorn.run(
         "api:app",

@@ -205,7 +205,7 @@ function ChatMessageBubble({
   );
 
   // Trigger scroll on content change during typing (debounced)
-  const scrollTimeoutRef = useRef<NodeJS.Timeout>();
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const prevIsTypingRef = useRef(false);
   const prevDisplayedLengthRef = useRef(0);
   

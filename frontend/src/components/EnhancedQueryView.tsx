@@ -64,7 +64,22 @@ export function EnhancedQueryView() {
         }, ...prev].slice(0, 10)); // Keep last 10
       }
     } catch (err: any) {
-      setError(err?.message || 'Request failed');
+      // Parse error message from API response
+      let errorMessage = 'Request failed';
+      if (err?.message) {
+        errorMessage = err.message;
+        // Try to parse JSON error response
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.detail) {
+            errorMessage = parsed.detail;
+          }
+        } catch {
+          // Not JSON, use message as-is
+        }
+      }
+      setError(errorMessage);
+      setResult(null);
     } finally {
       setLoading(false);
     }
@@ -167,7 +182,31 @@ export function EnhancedQueryView() {
         {/* Error Display */}
         {error && (
           <section style={styles.errorCard}>
-            <strong>❌ Error:</strong> {error}
+            <div style={styles.errorHeader}>
+              <div style={styles.errorTitle}>
+                <span style={styles.errorIcon}>⚠️</span>
+                <strong>Query Failed</strong>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                style={styles.errorDismiss}
+                aria-label="Dismiss error"
+              >
+                ×
+              </button>
+            </div>
+            <div style={styles.errorMessage}>{error}</div>
+            <div style={styles.errorActions}>
+              <button
+                onClick={() => {
+                  setError(null);
+                  onSubmit({ preventDefault: () => {} } as React.FormEvent);
+                }}
+                style={styles.retryButton}
+              >
+                🔄 Retry Query
+              </button>
+            </div>
           </section>
         )}
 
@@ -418,10 +457,66 @@ const styles: Record<string, React.CSSProperties> = {
   },
   errorCard: {
     background: '#fef2f2',
-    border: '1px solid #fecaca',
+    border: '2px solid #f87171',
     borderRadius: 12,
     padding: 16,
-    color: '#991b1b'
+    color: '#991b1b',
+    boxShadow: '0 4px 6px rgba(239, 68, 68, 0.1)',
+    animation: 'slideIn 0.3s ease-out'
+  },
+  errorHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  errorTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 16,
+    fontWeight: 600
+  },
+  errorIcon: {
+    fontSize: 20
+  },
+  errorDismiss: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 24,
+    color: '#991b1b',
+    cursor: 'pointer',
+    padding: '0 8px',
+    lineHeight: 1,
+    opacity: 0.7,
+    transition: 'opacity 0.2s'
+  },
+  errorMessage: {
+    background: '#fee2e2',
+    border: '1px solid #fecaca',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    fontSize: 14,
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word'
+  },
+  errorActions: {
+    display: 'flex',
+    gap: 8,
+    justifyContent: 'flex-end'
+  },
+  retryButton: {
+    padding: '8px 16px',
+    borderRadius: 6,
+    border: '1px solid #dc2626',
+    background: '#ef4444',
+    color: 'white',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 500,
+    transition: 'all 0.2s'
   },
   resultCard: {
     background: 'white',

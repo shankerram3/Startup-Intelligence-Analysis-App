@@ -54,7 +54,16 @@ export type SemanticSearchResponse = {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || `HTTP ${res.status}`);
+    // Try to parse JSON error response (FastAPI format)
+    try {
+      const json = JSON.parse(text);
+      if (json.detail) {
+        throw new Error(JSON.stringify({ detail: json.detail }));
+      }
+    } catch {
+      // Not JSON or no detail field, use text as-is
+    }
+    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 }
