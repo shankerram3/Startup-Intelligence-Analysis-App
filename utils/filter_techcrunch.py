@@ -20,7 +20,14 @@ def is_techcrunch_related(name: str) -> bool:
     if not name:
         return False
     
-    name_upper = name.upper()
+    name_upper = name.upper().strip()
+    
+    # Direct checks for common variations (most reliable)
+    if 'TECHCRUNCH' in name_upper and 'DISRUPT' in name_upper:
+        return True
+    
+    if name_upper == 'TECHCRUNCH':
+        return True
     
     # Patterns to match TechCrunch or TechCrunch Disrupt
     techcrunch_patterns = [
@@ -39,14 +46,22 @@ def is_techcrunch_related(name: str) -> bool:
         r'.*DISRUPT.*',
     ]
     
-    # Check against TechCrunch patterns
+    # Check against TechCrunch patterns using search (matches anywhere in string)
     for pattern in techcrunch_patterns:
-        if re.match(pattern, name_upper):
+        if re.search(pattern, name_upper):
             return True
     
     # Check against Disrupt/Battlefield patterns (TechCrunch Disrupt related)
+    # Only match "DISRUPT" if it's clearly part of a TechCrunch event
+    # Skip standalone "DISRUPT" words that might be legitimate (e.g., "disrupt technology")
     for pattern in disrupt_patterns:
-        if re.match(pattern, name_upper):
+        if pattern.startswith('^DISRUPT') or pattern == r'.*DISRUPT.*':
+            # For DISRUPT patterns, require additional context (like year, event keywords)
+            if re.search(pattern, name_upper):
+                # Check if it's clearly a TechCrunch Disrupt event (has year, or "TECHCRUNCH" nearby)
+                if any(keyword in name_upper for keyword in ['20', 'BATTLEFIELD', 'STARTUP', 'EVENT', 'CONFERENCE']):
+                    return True
+        elif re.search(pattern, name_upper):
             return True
     
     return False

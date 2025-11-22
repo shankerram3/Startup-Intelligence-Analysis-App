@@ -87,6 +87,91 @@ class GraphCleaner:
                 print(f"⚠️  WARNING: {remaining_count} MENTIONED_IN relationships remain")
             print("="*80 + "\n")
     
+    def delete_techcrunch_disrupt_nodes(self):
+        """
+        Delete all TechCrunch/Disrupt related nodes from the graph
+        """
+        print("\n" + "="*80)
+        print("DELETING TECHCRUNCH DISRUPT NODES")
+        print("="*80 + "\n")
+        
+        with self.driver.session() as session:
+            # First, find all TechCrunch Disrupt nodes
+            result = session.run("""
+                MATCH (n)
+                WHERE n.name =~ '(?i).*TECHCRUNCH.*DISRUPT.*'
+                   OR n.name =~ '(?i).*TECHCRUNCH DISRUPT.*'
+                   OR (n.name =~ '(?i).*DISRUPT.*' 
+                       AND (n.name =~ '(?i).*20.*' 
+                            OR n.name =~ '(?i).*BATTLEFIELD.*'
+                            OR n.name =~ '(?i).*STARTUP.*'
+                            OR n.name =~ '(?i).*EVENT.*'))
+                RETURN labels(n) as type, n.name as name, id(n) as internal_id
+                ORDER BY n.name
+            """)
+            
+            nodes_to_delete = list(result)
+            if not nodes_to_delete:
+                print("✓ No TechCrunch Disrupt nodes found")
+                return
+            
+            print(f"Found {len(nodes_to_delete)} TechCrunch Disrupt node(s):")
+            for record in nodes_to_delete:
+                print(f"  - {record['name']} ({', '.join(record['type'])})")
+            
+            # Delete relationships first
+            print("\nDeleting relationships...")
+            rel_result = session.run("""
+                MATCH (n)-[r]-(related)
+                WHERE n.name =~ '(?i).*TECHCRUNCH.*DISRUPT.*'
+                   OR n.name =~ '(?i).*TECHCRUNCH DISRUPT.*'
+                   OR (n.name =~ '(?i).*DISRUPT.*' 
+                       AND (n.name =~ '(?i).*20.*' 
+                            OR n.name =~ '(?i).*BATTLEFIELD.*'
+                            OR n.name =~ '(?i).*STARTUP.*'
+                            OR n.name =~ '(?i).*EVENT.*'))
+                DELETE r
+                RETURN count(r) as deleted
+            """)
+            rel_record = rel_result.single()
+            rel_count = rel_record["deleted"] if rel_record else 0
+            print(f"✓ Deleted {rel_count} relationship(s)")
+            
+            # Delete nodes
+            print("\nDeleting nodes...")
+            node_result = session.run("""
+                MATCH (n)
+                WHERE n.name =~ '(?i).*TECHCRUNCH.*DISRUPT.*'
+                   OR n.name =~ '(?i).*TECHCRUNCH DISRUPT.*'
+                   OR (n.name =~ '(?i).*DISRUPT.*' 
+                       AND (n.name =~ '(?i).*20.*' 
+                            OR n.name =~ '(?i).*BATTLEFIELD.*'
+                            OR n.name =~ '(?i).*STARTUP.*'
+                            OR n.name =~ '(?i).*EVENT.*'))
+                DELETE n
+                RETURN count(n) as deleted
+            """)
+            node_record = node_result.single()
+            node_count = node_record["deleted"] if node_record else 0
+            print(f"✓ Deleted {node_count} node(s)")
+            
+            # Verify deletion
+            verify_result = session.run("""
+                MATCH (n)
+                WHERE n.name =~ '(?i).*TECHCRUNCH.*DISRUPT.*'
+                   OR n.name =~ '(?i).*TECHCRUNCH DISRUPT.*'
+                RETURN count(n) as remaining
+            """)
+            verify_record = verify_result.single()
+            remaining = verify_record["remaining"] if verify_record else 0
+            
+            print("\n" + "="*80)
+            if remaining == 0:
+                print("✅ SUCCESS: All TechCrunch Disrupt nodes deleted")
+            else:
+                print(f"⚠️  WARNING: {remaining} TechCrunch Disrupt node(s) remain")
+            print("="*80 + "\n")
+    
     def show_statistics(self):
         """Show graph statistics after cleanup"""
         with self.driver.session() as session:

@@ -163,7 +163,7 @@ SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
 # Local development
 VITE_API_BASE_URL=http://localhost:8000
 
-# Azure VM
+# Remote server
 VITE_API_BASE_URL=http://YOUR_VM_PUBLIC_IP:8000
 ```
 
@@ -236,9 +236,6 @@ sudo ufw status | grep -E '8000|5173'
 sudo ufw allow 8000/tcp
 sudo ufw allow 5173/tcp
 
-# Add Azure NSG rules (Azure Portal → VM → Networking)
-# - Port 8000 (API)
-# - Port 5173 (Frontend)
 ```
 
 ### Chat Not Working
@@ -268,106 +265,3 @@ python api.py
 cd frontend && npm run dev
 ```
 
-### Azure VM
-
-```bash
-# On Azure VM
-./start_all.sh
-
-# Access from local browser
-http://YOUR_VM_PUBLIC_IP:5173
-```
-
-**Required Azure NSG Ports:**
-- 5173 (Frontend)
-- 8000 (API)
-- 7474 (Neo4j Browser)
-- 7687 (Neo4j Bolt)
-
-**Configuration:**
-- Update `frontend/.env.local` with VM public IP
-- Frontend vite.config.ts set to `host: '0.0.0.0'`
-- API listens on `0.0.0.0`
-
----
-
-## 🚀 Future Enhancements
-
-### ✅ Completed
-- [x] Hybrid RAG implementation
-- [x] REST API (40+ endpoints)
-- [x] React frontend with chat & dashboard
-- [x] Semantic search with embeddings
-- [x] Multi-hop reasoning
-- [x] Entity deduplication (automatic)
-- [x] Community detection (automatic)
-- [x] Relationship scoring (automatic)
-- [x] Sentence-transformers support
-
-### 🎯 Planned
-
-**Phase 1: Enhanced UI**
-- [ ] Interactive graph visualization
-- [ ] Advanced query builder
-- [ ] Real-time results streaming
-
-**Phase 2: Intelligence**
-- [ ] Evaluation framework
-- [ ] Query rewriting
-- [ ] Cross-encoder reranking
-- [ ] Automated insights
-
-**Phase 3: Data**
-- [ ] Real-time updates
-- [ ] Multi-source support
-- [ ] Custom entity types
-- [ ] Data export (PDF, CSV)
-
-**Phase 4: Scale**
-- [ ] Analytics dashboard
-- [ ] Temporal trend analysis
-- [ ] Predictive analytics
-- [ ] Query caching
-
-**Phase 5: Enterprise**
-- [ ] Authentication
-- [ ] Rate limiting
-- [ ] Audit logging
-- [ ] Webhooks
-- [ ] GraphQL API
-
----
-
-## 🔗 Quick Links
-
-- **React Frontend**: http://localhost:5173
-- **API Docs**: http://localhost:8000/docs
-- **Neo4j Browser**: http://localhost:7474
-- **Health Check**: http://localhost:8000/health
-
----
-
-## 📚 Additional Documentation
-
-- **[Company Intelligence Enrichment](docs/COMPANY_INTELLIGENCE_ENRICHMENT.md)** 🆕 - Deep company scraping
-- **[API Reference](docs/api/RAG_DOCUMENTATION.md)** - Complete API documentation
-- **[Query Examples](docs/api/QUERY_EXAMPLES.md)** - Query patterns
-- **[Azure Deployment](docs/deployment/AZURE_DEPLOYMENT.md)** - Azure setup
-- **[Neo4j Aura](docs/deployment/AURA_SETUP.md)** - Managed database
-- **[Architecture](docs/development/ARCHITECTURE.md)** - Technical details
-- **[Improvements](docs/development/IMPROVEMENTS.md)** - Enhancements
-
----
-
-## 🤝 Contributing
-
-1. Report issues
-2. Suggest features
-3. Submit PRs
-4. Improve docs
-
----
-
-**Built with:** Python, Neo4j, FastAPI, React, OpenAI GPT-4o, LangChain, Sentence Transformers
-
-**Happy Knowledge Graph Building! 🚀**

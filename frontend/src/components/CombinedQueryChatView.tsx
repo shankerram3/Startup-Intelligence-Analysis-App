@@ -196,11 +196,16 @@ export function CombinedQueryChatView() {
     if (!text || loading) return;
     setInput('');
     const userMsg: ChatMessage = { id: generateUUID(), role: 'user', content: text };
+    const loadingMsgId = generateUUID();
+    const loadingMsg: ChatMessage = {
+      id: loadingMsgId,
+      role: 'assistant',
+      content: '',
+      isTyping: true
+    };
     
     setMessages((prev) => {
-      const updated = [...prev, userMsg];
-      // Save after adding user message
-      setTimeout(() => saveToHistory(updated), 100);
+      const updated = [...prev, userMsg, loadingMsg];
       return updated;
     });
 
@@ -213,6 +218,10 @@ export function CombinedQueryChatView() {
       };
       const res = await postJson<QueryRequest, QueryResponse>('/query', body);
       const answer = (res.answer && String(res.answer).trim()) || 'No answer found.';
+      
+      // Replace loading message with actual response
+      setMessages((prev) => {
+        const withoutLoading = prev.filter(m => m.id !== loadingMsgId);
       const assistantMsg: ChatMessage = {
         id: generateUUID(),
         role: 'assistant',
@@ -220,16 +229,17 @@ export function CombinedQueryChatView() {
         meta: { intent: res.intent, context: res.context },
         isTyping: true
       };
-      setMessages((prev) => {
-        const updated = [...prev, assistantMsg];
+        const updated = [...withoutLoading, assistantMsg];
         // Save after receiving response
         setTimeout(() => saveToHistory(updated), 100);
         return updated;
       });
     } catch (err: any) {
+      // Replace loading message with error
       setMessages((prev) => {
+        const withoutLoading = prev.filter(m => m.id !== loadingMsgId);
         const updated = [
-          ...prev,
+          ...withoutLoading,
           { id: generateUUID(), role: 'assistant', content: err?.message || 'Request failed' }
         ];
         setTimeout(() => saveToHistory(updated), 100);
@@ -288,6 +298,40 @@ export function CombinedQueryChatView() {
 
   return (
     <div style={styles.root}>
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% {
+            transform: scale(0);
+            opacity: 0.5;
+          }
+          40% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        @keyframes blink {
+          0%, 49% {
+            opacity: 1;
+          }
+          50%, 100% {
+            opacity: 0;
+          }
+        }
+        [data-spinner-dot]:nth-child(1) {
+          animation-delay: -0.32s;
+        }
+        [data-spinner-dot]:nth-child(2) {
+          animation-delay: -0.16s;
+        }
+      `}</style>
       {/* Left Sidebar: Chat History */}
       <aside style={styles.historySidebar}>
         <div style={styles.historyHeader}>
@@ -443,9 +487,9 @@ function ChatMessageBubble({
   message: ChatMessage;
   onContentChange?: () => void;
 }) {
-  const shouldType = m.role === 'assistant' && (m.isTyping === true || m.isTyping === undefined);
+  const shouldType = m.role === 'assistant' && m.content && (m.isTyping === true || m.isTyping === undefined);
   const { displayedText, isTyping } = useTypewriter(
-    m.content,
+    m.content || '',
     { enabled: shouldType }
   );
 
@@ -478,6 +522,9 @@ function ChatMessageBubble({
     };
   }, [displayedText, isTyping, onContentChange]);
 
+  // Show loading indicator if message is empty and isTyping is true
+  const isLoading = m.role === 'assistant' && !m.content && (m.isTyping === true || m.isTyping === undefined);
+
   return (
     <div style={{ ...styles.bubble, ...bubbleStyleFor(m.role) }}>
       {m.role !== 'system' && (
@@ -486,13 +533,16 @@ function ChatMessageBubble({
           {m.meta?.intent?.intent && (
             <span style={styles.intentTag}>{m.meta.intent.intent}</span>
           )}
-          {isTyping && <span style={styles.typingIndicator}>●</span>}
+          {(isTyping || isLoading) && <span style={styles.typingIndicator}>●</span>}
         </div>
       )}
       <div style={styles.bubbleContent}>
         {m.role === 'assistant' ? (
           <>
-            {displayedText ? (
+            {isLoading ? (
+              <LoadingIndicator />
+            ) : displayedText ? (
+              <>
               <ReactMarkdown
                 components={{
                   p: ({ children }) => <p style={{ margin: '0 0 12px 0' }}>{children}</p>,
@@ -505,10 +555,11 @@ function ChatMessageBubble({
               >
                 {displayedText}
               </ReactMarkdown>
+                {isTyping && <span style={styles.typewriterCursor}>▊</span>}
+              </>
             ) : (
               <span style={{ opacity: 0.5 }}>...</span>
             )}
-            {isTyping && <span style={styles.typewriterCursor}>▊</span>}
           </>
         ) : (
           m.content
@@ -520,6 +571,31 @@ function ChatMessageBubble({
           <ContextDataDisplay context={m.meta.context} />
         </details>
       )}
+    </div>
+  );
+}
+
+function LoadingIndicator() {
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(prev => {
+        if (prev === '...') return '';
+        return prev + '.';
+      });
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div style={styles.loadingContainer}>
+      <div style={styles.loadingSpinner}>
+        <div data-spinner-dot style={styles.spinnerDot}></div>
+        <div data-spinner-dot style={styles.spinnerDot}></div>
+        <div data-spinner-dot style={styles.spinnerDot}></div>
+      </div>
+      <span style={styles.loadingText}>Generating response{dots}</span>
     </div>
   );
 }
@@ -1138,6 +1214,28 @@ const styles: Record<string, React.CSSProperties> = {
     paddingLeft: 20,
     fontSize: 13,
     lineHeight: 2
+  },
+  loadingContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '8px 0'
+  },
+  loadingSpinner: {
+    display: 'flex',
+    gap: 4
+  },
+  spinnerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: '#0ea5e9',
+    animation: 'bounce 1.4s ease-in-out infinite both'
+  },
+  loadingText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontStyle: 'italic'
   }
 };
 

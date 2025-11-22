@@ -1,15 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CombinedQueryChatView } from './components/CombinedQueryChatView';
 import { SemanticSearchView } from './components/SemanticSearchView';
 import { DashboardView } from './components/DashboardView';
 import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
+import { LandingPage } from './components/LandingPage';
+import DocumentationPage from './components/DocumentationPage';
 
-type TabKey = 'query' | 'semantic' | 'dashboard' | 'pipeline' | 'auradb';
+type TabKey = 'home' | 'query' | 'semantic' | 'dashboard' | 'pipeline' | 'auradb' | 'docs';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>('query');
-  const [useEnhanced, setUseEnhanced] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabKey>('home');
+
+  // Handle hash routing
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash && ['home', 'query', 'semantic', 'dashboard', 'pipeline', 'auradb', 'docs'].includes(hash)) {
+      setActiveTab(hash as TabKey);
+    }
+
+    const handleHashChange = () => {
+      const newHash = window.location.hash.slice(1);
+      if (newHash && ['home', 'query', 'semantic', 'dashboard', 'pipeline', 'auradb', 'docs'].includes(newHash)) {
+        setActiveTab(newHash as TabKey);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   return (
     <div style={styles.appRoot}>
@@ -40,8 +59,16 @@ export default function App() {
           <nav style={styles.nav}>
             <button
               data-nav-button
+              style={{ ...styles.navButton, ...(activeTab === 'home' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('home'); window.location.hash = 'home'; }}
+            >
+              <span style={styles.navIcon}>🏠</span>
+              <span>Home</span>
+            </button>
+            <button
+              data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'query' ? styles.navButtonActive : {}) }}
-              onClick={() => setActiveTab('query')}
+              onClick={() => { setActiveTab('query'); window.location.hash = 'query'; }}
             >
               <span style={styles.navIcon}>💬</span>
               <span>Query & Chat</span>
@@ -49,7 +76,7 @@ export default function App() {
             <button
               data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'semantic' ? styles.navButtonActive : {}) }}
-              onClick={() => setActiveTab('semantic')}
+              onClick={() => { setActiveTab('semantic'); window.location.hash = 'semantic'; }}
             >
               <span style={styles.navIcon}>🎯</span>
               <span>Semantic Search</span>
@@ -57,7 +84,7 @@ export default function App() {
             <button
               data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'pipeline' ? styles.navButtonActive : {}) }}
-              onClick={() => setActiveTab('pipeline')}
+              onClick={() => { setActiveTab('pipeline'); window.location.hash = 'pipeline'; }}
             >
               <span style={styles.navIcon}>⚙️</span>
               <span>Pipeline</span>
@@ -65,49 +92,37 @@ export default function App() {
             <button
               data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'dashboard' ? styles.navButtonActive : {}) }}
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => { setActiveTab('dashboard'); window.location.hash = 'dashboard'; }}
             >
               <span style={styles.navIcon}>📊</span>
               <span>Stats</span>
             </button>
             <button
               data-nav-button
-              style={{ ...styles.navButton, ...(activeTab === 'auradb' ? styles.navButtonActive : {}) }}
-              onClick={() => setActiveTab('auradb')}
+              style={{ ...styles.navButton, ...(activeTab === 'docs' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('docs'); window.location.hash = 'docs'; }}
             >
-              <span style={styles.navIcon}>🧠</span>
-              <span>AuraDB</span>
+              <span style={styles.navIcon}>📚</span>
+              <span>Docs</span>
             </button>
           </nav>
-          <div style={styles.headerRight}>
-            <label style={styles.toggleLabel} onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={useEnhanced}
-                onChange={(e) => setUseEnhanced(e.target.checked)}
-                style={styles.toggleInput}
-              />
-              <span style={{
-                ...styles.toggleSwitch,
-                background: useEnhanced ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)'
-              }}>
-                <span style={{
-                  ...styles.toggleKnob,
-                  transform: useEnhanced ? 'translateX(18px)' : 'translateX(2px)'
-                }}></span>
-              </span>
-              <span style={styles.toggleText}>Enhanced</span>
-            </label>
-          </div>
         </div>
       </header>
 
-      <main style={activeTab === 'pipeline' ? styles.mainWide : activeTab === 'query' ? styles.mainFull : styles.main}>
+      <main style={
+        activeTab === 'docs' ? styles.mainFull : 
+        activeTab === 'home' ? styles.mainFull :
+        activeTab === 'pipeline' ? styles.mainWide : 
+        activeTab === 'query' ? styles.mainFull : 
+        styles.main
+      }>
+        {activeTab === 'home' && <LandingPage />}
         {activeTab === 'query' && <CombinedQueryChatView />}
         {activeTab === 'semantic' && <SemanticSearchView />}
-        {activeTab === 'pipeline' && (useEnhanced ? <EnhancedDashboardView /> : <DashboardView />)}
+        {activeTab === 'pipeline' && <EnhancedDashboardView />}
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'auradb' && <Neo4jDashboard />}
+        {activeTab === 'docs' && <DocumentationPage />}
       </main>
     </div>
   );
@@ -213,58 +228,6 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1,
     display: 'inline-flex',
     alignItems: 'center'
-  },
-  headerRight: {
-    display: 'flex',
-    alignItems: 'center',
-    flexShrink: 0
-  },
-  toggleLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '8px 12px',
-    borderRadius: 10,
-    background: 'rgba(255, 255, 255, 0.15)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'white',
-    backdropFilter: 'blur(10px)',
-    transition: 'all 0.2s ease',
-    userSelect: 'none' as const
-  },
-  toggleInput: {
-    position: 'absolute',
-    opacity: 0,
-    width: 0,
-    height: 0
-  },
-  toggleSwitch: {
-    position: 'relative',
-    width: 40,
-    height: 22,
-    background: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 11,
-    transition: 'all 0.3s ease',
-    cursor: 'pointer',
-    display: 'inline-block'
-  },
-  toggleKnob: {
-    position: 'absolute',
-    top: 2,
-    left: 2,
-    width: 18,
-    height: 18,
-    background: 'white',
-    borderRadius: '50%',
-    transition: 'transform 0.3s ease',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
-  },
-  toggleText: {
-    fontSize: 13,
-    fontWeight: 500
   },
   main: {
     padding: 24,

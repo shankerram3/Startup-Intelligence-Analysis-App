@@ -147,28 +147,28 @@ class TechCrunchGraphBuilder:
             
             # Initialize enrichment properties for ALL entity types
             # This allows dynamic enrichment and avoids Neo4j warnings
-            query = f"""
-                MERGE (e:{node_label} {{id: $id}})
-                ON CREATE SET 
-                    e.name = $name,
-                    e.description = $description,
-                    e.created_at = timestamp(),
-                    e.mention_count = 1,
-                    e.headquarters = null,
-                    e.founded_year = null,
-                    e.founders = null,
-                    e.products = null,
-                    e.technologies = null,
-                    e.funding_total = null,
-                    e.funding_stage = null,
-                    e.enriched_description = null,
+                query = f"""
+                    MERGE (e:{node_label} {{id: $id}})
+                    ON CREATE SET 
+                        e.name = $name,
+                        e.description = $description,
+                        e.created_at = timestamp(),
+                        e.mention_count = 1,
+                        e.headquarters = null,
+                        e.founded_year = null,
+                        e.founders = null,
+                        e.products = null,
+                        e.technologies = null,
+                        e.funding_total = null,
+                        e.funding_stage = null,
+                        e.enriched_description = null,
                     e.enrichment_status = COALESCE(e.enrichment_status, 'pending'),
-                    e.website_url = null,
-                    e.employee_count = null,
-                    e.pricing_model = null
-                ON MATCH SET
-                    e.description = e.description + ' | ' + $description,
-                    e.mention_count = e.mention_count + 1,
+                        e.website_url = null,
+                        e.employee_count = null,
+                        e.pricing_model = null
+                    ON MATCH SET
+                        e.description = e.description + ' | ' + $description,
+                        e.mention_count = e.mention_count + 1,
                     e.updated_at = timestamp(),
                     e.headquarters = COALESCE(e.headquarters, null),
                     e.founded_year = COALESCE(e.founded_year, null),
@@ -182,8 +182,8 @@ class TechCrunchGraphBuilder:
                     e.website_url = COALESCE(e.website_url, null),
                     e.employee_count = COALESCE(e.employee_count, null),
                     e.pricing_model = COALESCE(e.pricing_model, null)
-                RETURN e.id as id
-            """
+                    RETURN e.id as id
+                """
             
             result = session.run(query,
                 id=entity_id,

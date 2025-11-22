@@ -6,7 +6,7 @@ Provides HTTP endpoints for querying the knowledge graph
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import subprocess
@@ -926,6 +926,36 @@ async def get_funding_timeline(company_name: Optional[str] = Query(None)):
 
 
 # =============================================================================
+# DOCUMENTATION ENDPOINTS
+# =============================================================================
+
+@app.get("/docs/readme", tags=["Documentation"])
+async def get_readme():
+    """Get README.md content"""
+    try:
+        base_path = Path(__file__).parent
+        # Try different case variations
+        readme_path = None
+        for filename in ["README.md", "README.MD", "readme.md"]:
+            candidate = base_path / filename
+            if candidate.exists():
+                readme_path = candidate
+                break
+        
+        if not readme_path:
+            raise HTTPException(status_code=404, detail="README.md not found")
+        
+        with open(readme_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        return Response(content=content, media_type="text/markdown; charset=utf-8")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read README: {str(e)}")
+
+
+# =============================================================================
 # STATIC FILES & FRONTEND SERVING (must be after all API routes)
 # =============================================================================
 
@@ -939,7 +969,8 @@ if frontend_dist.exists():
     async def serve_frontend(full_path: str):
         """Serve frontend SPA - catch all non-API routes"""
         # Don't serve frontend for API routes
-        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "query", "search", "company", "investors", "admin")):
+        # Note: /docs/readme is handled by the endpoint above, so it won't reach here
+        if full_path.startswith(("api/", "docs/", "redoc", "openapi.json", "health", "query", "search", "company", "investors", "admin")):
             raise HTTPException(status_code=404, detail="Not found")
         
         index_file = frontend_dist / "index.html"
