@@ -9,7 +9,8 @@ Complete guide for building, running, pushing, and sharing the GraphRAG Docker i
 3. [Running Standalone Container](#running-standalone-container)
 4. [Pushing to Registry](#pushing-to-registry)
 5. [Sharing the Image](#sharing-the-image)
-6. [Troubleshooting](#troubleshooting)
+6. [Deploying Downloaded Images](#deploying-downloaded-images)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -264,6 +265,116 @@ docker run -p 8000:8000 graphrag:with-data
 | Docker Hub (Private) | 0 (cloud) | 10 min | Team sharing |
 | Tar Export | 1.8GB | 2 min | One-time, offline |
 | Container Export | 4.5GB+ | 2 min | With data included |
+
+---
+
+## Deploying Downloaded Images
+
+This section explains what someone needs to do after pulling your Docker image from a registry.
+
+### Scenario 1: Just the Image (No docker-compose.yml)
+
+If someone only pulls your image (e.g., `docker pull your-username/graphrag:latest`), they **do NOT need** the `swmproject_default` network.
+
+**What They Need:**
+
+1. **Neo4j Database** (separate):
+   - They need to run Neo4j separately
+   - Can use their own Neo4j instance (local, cloud, etc.)
+
+2. **Run Your Container**:
+   ```bash
+   docker run -p 8000:8000 \
+     -e OPENAI_API_KEY=their_key \
+     -e NEO4J_URI=bolt://their-neo4j-host:7687 \
+     -e NEO4J_USER=neo4j \
+     -e NEO4J_PASSWORD=their_password \
+     your-username/graphrag:latest
+   ```
+
+3. **Network**: Docker will use the default bridge network or they can create their own
+
+**Example: Running with Separate Neo4j**
+
+```bash
+# Option 1: Neo4j on host machine
+docker run -p 8000:8000 \
+  -e OPENAI_API_KEY=sk-... \
+  -e NEO4J_URI=bolt://host.docker.internal:7687 \
+  -e NEO4J_USER=neo4j \
+  -e NEO4J_PASSWORD=password \
+  your-username/graphrag:latest
+
+# Option 2: Neo4j in another container (on same network)
+docker network create my-network
+docker run -d --name neo4j --network my-network \
+  -e NEO4J_AUTH=neo4j/password \
+  neo4j:5
+docker run -p 8000:8000 --network my-network \
+  -e OPENAI_API_KEY=sk-... \
+  -e NEO4J_URI=bolt://neo4j:7687 \
+  -e NEO4J_USER=neo4j \
+  -e NEO4J_PASSWORD=password \
+  your-username/graphrag:latest
+```
+
+### Scenario 2: With docker-compose.yml
+
+If you share your `docker-compose.yml` file along with the image, then:
+
+1. **They DO get the network automatically** - Docker Compose creates `swmproject_default` (or `{their-project-name}_default`)
+2. **Everything works out of the box** - Neo4j and your API are on the same network
+
+**What They Need:**
+
+1. **Your docker-compose.yml file** (included in your repo)
+2. **Run docker-compose**:
+   ```bash
+   docker-compose pull  # Pull your image
+   docker-compose up -d # Creates network automatically
+   ```
+
+When they run `docker-compose up`, Docker Compose will:
+- ✅ Create the network automatically (named after their project directory)
+- ✅ Start Neo4j container
+- ✅ Start your API container
+- ✅ Connect both to the same network
+- ✅ Enable communication using service names
+
+### Key Differences
+
+| Scenario | Network Needed? | How Network is Created |
+|----------|----------------|----------------------|
+| **Just image** (`docker run`) | ❌ No | Uses default bridge or custom network |
+| **With docker-compose.yml** | ✅ Yes (auto) | Docker Compose creates it automatically |
+
+### Best Practice: Share Both
+
+**Recommended**: Share both the image AND the docker-compose.yml file:
+
+1. **Push image to registry**: `your-username/graphrag:latest`
+2. **Include docker-compose.yml in your repo** (already done ✅)
+3. **Users can then**:
+   ```bash
+   # Clone your repo (or download docker-compose.yml)
+   git clone your-repo
+   cd your-repo
+   
+   # Set environment variables
+   export OPENAI_API_KEY=their_key
+   
+   # Run everything
+   docker-compose pull  # Pulls your image
+   docker-compose up -d # Creates network, starts services
+   ```
+
+This way:
+- ✅ Network is created automatically
+- ✅ Neo4j is set up automatically
+- ✅ Everything works out of the box
+- ✅ No manual network configuration needed
+
+**Note**: The network name `swmproject_default` is specific to your project directory. If users clone your repo into a different directory, the network will have a different name (e.g., `my-app_default`), but it serves the same purpose.
 
 ---
 
