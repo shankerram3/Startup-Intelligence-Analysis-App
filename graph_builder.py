@@ -347,9 +347,38 @@ class TechCrunchGraphBuilder:
                 article_id=article_id
             )
     
-    def ingest_extraction(self, extraction: Dict):
-        """Ingest a complete extraction (entities + relationships)"""
+    def is_article_ingested(self, article_id: str) -> bool:
+        """Check if an article has already been fully ingested into the graph"""
+        with self.driver.session() as session:
+            # Check if article exists and has entities linked to it
+            # Entities link to articles via article_count and source_articles properties
+            result = session.run("""
+                MATCH (a:Article {id: $article_id})
+                MATCH (e)
+                WHERE e.article_count IS NOT NULL 
+                  AND $article_id IN e.source_articles
+                RETURN count(e) as entity_count
+            """, article_id=article_id)
+            record = result.single()
+            entity_count = record["entity_count"] if record else 0
+            
+            # If article has entities linked, consider it ingested
+            return entity_count > 0
+    
+    def ingest_extraction(self, extraction: Dict, skip_if_exists: bool = True):
+        """
+        Ingest a complete extraction (entities + relationships)
+        
+        Args:
+            extraction: Extraction dictionary with article_metadata, entities, relationships
+            skip_if_exists: If True, skip articles that have already been ingested
+        """
         article_id = extraction["article_metadata"]["article_id"]
+        
+        # Check if article already ingested
+        if skip_if_exists and self.is_article_ingested(article_id):
+            print(f"\n⏭  Skipping already ingested article: {article_id}")
+            return
         
         print(f"\nIngesting article: {article_id}")
         
@@ -620,9 +649,25 @@ def build_graph_from_extractions(
         
         # Ingest each extraction
         print(f"\nIngesting {len(extractions)} articles into Neo4j...")
+        ingested_count = 0
+        skipped_count = 0
+        
         for i, extraction in enumerate(extractions, 1):
             print(f"\n[{i}/{len(extractions)}]", end=" ")
-            builder.ingest_extraction(extraction)
+            article_id = extraction.get("article_metadata", {}).get("article_id", "unknown")
+            
+            # Check if already ingested
+            if builder.is_article_ingested(article_id):
+                print(f"⏭  Skipping already ingested: {article_id}")
+                skipped_count += 1
+                continue
+            
+            builder.ingest_extraction(extraction, skip_if_exists=False)
+            ingested_count += 1
+        
+        if skipped_count > 0:
+            print(f"\n⏭  Skipped {skipped_count} already ingested articles")
+        print(f"✓ Ingested {ingested_count} new articles")
         
         # Print statistics
         builder.print_statistics()
