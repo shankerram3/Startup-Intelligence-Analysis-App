@@ -594,7 +594,7 @@ LIMIT 10
 
 - **[Pipeline Architecture](development/ARCHITECTURE.md)** - Overall system design
 - **[API Documentation](api/RAG_DOCUMENTATION.md)** - Query API usage
-- **[Azure Deployment](deployment/AZURE_DEPLOYMENT.md)** - Cloud deployment
+<!-- Azure deployment link removed -->
 
 ---
 

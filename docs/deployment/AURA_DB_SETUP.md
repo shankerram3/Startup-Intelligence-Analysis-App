@@ -1,12 +1,12 @@
 # Neo4j Aura DB Setup Guide
 
-This guide shows you how to use **Neo4j Aura DB** (managed cloud database) instead of self-hosting Neo4j on your Azure VM.
+This guide shows you how to use **Neo4j Aura DB** (managed cloud database) instead of self-hosting Neo4j on your own server.
 
 ---
 
 ## 🎯 Why Use Aura DB?
 
-### Benefits for Your Azure Spot VM Setup
+### Benefits of Using Aura
 
 | Feature | Self-Hosted Neo4j | Neo4j Aura DB |
 |---------|-------------------|---------------|
@@ -61,7 +61,7 @@ This guide shows you how to use **Neo4j Aura DB** (managed cloud database) inste
    - ✅ Always available
 
 3. Configure instance:
-   - **Region**: Choose closest to your Azure VM (e.g., "AWS us-east-1" or "GCP us-east4")
+   - **Region**: Choose the closest region to your application (e.g., "AWS us-east-1" or "GCP us-east4")
    - **Instance name**: `graphrag-kb` or similar
    - Click **"Create Database"**
 
@@ -90,9 +90,9 @@ Click **"Download and continue"** to save credentials as `.txt` file.
 
 If you haven't deployed yet:
 
-1. **SSH into your Azure VM**:
+1. **SSH into your server**:
    ```bash
-   ssh azureuser@<your-vm-ip>
+   ssh user@<your-server-ip>
    ```
 
 2. **Clone repository**:

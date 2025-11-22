@@ -208,12 +208,7 @@ docker tag swmproject-graphrag-api:latest gcr.io/your-project/graphrag:latest
 docker push gcr.io/your-project/graphrag:latest
 ```
 
-#### Azure Container Registry (ACR)
-```bash
-az acr login --name yourregistry
-docker tag swmproject-graphrag-api:latest yourregistry.azurecr.io/graphrag:latest
-docker push yourregistry.azurecr.io/graphrag:latest
-```
+<!-- Azure Container Registry (ACR) section removed -->
 
 #### GitHub Container Registry (GHCR)
 ```bash

@@ -129,11 +129,11 @@ This is the same as self-hosted Neo4j, but you **cannot** change it in Aura DB f
 
 ### Option 1: .env File (Recommended for Development)
 
-#### Create .env File on Your Azure VM
+#### Create .env File on Your Server
 
 ```bash
-# SSH into your VM
-ssh azureuser@<your-vm-ip>
+# SSH into your server
+ssh user@<your-server-ip>
 
 # Navigate to project directory
 cd ~/Startup-Intelligence-Analysis-App
@@ -202,61 +202,9 @@ grep "NEO4J_URI" .env
 # Should show: NEO4J_URI=neo4j+s://...
 ```
 
-### Option 2: Using azure_setup_aura.sh Script
+<!-- Removed reference to azure_setup_aura.sh script -->
 
-The automated script will:
-1. Prompt you for credentials interactively
-2. Create .env file automatically
-3. Set secure permissions (chmod 600)
-4. Test the connection
-
-```bash
-# Run the script
-bash azure_setup_aura.sh
-
-# It will prompt:
-# > Aura DB URI: neo4j+s://abc12345.databases.neo4j.io
-# > Username: neo4j
-# > Password: [hidden input]
-# > OpenAI API Key: [hidden input]
-```
-
-### Option 3: Azure Key Vault (Production)
-
-For production deployments, use Azure Key Vault:
-
-```bash
-# Install Azure CLI
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-# Login to Azure
-az login
-
-# Create Key Vault
-az keyvault create \
-  --name graphrag-secrets \
-  --resource-group your-resource-group \
-  --location eastus2
-
-# Store secrets
-az keyvault secret set \
-  --vault-name graphrag-secrets \
-  --name neo4j-uri \
-  --value "neo4j+s://abc12345.databases.neo4j.io"
-
-az keyvault secret set \
-  --vault-name graphrag-secrets \
-  --name neo4j-password \
-  --value "X8h9K2mP5nQ7rT3wY6zA"
-
-# Retrieve secrets in your application
-az keyvault secret show \
-  --vault-name graphrag-secrets \
-  --name neo4j-password \
-  --query value -o tsv
-```
-
-Then modify your application to read from Key Vault instead of .env.
+<!-- Removed Azure Key Vault instructions -->
 
 ---
 
