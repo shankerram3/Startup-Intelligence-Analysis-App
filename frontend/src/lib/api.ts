@@ -62,8 +62,13 @@ export type PipelineStartRequest = {
   max_articles?: number;
   skip_scraping?: boolean;
   skip_extraction?: boolean;
+  skip_enrichment?: boolean;
   skip_graph?: boolean;
+  skip_post_processing?: boolean;
+  max_companies_per_article?: number;
   no_resume?: boolean;
+  no_validation?: boolean;
+  no_cleanup?: boolean;
 };
 
 export type PipelineStartResponse = {
