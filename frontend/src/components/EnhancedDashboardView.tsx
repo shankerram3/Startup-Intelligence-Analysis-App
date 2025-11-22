@@ -11,25 +11,58 @@ import {
 type ConfigSection = 'scraping' | 'enrichment' | 'processing' | 'advanced';
 
 export function EnhancedDashboardView() {
+  // Load saved options from localStorage
+  const loadSavedOptions = (): PipelineStartRequest => {
+    try {
+      const saved = localStorage.getItem('pipeline-options');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          scrape_category: parsed.scrape_category || 'startups',
+          scrape_max_pages: parsed.scrape_max_pages || 2,
+          max_articles: parsed.max_articles || 10,
+          skip_scraping: parsed.skip_scraping || false,
+          skip_extraction: parsed.skip_extraction || false,
+          skip_enrichment: parsed.skip_enrichment || false,
+          skip_graph: parsed.skip_graph || false,
+          skip_post_processing: parsed.skip_post_processing || false,
+          max_companies_per_article: parsed.max_companies_per_article,
+          no_resume: parsed.no_resume || false,
+          no_validation: parsed.no_validation || false,
+          no_cleanup: parsed.no_cleanup || false
+        };
+      }
+    } catch (e) {
+      console.error('Failed to load saved options:', e);
+    }
+    return {
+      scrape_category: 'startups',
+      scrape_max_pages: 2,
+      max_articles: 10,
+      skip_scraping: false,
+      skip_extraction: false,
+      skip_enrichment: false,
+      skip_graph: false,
+      skip_post_processing: false,
+      max_companies_per_article: undefined,
+      no_resume: false,
+      no_validation: false,
+      no_cleanup: false
+    };
+  };
+
   const [activeSection, setActiveSection] = useState<ConfigSection>('scraping');
-  const [opts, setOpts] = useState<PipelineStartRequest>({
-    scrape_category: 'startups',
-    scrape_max_pages: 2,
-    max_articles: 10,
-    skip_scraping: false,
-    skip_extraction: false,
-    skip_enrichment: false,
-    skip_graph: false,
-    skip_post_processing: false,
-    max_companies_per_article: undefined,
-    no_resume: false,
-    no_validation: false,
-    no_cleanup: false
-  });
+  const [opts, setOpts] = useState<PipelineStartRequest>(loadSavedOptions);
   const [status, setStatus] = useState<PipelineStatus>({ running: false });
   const [logs, setLogs] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [progress, setProgress] = useState<{
+    phase: string;
+    current: number;
+    total: number;
+    percentage: number;
+  } | null>(null);
 
   async function refresh() {
     try {
@@ -105,8 +138,101 @@ export function EnhancedDashboardView() {
   }
 
   function update<K extends keyof PipelineStartRequest>(k: K, v: PipelineStartRequest[K]) {
-    setOpts((o) => ({ ...o, [k]: v }));
+    setOpts((o) => {
+      const updated = { ...o, [k]: v };
+      // Save to localStorage
+      try {
+        localStorage.setItem('pipeline-options', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save options:', e);
+      }
+      return updated;
+    });
   }
+
+  // Parse logs for progress indicators
+  useEffect(() => {
+    if (!logs) {
+      setProgress(null);
+      return;
+    }
+
+    // Extract last 50 lines for better performance
+    const logLines = logs.split('\n').slice(-50).join('\n');
+
+    // Parse phase progress patterns
+    const phaseMatch = logLines.match(/PHASE\s+(\d+(?:\.\d+)?):\s+(.+?)(?:\n|$)/i);
+    
+    // Pattern 1: [X/Y] format (most common)
+    const bracketMatch = logLines.match(/\[(\d+)\/(\d+)\]/);
+    
+    // Pattern 2: "Processing X of Y" or "X of Y"
+    const processingMatch = logLines.match(/(?:Processing|Calculating|Scoring).*?(\d+)\s+(?:of|/)\s*(\d+)/i);
+    
+    // Pattern 3: "Relationship Strength" specific
+    const relationshipMatch = logLines.match(/Relationship\s+Strength.*?(\d+)\s*\/\s*(\d+)/i);
+    
+    // Pattern 4: "Ingesting article: X" with count
+    const ingestingMatch = logLines.match(/Ingesting\s+article.*?\[(\d+)\/(\d+)\]/);
+    
+    let current = 0;
+    let total = 0;
+    let phaseName = 'Processing';
+
+    if (relationshipMatch) {
+      current = parseInt(relationshipMatch[1]) || 0;
+      total = parseInt(relationshipMatch[2]) || 0;
+      phaseName = 'Relationship Strength Calculation';
+    } else if (ingestingMatch) {
+      current = parseInt(ingestingMatch[1]) || 0;
+      total = parseInt(ingestingMatch[2]) || 0;
+      phaseName = phaseMatch ? phaseMatch[2] : 'Graph Construction';
+    } else if (bracketMatch) {
+      current = parseInt(bracketMatch[1]) || 0;
+      total = parseInt(bracketMatch[2]) || 0;
+      phaseName = phaseMatch ? phaseMatch[2] : 'Processing';
+    } else if (processingMatch) {
+      current = parseInt(processingMatch[1]) || 0;
+      total = parseInt(processingMatch[2]) || 0;
+      phaseName = phaseMatch ? phaseMatch[2] : 'Processing';
+    } else if (phaseMatch) {
+      phaseName = phaseMatch[2];
+      // Try to find any progress in the phase
+      const phaseLogs = logLines.split(phaseMatch[0])[1] || '';
+      const phaseProgress = phaseLogs.match(/\[(\d+)\/(\d+)\]/);
+      if (phaseProgress) {
+        current = parseInt(phaseProgress[1]) || 0;
+        total = parseInt(phaseProgress[2]) || 0;
+      }
+    }
+
+    // Check if pipeline is complete
+    if (logLines.includes('COMPLETE') || logLines.includes('Complete') || 
+        logLines.includes('Finished') || logLines.includes('Pipeline complete')) {
+      setProgress({
+        phase: 'Complete',
+        current: 100,
+        total: 100,
+        percentage: 100
+      });
+    } else if (total > 0) {
+      setProgress({
+        phase: phaseName,
+        current,
+        total,
+        percentage: Math.min(100, (current / total) * 100)
+      });
+    } else if (phaseMatch) {
+      setProgress({
+        phase: phaseName,
+        current: 0,
+        total: 0,
+        percentage: 0
+      });
+    } else {
+      setProgress(null);
+    }
+  }, [logs]);
 
   function loadPreset(preset: 'quick' | 'full' | 'enrichment-test') {
     switch (preset) {
@@ -198,6 +324,28 @@ export function EnhancedDashboardView() {
                 color: status.returncode === 0 ? '#16a34a' : '#dc2626'
               }}>
                 Exit Code: {status.returncode} {status.returncode === 0 ? '✓' : '✗'}
+              </div>
+            )}
+            
+            {/* Progress Bar */}
+            {progress && status.running && (
+              <div style={styles.progressContainer}>
+                <div style={styles.progressHeader}>
+                  <span style={styles.progressLabel}>{progress.phase}</span>
+                  {progress.total > 0 && (
+                    <span style={styles.progressText}>
+                      {progress.current}/{progress.total} ({Math.round(progress.percentage)}%)
+                    </span>
+                  )}
+                </div>
+                <div style={styles.progressBar}>
+                  <div 
+                    style={{
+                      ...styles.progressFill,
+                      width: `${progress.percentage}%`
+                    }}
+                  />
+                </div>
               </div>
             )}
           </section>
@@ -674,7 +822,9 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
     display: 'flex',
     flexDirection: 'column',
-    minHeight: 600
+    height: 'calc(100vh - 300px)',
+    maxHeight: 800,
+    minHeight: 400
   },
   logsHeader: {
     display: 'flex',
@@ -691,6 +841,41 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'auto',
     fontSize: 12,
     lineHeight: 1.5,
-    fontFamily: 'Consolas, Monaco, "Courier New", monospace'
+    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+    height: '100%',
+    maxHeight: '100%'
+  },
+  progressContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTop: '1px solid #e2e8f0'
+  },
+  progressHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    fontSize: 13
+  },
+  progressLabel: {
+    fontWeight: 600,
+    color: '#0f172a'
+  },
+  progressText: {
+    color: '#64748b',
+    fontSize: 12
+  },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    background: '#e2e8f0',
+    borderRadius: 4,
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    background: 'linear-gradient(90deg, #0ea5e9, #0284c7)',
+    borderRadius: 4,
+    transition: 'width 0.3s ease'
   }
 };

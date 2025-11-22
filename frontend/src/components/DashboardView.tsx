@@ -9,15 +9,37 @@ import {
 } from '../lib/api';
 
 export function DashboardView() {
-  const [opts, setOpts] = useState<PipelineStartRequest>({
-    scrape_category: 'startups',
-    scrape_max_pages: 2,
-    max_articles: 10,
-    skip_scraping: false,
-    skip_extraction: false,
-    skip_graph: false,
-    no_resume: false
-  });
+  // Load saved options from localStorage
+  const loadSavedOptions = (): PipelineStartRequest => {
+    try {
+      const saved = localStorage.getItem('pipeline-options');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          scrape_category: parsed.scrape_category || 'startups',
+          scrape_max_pages: parsed.scrape_max_pages || 2,
+          max_articles: parsed.max_articles || 10,
+          skip_scraping: parsed.skip_scraping || false,
+          skip_extraction: parsed.skip_extraction || false,
+          skip_graph: parsed.skip_graph || false,
+          no_resume: parsed.no_resume || false
+        };
+      }
+    } catch (e) {
+      console.error('Failed to load saved options:', e);
+    }
+    return {
+      scrape_category: 'startups',
+      scrape_max_pages: 2,
+      max_articles: 10,
+      skip_scraping: false,
+      skip_extraction: false,
+      skip_graph: false,
+      no_resume: false
+    };
+  };
+
+  const [opts, setOpts] = useState<PipelineStartRequest>(loadSavedOptions);
   const [status, setStatus] = useState<PipelineStatus>({ running: false });
   const [logs, setLogs] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -87,7 +109,16 @@ export function DashboardView() {
   }
 
   function update<K extends keyof PipelineStartRequest>(k: K, v: PipelineStartRequest[K]) {
-    setOpts((o) => ({ ...o, [k]: v }));
+    setOpts((o) => {
+      const updated = { ...o, [k]: v };
+      // Save to localStorage
+      try {
+        localStorage.setItem('pipeline-options', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save options:', e);
+      }
+      return updated;
+    });
   }
 
   return (
@@ -127,7 +158,7 @@ export function DashboardView() {
         </div>
       </section>
 
-      <section style={{ ...styles.card, minHeight: 320 }}>
+      <section style={{ ...styles.card, ...styles.logsCard }}>
         <h3 style={{ marginTop: 0 }}>Logs (last 300 lines)</h3>
         <pre style={styles.logs}>{logs || '(no logs yet)'}</pre>
       </section>
@@ -189,15 +220,24 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 16
   },
+  logsCard: {
+    height: 'calc(100vh - 300px)',
+    maxHeight: 600,
+    minHeight: 400,
+    display: 'flex',
+    flexDirection: 'column'
+  },
   logs: {
     background: '#0b1220',
     color: '#e2e8f0',
     padding: 12,
     borderRadius: 8,
-    maxHeight: 520,
+    flex: 1,
     overflow: 'auto',
     fontSize: 12,
-    lineHeight: 1.4
+    lineHeight: 1.4,
+    height: '100%',
+    maxHeight: '100%'
   }
 };
 
