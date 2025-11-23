@@ -30,12 +30,13 @@ VALID_RELATIONSHIP_TYPES = [
     "ANNOUNCED_AT",
 ]
 
+
 # Wrapper functions to match test expectations
 def validate_article_structure(article_data):
     """Wrapper for validate_article that matches test expectations"""
     if not article_data:
         return False, "Article data is empty"
-    
+
     # Check for required fields in article structure (test expects flat structure)
     required_fields = ["title", "content", "url"]
     for field in required_fields:
@@ -43,7 +44,7 @@ def validate_article_structure(article_data):
             return False, f"Missing required field: {field}"
         if not article_data.get(field, "").strip():
             return False, f"Empty value for field: {field}"
-    
+
     return True, "Valid"
 
 
@@ -64,16 +65,16 @@ def validate_extracted_data(extracted):
         return False, "Missing 'entities' key"
     if "relationships" not in extracted:
         return False, "Missing 'relationships' key"
-    
+
     # Check if it's empty
     if not extracted.get("entities") and not extracted.get("relationships"):
         return False, "Extraction is empty or has no entities"
-    
+
     # Validate entities
     entities = extracted.get("entities", [])
     if not entities:
         return False, "No entities found"
-    
+
     for i, entity in enumerate(entities):
         if not isinstance(entity, dict):
             return False, f"Entity {i} is not a dictionary"
@@ -85,7 +86,7 @@ def validate_extracted_data(extracted):
         entity_type = entity.get("type", "").upper()
         if entity_type not in VALID_ENTITY_TYPES:
             return False, f"Entity {i} has invalid type: {entity_type}"
-    
+
     # Validate relationships
     relationships = extracted.get("relationships", [])
     for i, rel in enumerate(relationships):
@@ -103,7 +104,7 @@ def validate_extracted_data(extracted):
         strength = rel.get("strength", 0)
         if not isinstance(strength, (int, float)) or strength < 0 or strength > 1.0:
             return False, f"Relationship {i} has invalid strength: {strength}"
-    
+
     return True, "Valid"
 
 
@@ -111,7 +112,7 @@ def validate_entity_types(types):
     """Validate entity types"""
     if not types:
         return True, "Valid"
-    
+
     for entity_type in types:
         if entity_type.upper() not in VALID_ENTITY_TYPES:
             return False, f"Invalid entity type: {entity_type}"
@@ -122,7 +123,7 @@ def validate_relationship_types(types):
     """Validate relationship types"""
     if not types:
         return True, "Valid"
-    
+
     for rel_type in types:
         if rel_type.upper() not in VALID_RELATIONSHIP_TYPES:
             return False, f"Invalid relationship type: {rel_type}"

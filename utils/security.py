@@ -75,6 +75,7 @@ def _normalize_password_for_bcrypt(password: str) -> str:
         password = password_bytes[:MAX_BCRYPT_BYTES].decode("utf-8", errors="ignore")
     return password
 
+
 # HTTP Bearer scheme for JWT
 security = HTTPBearer()
 # Optional security scheme (doesn't auto-raise errors)
