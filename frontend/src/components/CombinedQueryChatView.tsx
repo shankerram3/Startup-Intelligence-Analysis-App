@@ -238,9 +238,9 @@ export function CombinedQueryChatView() {
       // Replace loading message with error
       setMessages((prev) => {
         const withoutLoading = prev.filter(m => m.id !== loadingMsgId);
-        const updated = [
+        const updated: ChatMessage[] = [
           ...withoutLoading,
-          { id: generateUUID(), role: 'assistant', content: err?.message || 'Request failed' }
+          { id: generateUUID(), role: 'assistant' as const, content: err?.message || 'Request failed' }
         ];
         setTimeout(() => saveToHistory(updated), 100);
         return updated;
@@ -482,7 +482,7 @@ function ChatMessageBubble({
   const shouldType = m.role === 'assistant' && m.content && (m.isTyping === true || m.isTyping === undefined);
   const { displayedText, isTyping } = useTypewriter(
     m.content || '',
-    { enabled: shouldType }
+    { enabled: !!shouldType }
   );
 
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();

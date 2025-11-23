@@ -415,11 +415,12 @@ export function EnhancedDashboardView() {
         console.log('🔍 Detected recently completed pipeline - attempting to save');
         const summary = extractRunSummary(logs);
         const estimatedStart = new Date(Date.now() - 300000); // Estimate 5 min ago
+        const statusValue: 'completed' | 'failed' = status.returncode === 0 ? 'completed' : 'failed';
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: estimatedStart,
           duration: 300, // Estimated
-          status: (status.returncode === 0 ? 'completed' : 'failed') as const,
+          status: statusValue,
           summary,
           logs: logs.substring(0, 10000)
         };

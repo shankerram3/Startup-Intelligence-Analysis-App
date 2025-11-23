@@ -289,13 +289,49 @@ export type RecurringThemesResponse = {
 };
 
 export type ThemeDetailsResponse = {
+  // Theme metadata
+  theme_name?: string;
+  theme_type?: string;
+  description?: string;
+  error?: string;
+  
+  // Technology theme fields
   technology?: string;
+  
+  // Investor theme fields
+  investor?: string;
+  
+  // Entity theme fields
+  entity?: string;
+  mention_count?: number;
+  
+  // Partnership theme fields
+  partnerships?: Array<{
+    from: string;
+    to: string;
+    type: string;
+  }>;
+  total_partnerships?: number;
+  
+  // Relationship fields
+  relationships?: Array<{
+    name: string;
+    relationship: string;
+  }>;
+  
+  // Keyword/Industry fields
+  keyword?: string;
+  
+  // Common fields
   companies?: Array<{
     name: string;
     description?: string;
     investors?: string[];
   }>;
   total_companies?: number;
+  
+  // Related entities
+  entities?: string[];
 };
 
 export async function fetchRecurringThemes(

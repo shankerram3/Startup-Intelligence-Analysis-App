@@ -102,8 +102,6 @@ export function ThemeExtractionView() {
       setThemeDetails({
         theme_name: theme.theme,
         description: theme.description,
-        frequency: theme.frequency,
-        entities: theme.entities,
         error: e?.message || 'Failed to load additional details'
       });
     } finally {
