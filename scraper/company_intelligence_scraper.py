@@ -5,15 +5,15 @@ Extracts detailed company information from company websites
 
 import asyncio
 import json
-import re
 import logging
-from typing import Dict, List, Optional, Set
-from pathlib import Path
+import re
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Set
 from urllib.parse import urljoin, urlparse
 
 try:
-    from playwright.async_api import async_playwright, Page, Browser
+    from playwright.async_api import Browser, Page, async_playwright
 
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:

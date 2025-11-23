@@ -3,9 +3,9 @@ Entity Type Classification Refinement
 Improve entity type classification with confidence scores and multi-signal analysis
 """
 
-from typing import Dict, List, Tuple, Optional
 import re
 from collections import Counter
+from typing import Dict, List, Optional, Tuple
 
 
 class EntityClassifier:

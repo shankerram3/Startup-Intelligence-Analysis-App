@@ -3,13 +3,14 @@ GraphRAG Query Module
 Combines semantic search with graph traversal and LLM generation
 """
 
-import os
-from typing import Dict, List, Optional, Any, Tuple
-from neo4j import GraphDatabase, Driver
 import json
+import os
+from typing import Any, Dict, List, Optional, Tuple
 
-from utils.embedding_generator import EmbeddingGenerator
+from neo4j import Driver, GraphDatabase
+
 from query_templates import QueryTemplates
+from utils.embedding_generator import EmbeddingGenerator
 
 
 class GraphRAGQuery:

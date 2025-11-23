@@ -11,15 +11,15 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Dict, List, Optional, Tuple
 
-from neo4j import GraphDatabase, Driver
+from neo4j import Driver, GraphDatabase
 
 try:
     from neo4j.exceptions import ServiceUnavailable as Neo4jServiceUnavailable
 except Exception:  # pragma: no cover
     Neo4jServiceUnavailable = Exception
 
-from utils.embedding_generator import EmbeddingGenerator
 from rag import vector_index
+from utils.embedding_generator import EmbeddingGenerator
 
 
 @dataclass
@@ -346,6 +346,7 @@ def answer_with_openai(payload: Dict, model: str = "gpt-4o-mini") -> str:
 
 def main():
     import argparse
+
     from dotenv import load_dotenv
 
     load_dotenv()

@@ -4,6 +4,7 @@ Quick script to verify your Aura API credentials are configured correctly.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 

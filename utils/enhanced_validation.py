@@ -3,8 +3,8 @@ Enhanced data validation with funding amounts, dates, and cross-referencing
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 
 def validate_funding_amount(amount: str) -> Tuple[bool, Optional[str]]:

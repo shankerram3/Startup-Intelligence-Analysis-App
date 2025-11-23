@@ -3,11 +3,11 @@ Demo script showing how the TechCrunch scraper works
 Uses the example HTML you provided to demonstrate extraction
 """
 
-from bs4 import BeautifulSoup
 import json
 from datetime import datetime
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 
 # Sample HTML from TechCrunch category page (from your example)
 CATEGORY_PAGE_HTML = """

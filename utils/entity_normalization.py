@@ -3,8 +3,8 @@ Entity name normalization and deduplication utilities
 """
 
 import re
-from typing import Optional
 from difflib import SequenceMatcher
+from typing import Optional
 
 
 def normalize_entity_name(name: str) -> str:

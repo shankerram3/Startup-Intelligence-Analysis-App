@@ -3,15 +3,12 @@ Unit tests for caching utilities
 Tests cache operations without requiring actual Redis connection
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from utils.cache import (
-    CacheManager,
-    generate_cache_key,
-    QueryCache,
-    EntityCache,
-    get_cache,
-)
+
+from utils.cache import (CacheManager, EntityCache, QueryCache,
+                         generate_cache_key, get_cache)
 
 
 class TestCacheKeyGeneration:

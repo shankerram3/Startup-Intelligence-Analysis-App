@@ -3,8 +3,9 @@ Relationship Strength Scoring
 Calculate relationship strength based on frequency, recency, source credibility, and context
 """
 
-from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
 from neo4j import GraphDatabase
 
 

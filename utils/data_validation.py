@@ -2,8 +2,8 @@
 Data validation utilities for the pipeline
 """
 
-from typing import Dict, List, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
 
 
 def validate_article(article_data: Dict) -> tuple[bool, Optional[str]]:

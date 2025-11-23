@@ -5,10 +5,11 @@ Provides centralized logging setup with JSON formatting and contextual informati
 
 import logging
 import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
+
 import structlog
 from structlog.typing import EventDict, Processor
-from pathlib import Path
 
 
 def add_app_context(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:

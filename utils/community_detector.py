@@ -4,11 +4,12 @@ Detect communities of related entities using graph algorithms
 Supports both Aura Graph Analytics (GDS Sessions) and simple fallback
 """
 
-from typing import Dict, List, Optional, Tuple
-from neo4j import GraphDatabase, Driver
 import json
 import os
+from typing import Dict, List, Optional, Tuple
+
 from dotenv import load_dotenv
+from neo4j import Driver, GraphDatabase
 
 # Try to import Aura Graph Analytics
 try:

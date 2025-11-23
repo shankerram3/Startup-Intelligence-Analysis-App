@@ -7,19 +7,20 @@ Demonstrates how to use the new utilities
 import os
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.community_detector import CommunityDetector
+from utils.coreference_resolver import CoreferenceResolver
+from utils.embedding_generator import EmbeddingGenerator
+from utils.entity_classifier import EntityClassifier
 from utils.entity_resolver import EntityResolver
 from utils.relationship_scorer import RelationshipScorer
 from utils.temporal_analyzer import TemporalAnalyzer
-from utils.entity_classifier import EntityClassifier
-from utils.coreference_resolver import CoreferenceResolver
-from utils.community_detector import CommunityDetector
-from utils.embedding_generator import EmbeddingGenerator
 
 load_dotenv()
 

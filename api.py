@@ -11,42 +11,34 @@ Version 2.0.0 - Enhanced with:
 - Security improvements
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, JSONResponse
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict, Any
-import subprocess
-import threading
 import io
 import os
+import subprocess
+import threading
 import time
-from pathlib import Path
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from dotenv import load_dotenv
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from rag_query import GraphRAGQuery, create_rag_query
 from query_templates import QueryTemplates
-
+from rag_query import GraphRAGQuery, create_rag_query
+from utils.cache import EntityCache, QueryCache, get_cache
 # Import new utility modules
-from utils.logging_config import setup_logging, get_logger
-from utils.security import (
-    SecurityConfig,
-    verify_token,
-    optional_auth,
-    sanitize_error_message,
-)
-from utils.cache import get_cache, QueryCache, EntityCache
-from utils.monitoring import (
-    PrometheusMiddleware,
-    get_metrics,
-    get_metrics_content_type,
-    record_query_execution,
-    record_cache_operation,
-)
+from utils.logging_config import get_logger, setup_logging
+from utils.monitoring import (PrometheusMiddleware, get_metrics,
+                              get_metrics_content_type, record_cache_operation,
+                              record_query_execution)
+from utils.security import (SecurityConfig, optional_auth,
+                            sanitize_error_message, verify_token)
 
 # Load environment variables
 load_dotenv()
@@ -1305,10 +1297,11 @@ async def generate_theme_summary(
         raise HTTPException(status_code=503, detail="RAG instance not initialized")
 
     try:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import StrOutputParser
         import os
+
+        from langchain_core.output_parsers import StrOutputParser
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_openai import ChatOpenAI
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:

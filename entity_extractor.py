@@ -4,28 +4,27 @@ Based on GraphRAG approach - extracts entities and relationships from article te
 """
 
 import json
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional
-from datetime import datetime
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI
+import os
 import re
 import sys
-import os
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 
 # Add parent directory to path for utils
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.data_validation import validate_article, validate_extraction
 from utils.checkpoint import CheckpointManager
-from utils.retry import retry_with_backoff
+from utils.data_validation import validate_article, validate_extraction
 from utils.entity_normalization import normalize_entity_name
+from utils.filter_techcrunch import (filter_techcrunch_entities,
+                                     filter_techcrunch_relationship)
 from utils.progress_tracker import ProgressTracker
-from utils.filter_techcrunch import (
-    filter_techcrunch_entities,
-    filter_techcrunch_relationship,
-)
+from utils.retry import retry_with_backoff
 
 
 class TechCrunchEntityExtractor:
@@ -222,7 +221,8 @@ Output:
                 entity = self._parse_entity(record)
                 if entity:
                     # Filter out TechCrunch/Disrupt related entities
-                    from utils.filter_techcrunch import filter_techcrunch_entity
+                    from utils.filter_techcrunch import \
+                        filter_techcrunch_entity
 
                     should_filter, reason = filter_techcrunch_entity(entity)
                     if should_filter:
@@ -536,6 +536,7 @@ def process_articles_directory(
 def main():
     """Example usage"""
     import os
+
     from dotenv import load_dotenv
 
     # Load environment variables from .env file

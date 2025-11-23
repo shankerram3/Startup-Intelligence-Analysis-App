@@ -3,13 +3,14 @@ Pytest configuration and shared fixtures
 Provides reusable test fixtures for all test suites
 """
 
-import pytest
-import os
-from typing import Generator, Dict, Any
-from unittest.mock import Mock, MagicMock, patch
-from neo4j import GraphDatabase
-from faker import Faker
 import json
+import os
+from typing import Any, Dict, Generator
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+from faker import Faker
+from neo4j import GraphDatabase
 
 # Set test environment variables before importing app modules
 os.environ["TESTING"] = "true"

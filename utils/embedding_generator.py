@@ -3,10 +3,11 @@ Embedding Generation for Knowledge Graph
 Generate vector embeddings for entities and enable semantic search
 """
 
-from typing import Dict, List, Optional, Tuple
-from neo4j import GraphDatabase
-import numpy as np
 import os as _os
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+from neo4j import GraphDatabase
 
 # Avoid Hugging Face tokenizers parallelism warning after fork
 _os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -33,8 +34,9 @@ class EmbeddingGenerator:
         """Initialize embedding function based on model"""
         # Force sentence-transformers for embeddings
         try:
-            from sentence_transformers import SentenceTransformer
             import os as _os
+
+            from sentence_transformers import SentenceTransformer
 
             model_name = self.sentence_model_name or _os.getenv(
                 "SENTENCE_TRANSFORMERS_MODEL", "all-MiniLM-L6-v2"

@@ -4,6 +4,7 @@ This script checks if GDS is available on your Neo4j instance and provides helpf
 """
 
 import os
+
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 

@@ -3,8 +3,9 @@ Temporal Analysis for Knowledge Graph
 Track relationship timeline, trends, and historical data
 """
 
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
 from neo4j import GraphDatabase
 
 

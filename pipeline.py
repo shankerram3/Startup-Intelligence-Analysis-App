@@ -3,15 +3,16 @@ Complete Pipeline: TechCrunch Articles → Knowledge Graph → RAG
 Orchestrates the entire process from scraped articles to queryable graph
 """
 
+import json
 import os
 import sys
 from pathlib import Path
-import json
+
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 # Import structured logging
-from utils.logging_config import setup_logging, get_logger
+from utils.logging_config import get_logger, setup_logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -151,8 +152,8 @@ def run_pipeline(
             if scraper_dir.exists():
                 sys.path.insert(0, str(scraper_dir))
 
-            from techcrunch_scraper import TechCrunchScraper
             from scraper_config import TECHCRUNCH_CATEGORIES
+            from techcrunch_scraper import TechCrunchScraper
 
             # Get category URL
             if scrape_category in TECHCRUNCH_CATEGORIES:
@@ -247,15 +248,12 @@ def run_pipeline(
             if scraper_dir.exists():
                 sys.path.insert(0, str(scraper_dir))
 
-            from utils.company_url_extractor import (
-                CompanyURLExtractor,
-                extract_company_urls_from_extractions,
-            )
-            from scraper.company_intelligence_scraper import CompanyIntelligenceScraper
+            from scraper.company_intelligence_scraper import \
+                CompanyIntelligenceScraper
             from utils.company_intelligence_aggregator import (
-                CompanyIntelligenceAggregator,
-                create_enrichment_summary,
-            )
+                CompanyIntelligenceAggregator, create_enrichment_summary)
+            from utils.company_url_extractor import (
+                CompanyURLExtractor, extract_company_urls_from_extractions)
 
             # Load extractions
             with open(extractions_file, "r", encoding="utf-8") as f:
@@ -370,7 +368,8 @@ def run_pipeline(
             "pipeline_phase_starting", phase="2", name="KNOWLEDGE_GRAPH_CONSTRUCTION"
         )
 
-        from graph_builder import build_graph_from_extractions, TechCrunchGraphBuilder
+        from graph_builder import (TechCrunchGraphBuilder,
+                                   build_graph_from_extractions)
 
         try:
             build_graph_from_extractions(
@@ -409,7 +408,8 @@ def run_pipeline(
                     logger.info("regenerating_embeddings_for_enriched_companies")
 
                     try:
-                        from utils.embedding_generator import EmbeddingGenerator
+                        from utils.embedding_generator import \
+                            EmbeddingGenerator
 
                         driver = GraphDatabase.driver(
                             neo4j_uri, auth=(neo4j_user, neo4j_password)
@@ -507,10 +507,10 @@ def run_pipeline(
             if parent_dir not in sys.path:
                 sys.path.insert(0, str(parent_dir))
 
-            from utils.entity_resolver import EntityResolver
-            from utils.relationship_scorer import RelationshipScorer
             from utils.community_detector import CommunityDetector
             from utils.embedding_generator import EmbeddingGenerator
+            from utils.entity_resolver import EntityResolver
+            from utils.relationship_scorer import RelationshipScorer
 
             # Get Neo4j connection
             driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))

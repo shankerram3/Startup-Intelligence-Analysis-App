@@ -2,11 +2,11 @@
 Retry utilities with exponential backoff
 """
 
-import time
-import random
-from functools import wraps
-from typing import Callable, TypeVar, Optional
 import logging
+import random
+import time
+from functools import wraps
+from typing import Callable, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 

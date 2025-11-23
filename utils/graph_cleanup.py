@@ -3,10 +3,11 @@ Graph cleanup utilities for Neo4j knowledge graph
 Converts MENTIONED_IN relationships to entity properties for cleaner graph
 """
 
-from neo4j import GraphDatabase
-from typing import List, Dict, Optional
 import os
+from typing import Dict, List, Optional
+
 from dotenv import load_dotenv
+from neo4j import GraphDatabase
 
 # Load environment variables
 load_dotenv()

@@ -1,5 +1,6 @@
 from neo4j import GraphDatabase
 from pyvis.network import Network
+
 from utils.community_detector import CommunityDetector
 
 driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "password"))

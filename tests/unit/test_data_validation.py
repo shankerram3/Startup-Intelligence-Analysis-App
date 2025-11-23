@@ -4,6 +4,7 @@ Tests all validation functions without external dependencies
 """
 
 import pytest
+
 from utils.data_validation import validate_article, validate_extraction
 
 # Define constants for tests

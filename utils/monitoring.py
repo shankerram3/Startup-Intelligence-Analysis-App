@@ -3,21 +3,14 @@ Monitoring and metrics collection using Prometheus
 Provides metrics for API requests, database operations, and business logic
 """
 
-from typing import Optional, Callable
-from functools import wraps
 import time
-from prometheus_client import (
-    Counter,
-    Histogram,
-    Gauge,
-    Info,
-    generate_latest,
-    CollectorRegistry,
-    CONTENT_TYPE_LATEST,
-)
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from functools import wraps
+from typing import Callable, Optional
 
+from fastapi import Request, Response
+from prometheus_client import (CONTENT_TYPE_LATEST, CollectorRegistry, Counter,
+                               Gauge, Histogram, Info, generate_latest)
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Create registry for metrics
 registry = CollectorRegistry()

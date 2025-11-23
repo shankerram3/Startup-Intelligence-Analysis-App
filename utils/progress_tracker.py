@@ -2,12 +2,12 @@
 Progress tracking and reporting utilities
 """
 
-import time
-from typing import Dict, List, Optional
-from datetime import datetime
-from dataclasses import dataclass, field
-from pathlib import Path
 import json
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
 
 @dataclass

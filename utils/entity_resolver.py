@@ -4,13 +4,12 @@ Merges duplicate entities in the Neo4j graph
 """
 
 import re
-from typing import Dict, List, Tuple, Set, Optional
+from typing import Dict, List, Optional, Set, Tuple
+
 from neo4j import GraphDatabase
-from .entity_normalization import (
-    normalize_entity_name,
-    are_similar_entities,
-    get_canonical_name,
-)
+
+from .entity_normalization import (are_similar_entities, get_canonical_name,
+                                   normalize_entity_name)
 
 
 class EntityResolver:

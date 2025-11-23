@@ -4,6 +4,7 @@ Tests the connection and basic functionality of Aura Graph Analytics
 """
 
 import os
+
 from dotenv import load_dotenv
 
 

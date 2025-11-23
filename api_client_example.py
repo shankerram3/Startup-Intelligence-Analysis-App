@@ -3,9 +3,10 @@ GraphRAG API Client Example
 Demonstrates how to use the API endpoints
 """
 
-import requests
 import json
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
+import requests
 
 
 class GraphRAGClient:

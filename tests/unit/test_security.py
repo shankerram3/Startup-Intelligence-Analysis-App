@@ -3,18 +3,15 @@ Unit tests for security utilities
 Tests JWT token handling, password hashing, and security helpers
 """
 
-import pytest
 from datetime import timedelta
-from utils.security import (
-    verify_password,
-    get_password_hash,
-    create_access_token,
-    decode_access_token,
-    generate_test_token,
-    validate_password_strength,
-    sanitize_error_message,
-)
+
+import pytest
 from fastapi import HTTPException
+
+from utils.security import (create_access_token, decode_access_token,
+                            generate_test_token, get_password_hash,
+                            sanitize_error_message, validate_password_strength,
+                            verify_password)
 
 
 class TestPasswordHashing:

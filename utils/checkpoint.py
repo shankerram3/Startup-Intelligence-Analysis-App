@@ -3,9 +3,9 @@ Checkpoint management for resume capability
 """
 
 import json
-from pathlib import Path
-from typing import Set, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Optional, Set
 
 
 class CheckpointManager:

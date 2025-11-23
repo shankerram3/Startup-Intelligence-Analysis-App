@@ -4,11 +4,12 @@ Simple script to run the TechCrunch scraper
 Usage: python run_scraper.py [options]
 """
 
-import asyncio
 import argparse
+import asyncio
 from pathlib import Path
-from techcrunch_scraper import TechCrunchScraper
+
 from scraper_config import SCRAPER_CONFIG, TECHCRUNCH_CATEGORIES
+from techcrunch_scraper import TechCrunchScraper
 
 
 async def run_scraper(

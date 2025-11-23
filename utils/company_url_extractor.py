@@ -3,10 +3,10 @@ Company URL Extractor
 Extracts company website URLs from article content and entity mentions
 """
 
-import re
-from typing import Dict, List, Set, Optional
-from urllib.parse import urlparse, urljoin
 import logging
+import re
+from typing import Dict, List, Optional, Set
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -301,8 +301,8 @@ def extract_company_urls_from_extractions(
     Returns:
         Dictionary mapping article_id -> {company_name: url}
     """
-    import os
     import json
+    import os
     from pathlib import Path
 
     extractor = CompanyURLExtractor()

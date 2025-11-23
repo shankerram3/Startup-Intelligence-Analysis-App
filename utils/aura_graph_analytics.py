@@ -5,16 +5,14 @@ Use Aura Graph Analytics (serverless GDS) for advanced graph algorithms
 
 import os
 from typing import Dict, List, Optional
+
 from dotenv import load_dotenv
 
 # Try to import graphdatascience - if not available, class will handle it gracefully
 try:
-    from graphdatascience.session import (
-        GdsSessions,
-        AuraAPICredentials,
-        SessionMemory,
-        DbmsConnectionInfo,
-    )
+    from graphdatascience.session import (AuraAPICredentials,
+                                          DbmsConnectionInfo, GdsSessions,
+                                          SessionMemory)
 
     GDS_AVAILABLE = True
 except ImportError:

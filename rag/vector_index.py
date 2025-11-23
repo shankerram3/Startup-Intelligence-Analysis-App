@@ -17,10 +17,9 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Set
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
-
 
 INDEX_DIR = Path("data/processing/vector_index")
 EMBEDDINGS_FILE = INDEX_DIR / "embeddings.npy"

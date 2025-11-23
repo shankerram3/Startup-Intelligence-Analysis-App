@@ -3,14 +3,16 @@ Neo4j Knowledge Graph Builder for TechCrunch Articles
 Builds a knowledge graph from extracted entities and relationships
 """
 
-import json
-from pathlib import Path
-from typing import List, Dict
-from neo4j import GraphDatabase
-from collections import defaultdict
 import hashlib
+import json
 import os
-from utils.logging_config import setup_logging, get_logger
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List
+
+from neo4j import GraphDatabase
+
+from utils.logging_config import get_logger, setup_logging
 
 # Setup logging
 setup_logging(
@@ -754,6 +756,7 @@ def build_graph_from_extractions(
 def main():
     """Example usage"""
     import os
+
     from dotenv import load_dotenv
 
     # Load environment variables from .env file

@@ -4,19 +4,20 @@ Implements two-phase scraping: URL Discovery and Article Extraction
 """
 
 import asyncio
-import json
 import hashlib
+import json
+import re
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
-import re
 
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+from bs4 import BeautifulSoup
+from crawl4ai import (AsyncWebCrawler, BrowserConfig, CacheMode,
+                      CrawlerRunConfig)
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from pydantic import BaseModel, Field
-from bs4 import BeautifulSoup
 
 
 class ArticleMetadata(BaseModel):
