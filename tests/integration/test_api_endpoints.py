@@ -22,6 +22,7 @@ class TestHealthEndpoints:
         response = api_client.get("/health")
         assert response.status_code == 200
 
+
 @pytest.mark.integration
 class TestQueryEndpoints:
     """Test query-related endpoints"""
@@ -33,7 +34,7 @@ class TestQueryEndpoints:
         payload = {
             "question": "What is AI?",
             "use_llm": False,  # Don't actually call LLM
-            "return_context": True
+            "return_context": True,
         }
         response = api_client.post("/query", json=payload)
         # May fail if RAG not initialized, but should return proper error
@@ -42,9 +43,7 @@ class TestQueryEndpoints:
     def test_query_endpoint_validation(self, api_client):
         """Test query endpoint validates input"""
         # Test with invalid payload
-        payload = {
-            "question": "AB"  # Too short (min_length=3)
-        }
+        payload = {"question": "AB"}  # Too short (min_length=3)
         response = api_client.post("/query", json=payload)
         assert response.status_code == 422  # Validation error
 

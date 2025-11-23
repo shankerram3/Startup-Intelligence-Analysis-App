@@ -19,9 +19,7 @@ def add_app_context(logger: Any, method_name: str, event_dict: EventDict) -> Eve
 
 
 def setup_logging(
-    log_level: str = "INFO",
-    json_logs: bool = True,
-    log_file: Optional[Path] = None
+    log_level: str = "INFO", json_logs: bool = True, log_file: Optional[Path] = None
 ) -> None:
     """
     Configure structured logging for the application
@@ -53,13 +51,13 @@ def setup_logging(
         # Production: JSON logs for parsing
         processors = shared_processors + [
             structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ]
     else:
         # Development: Human-readable colored output
         processors = shared_processors + [
             structlog.processors.ExceptionPrettyPrinter(),
-            structlog.dev.ConsoleRenderer(colors=True)
+            structlog.dev.ConsoleRenderer(colors=True),
         ]
 
     # Configure structlog
@@ -115,18 +113,11 @@ def log_function_call(logger: structlog.stdlib.BoundLogger, func_name: str, **kw
         func_name: Name of the function being called
         **kwargs: Function parameters to log
     """
-    logger.debug(
-        "function_call",
-        function=func_name,
-        **kwargs
-    )
+    logger.debug("function_call", function=func_name, **kwargs)
 
 
 def log_performance(
-    logger: structlog.stdlib.BoundLogger,
-    operation: str,
-    duration_ms: float,
-    **context
+    logger: structlog.stdlib.BoundLogger, operation: str, duration_ms: float, **context
 ):
     """
     Log performance metrics
@@ -138,10 +129,7 @@ def log_performance(
         **context: Additional context
     """
     logger.info(
-        "performance_metric",
-        operation=operation,
-        duration_ms=duration_ms,
-        **context
+        "performance_metric", operation=operation, duration_ms=duration_ms, **context
     )
 
 
@@ -166,7 +154,9 @@ def log_api_request(
         request_id: Optional request ID for tracing
         **context: Additional context
     """
-    log_level = "info" if status_code < 400 else "warning" if status_code < 500 else "error"
+    log_level = (
+        "info" if status_code < 400 else "warning" if status_code < 500 else "error"
+    )
 
     getattr(logger, log_level)(
         "api_request",

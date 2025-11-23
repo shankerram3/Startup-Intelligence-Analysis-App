@@ -12,7 +12,7 @@ from utils.security import (
     decode_access_token,
     generate_test_token,
     validate_password_strength,
-    sanitize_error_message
+    sanitize_error_message,
 )
 from fastapi import HTTPException
 

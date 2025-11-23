@@ -12,38 +12,46 @@ class QueryTemplates:
 
     def __init__(self, driver: Driver):
         self.driver = driver
-    
-    def _enrich_with_article_urls(self, entity_id: str, source_articles: Optional[List[str]] = None) -> List[str]:
+
+    def _enrich_with_article_urls(
+        self, entity_id: str, source_articles: Optional[List[str]] = None
+    ) -> List[str]:
         """
         Helper method to get article URLs for an entity
-        
+
         Args:
             entity_id: Entity ID
             source_articles: Optional list of article IDs (if already known)
-            
+
         Returns:
             List of article URLs
         """
         if not source_articles:
             # Get source_articles from entity
             with self.driver.session() as session:
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e {id: $entity_id})
                     WHERE e.source_articles IS NOT NULL
                     UNWIND e.source_articles as article_id
                     MATCH (a:Article {id: article_id})
                     RETURN collect(DISTINCT a.url) as urls
-                """, entity_id=entity_id)
+                """,
+                    entity_id=entity_id,
+                )
                 record = result.single()
                 return record["urls"] if record and record["urls"] else []
         else:
             # Use provided source_articles
             with self.driver.session() as session:
-                result = session.run("""
+                result = session.run(
+                    """
                     UNWIND $article_ids as article_id
                     MATCH (a:Article {id: article_id})
                     RETURN collect(DISTINCT a.url) as urls
-                """, article_ids=source_articles)
+                """,
+                    article_ids=source_articles,
+                )
                 record = result.single()
                 return record["urls"] if record and record["urls"] else []
 
@@ -51,7 +59,9 @@ class QueryTemplates:
     # ENTITY QUERIES
     # =========================================================================
 
-    def get_entity_by_name(self, entity_name: str, entity_type: Optional[str] = None) -> Dict:
+    def get_entity_by_name(
+        self, entity_name: str, entity_type: Optional[str] = None
+    ) -> Dict:
         """
         Get entity details by name
 
@@ -92,13 +102,16 @@ class QueryTemplates:
     def get_entity_by_id(self, entity_id: str) -> Dict:
         """Get entity by ID"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e {id: $id})
                 RETURN e.id as id, e.name as name, labels(e)[0] as type,
                        e.description as description, e.mention_count as mention_count,
                        e.source_articles as source_articles,
                        e.community_id as community_id
-            """, id=entity_id)
+            """,
+                id=entity_id,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -106,13 +119,16 @@ class QueryTemplates:
     def search_entities_by_type(self, entity_type: str, limit: int = 10) -> List[Dict]:
         """Search entities by type"""
         with self.driver.session() as session:
-            result = session.run(f"""
+            result = session.run(
+                f"""
                 MATCH (e:{entity_type})
                 RETURN e.id as id, e.name as name, e.description as description,
                        e.mention_count as mention_count, e.source_articles as source_articles
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
-            """, limit=limit)
+            """,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -131,7 +147,8 @@ class QueryTemplates:
             Company profile with funding, founders, investors, etc.
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (c:Company)
                 WHERE toLower(c.name) CONTAINS toLower($name)
 
@@ -163,7 +180,9 @@ class QueryTemplates:
                        investors, founders, technologies, locations, competitors,
                        COALESCE(article_urls, []) as article_urls
                 LIMIT 1
-            """, name=company_name)
+            """,
+                name=company_name,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -171,7 +190,8 @@ class QueryTemplates:
     def get_companies_by_funding(self, min_investors: int = 1) -> List[Dict]:
         """Get companies by funding relationships"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                 WITH c, collect(DISTINCT i.name) as investors, count(DISTINCT i) as investor_count
                 WHERE investor_count >= $min_investors AND c.source_articles IS NOT NULL
@@ -186,7 +206,9 @@ class QueryTemplates:
                        investor_count, investors, article_urls
                 ORDER BY investor_count DESC
                 LIMIT 20
-            """, min_investors=min_investors)
+            """,
+                min_investors=min_investors,
+            )
 
             return [dict(record) for record in result]
 
@@ -201,7 +223,8 @@ class QueryTemplates:
             List of companies in the sector
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (c:Company)
                 WHERE toLower(c.description) CONTAINS toLower($keyword)
 
@@ -220,11 +243,15 @@ class QueryTemplates:
                        investors, COALESCE(article_urls, []) as article_urls
                 ORDER BY c.mention_count DESC
                 LIMIT 20
-            """, keyword=sector_keyword)
+            """,
+                keyword=sector_keyword,
+            )
 
             return [dict(record) for record in result]
 
-    def get_recently_funded_companies(self, days: int = 90, sector_keyword: Optional[str] = None) -> List[Dict]:
+    def get_recently_funded_companies(
+        self, days: int = 90, sector_keyword: Optional[str] = None
+    ) -> List[Dict]:
         """
         Get companies with recent funding announcements
 
@@ -237,7 +264,8 @@ class QueryTemplates:
         """
         with self.driver.session() as session:
             if sector_keyword:
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                     WHERE toLower(c.description) CONTAINS toLower($keyword)
                       AND c.source_articles IS NOT NULL
@@ -265,9 +293,13 @@ class QueryTemplates:
                            investor_count, investors, latest_announcement, article_urls
                     ORDER BY latest_announcement DESC, investor_count DESC
                     LIMIT 20
-                """, keyword=sector_keyword, days=days)
+                """,
+                    keyword=sector_keyword,
+                    days=days,
+                )
             else:
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                     WHERE c.source_articles IS NOT NULL
                     
@@ -294,7 +326,9 @@ class QueryTemplates:
                            investor_count, investors, latest_announcement, article_urls
                     ORDER BY latest_announcement DESC, investor_count DESC
                     LIMIT 20
-                """, days=days)
+                """,
+                    days=days,
+                )
 
             return [dict(record) for record in result]
 
@@ -313,7 +347,8 @@ class QueryTemplates:
             Investor portfolio information
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (i:Investor)
                 WHERE toLower(i.name) CONTAINS toLower($name)
 
@@ -335,7 +370,9 @@ class QueryTemplates:
                        size(portfolio) as portfolio_size, portfolio,
                        COALESCE(article_urls, []) as article_urls
                 LIMIT 1
-            """, name=investor_name)
+            """,
+                name=investor_name,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -343,7 +380,8 @@ class QueryTemplates:
     def get_top_investors(self, limit: int = 10) -> List[Dict]:
         """Get most active investors by portfolio size"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (i:Investor)<-[:FUNDED_BY]-(c:Company)
                 WITH i, count(DISTINCT c) as portfolio_size,
                      collect(DISTINCT c.name) as companies
@@ -351,7 +389,9 @@ class QueryTemplates:
                        portfolio_size, companies
                 ORDER BY portfolio_size DESC
                 LIMIT $limit
-            """, limit=limit)
+            """,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -370,7 +410,8 @@ class QueryTemplates:
             Person profile information
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (p:Person)
                 WHERE toLower(p.name) CONTAINS toLower($name)
 
@@ -383,7 +424,9 @@ class QueryTemplates:
                 RETURN p.id as id, p.name as name, p.description as description,
                        p.mention_count as mention_count, affiliations
                 LIMIT 1
-            """, name=person_name)
+            """,
+                name=person_name,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -404,7 +447,8 @@ class QueryTemplates:
             Entity with its relationship network
         """
         with self.driver.session() as session:
-            result = session.run(f"""
+            result = session.run(
+                f"""
                 MATCH (e {{id: $id}})
                 MATCH path = (e)-[*1..{max_hops}]-(related)
                 WHERE NOT related:Article
@@ -420,13 +464,16 @@ class QueryTemplates:
 
                 RETURN e.id as id, e.name as name, labels(e)[0] as type,
                        e.description as description, related_entities
-            """, id=entity_id)
+            """,
+                id=entity_id,
+            )
 
             record = result.single()
             return dict(record) if record else {}
 
-    def find_connection_path(self, entity1_name: str, entity2_name: str,
-                            max_hops: int = 4) -> List[Dict]:
+    def find_connection_path(
+        self, entity1_name: str, entity2_name: str, max_hops: int = 4
+    ) -> List[Dict]:
         """
         Find shortest path between two entities
 
@@ -439,7 +486,8 @@ class QueryTemplates:
             List of paths between entities
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e1), (e2)
                 WHERE toLower(e1.name) CONTAINS toLower($name1)
                   AND toLower(e2.name) CONTAINS toLower($name2)
@@ -452,7 +500,11 @@ class QueryTemplates:
                        length(path) as path_length
                 ORDER BY path_length
                 LIMIT 5
-            """ % max_hops, name1=entity1_name, name2=entity2_name)
+            """
+                % max_hops,
+                name1=entity1_name,
+                name2=entity2_name,
+            )
 
             return [dict(record) for record in result]
 
@@ -467,7 +519,8 @@ class QueryTemplates:
             Company with competitors and shared relationships
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (c:Company)
                 WHERE toLower(c.name) CONTAINS toLower($name)
 
@@ -500,7 +553,9 @@ class QueryTemplates:
                        companies_with_shared_investors,
                        COALESCE(article_urls, []) as article_urls
                 LIMIT 1
-            """, name=company_name)
+            """,
+                name=company_name,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -512,7 +567,8 @@ class QueryTemplates:
     def get_communities(self, min_size: int = 3, limit: int = 50) -> List[Dict]:
         """Get all detected communities"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE e.community_id IS NOT NULL AND NOT e:Article
                 WITH e.community_id as community_id,
@@ -522,14 +578,18 @@ class QueryTemplates:
                 RETURN community_id, size, members
                 ORDER BY size DESC
                 LIMIT $limit
-            """, min_size=min_size, limit=limit)
+            """,
+                min_size=min_size,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
     def get_community_by_id(self, community_id: int) -> Dict:
         """Get detailed information about a specific community"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE e.community_id = $community_id AND NOT e:Article
 
@@ -558,7 +618,9 @@ class QueryTemplates:
                        size(members) as size,
                        members,
                        relationships
-            """, community_id=community_id)
+            """,
+                community_id=community_id,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -568,17 +630,20 @@ class QueryTemplates:
         try:
             with self.driver.session() as session:
                 # Total communities
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e)
                     WHERE e.community_id IS NOT NULL AND NOT e:Article
                     WITH DISTINCT e.community_id as cid
                     RETURN count(cid) as total_communities
-                """)
+                """
+                )
                 record = result.single()
                 total = record.get("total_communities", 0) if record else 0
 
                 # Community size distribution
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e)
                     WHERE e.community_id IS NOT NULL AND NOT e:Article
                     WITH e.community_id as cid, count(e) as size
@@ -587,25 +652,32 @@ class QueryTemplates:
                         max(size) as max_size,
                         avg(size) as avg_size,
                         percentileCont(size, 0.5) as median_size
-                """)
+                """
+                )
                 record = result.single()
                 size_stats = record if record else {}
 
                 # Entities in communities
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e)
                     WHERE e.community_id IS NOT NULL AND NOT e:Article
                     RETURN count(e) as entities_in_communities
-                """)
+                """
+                )
                 record = result.single()
-                entities_in_communities = record.get("entities_in_communities", 0) if record else 0
+                entities_in_communities = (
+                    record.get("entities_in_communities", 0) if record else 0
+                )
 
                 # Total entities
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e)
                     WHERE NOT e:Article
                     RETURN count(e) as total_entities
-                """)
+                """
+                )
                 record = result.single()
                 total_entities = record.get("total_entities", 0) if record else 0
 
@@ -613,17 +685,41 @@ class QueryTemplates:
                     "total_communities": total,
                     "total_entities": total_entities,
                     "entities_in_communities": entities_in_communities,
-                    "coverage_percentage": round((entities_in_communities / total_entities * 100) if total_entities > 0 else 0, 2),
+                    "coverage_percentage": round(
+                        (
+                            (entities_in_communities / total_entities * 100)
+                            if total_entities > 0
+                            else 0
+                        ),
+                        2,
+                    ),
                     "size_distribution": {
-                        "min": int(size_stats.get("min_size", 0)) if size_stats.get("min_size") is not None else 0,
-                        "max": int(size_stats.get("max_size", 0)) if size_stats.get("max_size") is not None else 0,
-                        "avg": round(float(size_stats.get("avg_size", 0)), 2) if size_stats.get("avg_size") is not None else 0,
-                        "median": round(float(size_stats.get("median_size", 0)), 2) if size_stats.get("median_size") is not None else 0
-                    }
+                        "min": (
+                            int(size_stats.get("min_size", 0))
+                            if size_stats.get("min_size") is not None
+                            else 0
+                        ),
+                        "max": (
+                            int(size_stats.get("max_size", 0))
+                            if size_stats.get("max_size") is not None
+                            else 0
+                        ),
+                        "avg": (
+                            round(float(size_stats.get("avg_size", 0)), 2)
+                            if size_stats.get("avg_size") is not None
+                            else 0
+                        ),
+                        "median": (
+                            round(float(size_stats.get("median_size", 0)), 2)
+                            if size_stats.get("median_size") is not None
+                            else 0
+                        ),
+                    },
                 }
         except Exception as e:
             # Log the error and return default values
             import traceback
+
             print(f"Error in get_community_statistics: {e}")
             print(traceback.format_exc())
             return {
@@ -631,19 +727,14 @@ class QueryTemplates:
                 "total_entities": 0,
                 "entities_in_communities": 0,
                 "coverage_percentage": 0,
-                "size_distribution": {
-                    "min": 0,
-                    "max": 0,
-                    "avg": 0,
-                    "median": 0
-                }
+                "size_distribution": {"min": 0, "max": 0, "avg": 0, "median": 0},
             }
 
     def get_community_graph_data(
-        self, 
+        self,
         community_id: Optional[int] = None,
         max_nodes: int = 200,
-        max_communities: int = 10
+        max_communities: int = 10,
     ) -> Dict:
         """Get community graph data formatted for visualization"""
         try:
@@ -664,16 +755,24 @@ class QueryTemplates:
                         title: coalesce(e.name, 'Unknown') + ' (' + labels(e)[0] + ')'
                     }) as nodes
                     """
-                    node_result = session.run(node_query, community_id=community_id, max_nodes=max_nodes)
+                    node_result = session.run(
+                        node_query, community_id=community_id, max_nodes=max_nodes
+                    )
                     node_record = node_result.single()
                     nodes = node_record.get("nodes", []) if node_record else []
-                    
+
                     if not nodes:
-                        return {"nodes": [], "edges": [], "communities": [], "node_count": 0, "edge_count": 0}
-                    
+                        return {
+                            "nodes": [],
+                            "edges": [],
+                            "communities": [],
+                            "node_count": 0,
+                            "edge_count": 0,
+                        }
+
                     # Get node IDs
                     node_ids = [n["id"] for n in nodes]
-                    
+
                     # Then get edges
                     edge_query = """
                     MATCH (e1)-[r]->(e2)
@@ -689,17 +788,19 @@ class QueryTemplates:
                         label: type(r)
                     }) as edges
                     """
-                    edge_result = session.run(edge_query, community_id=community_id, node_ids=node_ids)
+                    edge_result = session.run(
+                        edge_query, community_id=community_id, node_ids=node_ids
+                    )
                     edge_record = edge_result.single()
                     edges = edge_record.get("edges", []) if edge_record else []
-                    
+
                     community_ids = [community_id] if community_id else []
                     return {
                         "nodes": nodes,
                         "edges": edges,
                         "communities": community_ids,
                         "node_count": len(nodes),
-                        "edge_count": len(edges)
+                        "edge_count": len(edges),
                     }
                 else:
                     # Get top communities by size - two-step approach
@@ -712,13 +813,23 @@ class QueryTemplates:
                     LIMIT $max_communities
                     RETURN collect(cid) as top_communities
                     """
-                    comm_result = session.run(comm_query, max_communities=max_communities)
+                    comm_result = session.run(
+                        comm_query, max_communities=max_communities
+                    )
                     comm_record = comm_result.single()
-                    top_communities = comm_record.get("top_communities", []) if comm_record else []
-                    
+                    top_communities = (
+                        comm_record.get("top_communities", []) if comm_record else []
+                    )
+
                     if not top_communities:
-                        return {"nodes": [], "edges": [], "communities": [], "node_count": 0, "edge_count": 0}
-                    
+                        return {
+                            "nodes": [],
+                            "edges": [],
+                            "communities": [],
+                            "node_count": 0,
+                            "edge_count": 0,
+                        }
+
                     # Get nodes from top communities
                     node_query = """
                     MATCH (e)
@@ -733,16 +844,24 @@ class QueryTemplates:
                         title: coalesce(e.name, 'Unknown') + ' (' + labels(e)[0] + ')'
                     }) as nodes
                     """
-                    node_result = session.run(node_query, top_communities=top_communities, max_nodes=max_nodes)
+                    node_result = session.run(
+                        node_query, top_communities=top_communities, max_nodes=max_nodes
+                    )
                     node_record = node_result.single()
                     nodes = node_record.get("nodes", []) if node_record else []
-                    
+
                     if not nodes:
-                        return {"nodes": [], "edges": [], "communities": top_communities, "node_count": 0, "edge_count": 0}
-                    
+                        return {
+                            "nodes": [],
+                            "edges": [],
+                            "communities": top_communities,
+                            "node_count": 0,
+                            "edge_count": 0,
+                        }
+
                     # Get node IDs
                     node_ids = [n["id"] for n in nodes]
-                    
+
                     # Get edges
                     edge_query = """
                     MATCH (e1)-[r]->(e2)
@@ -758,23 +877,32 @@ class QueryTemplates:
                         label: type(r)
                     }) as edges
                     """
-                    edge_result = session.run(edge_query, top_communities=top_communities, node_ids=node_ids)
+                    edge_result = session.run(
+                        edge_query, top_communities=top_communities, node_ids=node_ids
+                    )
                     edge_record = edge_result.single()
                     edges = edge_record.get("edges", []) if edge_record else []
-                    
+
                     return {
                         "nodes": nodes,
                         "edges": edges,
                         "communities": top_communities,
                         "node_count": len(nodes),
-                        "edge_count": len(edges)
+                        "edge_count": len(edges),
                     }
         except Exception as e:
             # Log the error and return empty result
             import traceback
+
             print(f"Error in get_community_graph_data: {e}")
             print(traceback.format_exc())
-            return {"nodes": [], "edges": [], "communities": [], "node_count": 0, "edge_count": 0}
+            return {
+                "nodes": [],
+                "edges": [],
+                "communities": [],
+                "node_count": 0,
+                "edge_count": 0,
+            }
 
     # =========================================================================
     # THEME EXTRACTION QUERIES
@@ -784,7 +912,7 @@ class QueryTemplates:
         self,
         min_frequency: int = 3,
         limit: int = 20,
-        time_window_days: Optional[int] = None
+        time_window_days: Optional[int] = None,
     ) -> List[Dict]:
         """
         Extract recurring themes from the graph based on:
@@ -795,7 +923,7 @@ class QueryTemplates:
         """
         with self.driver.session() as session:
             themes = []
-            
+
             # Theme 1: Common relationship patterns - USES_TECHNOLOGY (works with any node types)
             tech_query = """
                 MATCH (source)-[:USES_TECHNOLOGY]->(target)
@@ -816,7 +944,7 @@ class QueryTemplates:
                 ORDER BY company_count DESC
                 LIMIT $limit
             """
-            
+
             # Theme 2: Common funding patterns
             funding_query = """
                 MATCH (c)-[:FUNDED_BY]->(i)
@@ -835,7 +963,7 @@ class QueryTemplates:
                 ORDER BY portfolio_size DESC
                 LIMIT $limit
             """
-            
+
             # Theme 3: Most mentioned entities (general popularity)
             popular_entities_query = """
                 MATCH (e)
@@ -854,7 +982,7 @@ class QueryTemplates:
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
             """
-            
+
             # Theme 4: Common relationship types (any relationship pattern)
             relationship_pattern_query = """
                 MATCH (e1)-[r]->(e2)
@@ -873,7 +1001,7 @@ class QueryTemplates:
                 ORDER BY rel_count DESC
                 LIMIT $limit
             """
-            
+
             # Theme 5: Community-based themes
             community_theme_query = """
                 MATCH (e)
@@ -894,7 +1022,7 @@ class QueryTemplates:
                 ORDER BY community_size DESC
                 LIMIT $limit
             """
-            
+
             # Theme 6: Common co-occurrence patterns (entities mentioned together in articles)
             # Using source_articles property instead of MENTIONED_IN relationships
             cooccurrence_query = """
@@ -917,20 +1045,22 @@ class QueryTemplates:
                 ORDER BY size(common_articles) DESC
                 LIMIT $limit
             """
-            
+
             # Execute all queries and combine results
             queries = [
-                tech_query, 
-                funding_query, 
+                tech_query,
+                funding_query,
                 popular_entities_query,
                 relationship_pattern_query,
                 community_theme_query,
-                cooccurrence_query
+                cooccurrence_query,
             ]
-            
+
             for query in queries:
                 try:
-                    result = session.run(query, min_frequency=min_frequency, limit=limit)
+                    result = session.run(
+                        query, min_frequency=min_frequency, limit=limit
+                    )
                     for record in result:
                         theme = record.get("theme")
                         if theme:
@@ -938,10 +1068,11 @@ class QueryTemplates:
                 except Exception as e:
                     # Skip queries that fail (e.g., if certain node types or relationships don't exist)
                     import traceback
+
                     print(f"Query failed: {e}")
                     print(traceback.format_exc())
                     continue
-            
+
             # Sort by strength and return top themes
             themes.sort(key=lambda x: x.get("strength", 0), reverse=True)
             return themes[:limit]
@@ -954,7 +1085,7 @@ class QueryTemplates:
             if theme_type == "technology_trend":
                 # Extract technology name from theme (handle various formats)
                 tech_name = theme_name.replace(" Adoption", "").strip()
-                
+
                 # Try case-insensitive matching
                 query = """
                     MATCH (source)-[:USES_TECHNOLOGY]->(target)
@@ -979,7 +1110,7 @@ class QueryTemplates:
                 record = result.single()
                 if record and record.get("details"):
                     return record.get("details", {})
-                
+
                 # If no exact match, try partial match
                 query_fuzzy = """
                     MATCH (source)-[:USES_TECHNOLOGY]->(target)
@@ -1004,7 +1135,7 @@ class QueryTemplates:
                 result = session.run(query_fuzzy, tech_name=tech_name)
                 record = result.single()
                 return record.get("details", {}) if record else {}
-            
+
             elif theme_type == "funding_pattern":
                 # Extract investor name from theme (e.g., "Investor Portfolio")
                 investor_name = theme_name.replace(" Portfolio", "").strip()
@@ -1025,7 +1156,7 @@ class QueryTemplates:
                 result = session.run(query, investor_name=investor_name)
                 record = result.single()
                 return record.get("details", {}) if record else {}
-            
+
             elif theme_type == "partnership_pattern":
                 # For partnership patterns, return relationship information
                 query = """
@@ -1045,7 +1176,7 @@ class QueryTemplates:
                 result = session.run(query)
                 record = result.single()
                 return record.get("details", {}) if record else {}
-            
+
             elif theme_type == "industry_cluster":
                 # For industry clusters, try to extract the keyword
                 # Theme format might be "Industry: keyword" or "Entity Name (Popular Type)"
@@ -1091,12 +1222,12 @@ class QueryTemplates:
                     result = session.run(query, entity_name=entity_name)
                     record = result.single()
                     return record.get("details", {}) if record else {}
-            
+
             # Default: return basic theme info
             return {
                 "theme_name": theme_name,
                 "theme_type": theme_type,
-                "message": "Details not yet implemented for this theme type"
+                "message": "Details not yet implemented for this theme type",
             }
 
     # =========================================================================
@@ -1106,9 +1237,12 @@ class QueryTemplates:
     def get_recent_entities(self, days: int = 30, limit: int = 10) -> List[Dict]:
         """Get recently mentioned entities"""
         with self.driver.session() as session:
-            cutoff_timestamp = (days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
+            cutoff_timestamp = (
+                days * 24 * 60 * 60 * 1000
+            )  # Convert days to milliseconds
 
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE e.last_mentioned IS NOT NULL
                   AND e.last_mentioned > timestamp() - $cutoff
@@ -1118,7 +1252,10 @@ class QueryTemplates:
                        e.last_mentioned as last_mentioned
                 ORDER BY e.last_mentioned DESC
                 LIMIT $limit
-            """, cutoff=cutoff_timestamp, limit=limit)
+            """,
+                cutoff=cutoff_timestamp,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -1134,7 +1271,8 @@ class QueryTemplates:
         """
         with self.driver.session() as session:
             if company_name:
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                     WHERE toLower(c.name) CONTAINS toLower($name)
 
@@ -1143,9 +1281,12 @@ class QueryTemplates:
                     RETURN c.name as company, i.name as investor,
                            a.published_date as date, a.title as article_title
                     ORDER BY a.published_date DESC
-                """, name=company_name)
+                """,
+                    name=company_name,
+                )
             else:
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (c:Company)-[:FUNDED_BY]->(i:Investor)
                     OPTIONAL MATCH (c)-[:ANNOUNCED_AT]->(a:Article)
 
@@ -1153,7 +1294,8 @@ class QueryTemplates:
                            a.published_date as date, a.title as article_title
                     ORDER BY a.published_date DESC
                     LIMIT 50
-                """)
+                """
+                )
 
             return [dict(record) for record in result]
 
@@ -1164,40 +1306,49 @@ class QueryTemplates:
     def get_graph_statistics(self) -> Dict:
         """Get overall graph statistics"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (n)
                 WITH labels(n)[0] as label, count(n) as count
                 RETURN collect({label: label, count: count}) as node_counts
-            """)
+            """
+            )
 
             node_stats = result.single()
 
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH ()-[r]->()
                 WITH type(r) as rel_type, count(r) as count
                 RETURN collect({type: rel_type, count: count}) as rel_counts
-            """)
+            """
+            )
 
             rel_stats = result.single()
 
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (n)
                 WHERE n.community_id IS NOT NULL
                 RETURN count(DISTINCT n.community_id) as community_count
-            """)
+            """
+            )
 
             community_stats = result.single()
 
             return {
                 "node_counts": node_stats["node_counts"] if node_stats else [],
                 "relationship_counts": rel_stats["rel_counts"] if rel_stats else [],
-                "community_count": community_stats["community_count"] if community_stats else 0
+                "community_count": (
+                    community_stats["community_count"] if community_stats else 0
+                ),
             }
 
     def get_most_connected_entities(self, limit: int = 10) -> List[Dict]:
         """Get entities with most relationships"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE NOT e:Article
                 OPTIONAL MATCH (e)-[r]-()
@@ -1207,7 +1358,9 @@ class QueryTemplates:
                        e.description as description, degree
                 ORDER BY degree DESC
                 LIMIT $limit
-            """, limit=limit)
+            """,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -1218,7 +1371,8 @@ class QueryTemplates:
         Importance = mention_count * 0.3 + relationship_count * 0.5 + article_count * 0.2
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE NOT e:Article
 
@@ -1237,7 +1391,9 @@ class QueryTemplates:
                        round(importance_score, 2) as importance_score
                 ORDER BY importance_score DESC
                 LIMIT $limit
-            """, limit=limit)
+            """,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -1256,7 +1412,8 @@ class QueryTemplates:
             Technology adoption information
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (t:Technology)
                 WHERE toLower(t.name) CONTAINS toLower($keyword)
 
@@ -1267,7 +1424,9 @@ class QueryTemplates:
                        adoption_count, companies
                 ORDER BY adoption_count DESC
                 LIMIT 1
-            """, keyword=technology_keyword)
+            """,
+                keyword=technology_keyword,
+            )
 
             record = result.single()
             return dict(record) if record else {}
@@ -1275,7 +1434,8 @@ class QueryTemplates:
     def get_trending_technologies(self, limit: int = 10) -> List[Dict]:
         """Get most mentioned/used technologies"""
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (t:Technology)
                 OPTIONAL MATCH (c:Company)-[:USES_TECHNOLOGY]->(t)
                 WITH t, count(c) as company_count
@@ -1283,7 +1443,9 @@ class QueryTemplates:
                        t.mention_count as mentions, company_count
                 ORDER BY company_count DESC, t.mention_count DESC
                 LIMIT $limit
-            """, limit=limit)
+            """,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]
 
@@ -1291,7 +1453,9 @@ class QueryTemplates:
     # FULL-TEXT SEARCH
     # =========================================================================
 
-    def search_entities_full_text(self, search_term: str, limit: int = 10) -> List[Dict]:
+    def search_entities_full_text(
+        self, search_term: str, limit: int = 10
+    ) -> List[Dict]:
         """
         Search entities by name or description
 
@@ -1303,7 +1467,8 @@ class QueryTemplates:
             Matching entities
         """
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE (toLower(e.name) CONTAINS toLower($term)
                    OR toLower(e.description) CONTAINS toLower($term))
@@ -1312,6 +1477,9 @@ class QueryTemplates:
                        e.description as description, e.mention_count as mention_count
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
-            """, term=search_term, limit=limit)
+            """,
+                term=search_term,
+                limit=limit,
+            )
 
             return [dict(record) for record in result]

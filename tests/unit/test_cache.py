@@ -10,7 +10,7 @@ from utils.cache import (
     generate_cache_key,
     QueryCache,
     EntityCache,
-    get_cache
+    get_cache,
 )
 
 
@@ -50,14 +50,14 @@ class TestCacheKeyGeneration:
 class TestCacheManager:
     """Test CacheManager class"""
 
-    @patch('utils.cache.REDIS_AVAILABLE', False)
+    @patch("utils.cache.REDIS_AVAILABLE", False)
     def test_cache_disabled_when_redis_unavailable(self):
         """Test cache is disabled when Redis not available"""
         cache = CacheManager()
         assert cache.enabled is False
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_initialization(self, mock_redis_class):
         """Test cache manager initialization"""
         mock_client = MagicMock()
@@ -68,24 +68,24 @@ class TestCacheManager:
         assert cache.enabled is True
         mock_client.ping.assert_called_once()
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_get_returns_none_when_disabled(self, mock_redis_class):
         """Test get returns None when cache is disabled"""
         cache = CacheManager(enabled=False)
         result = cache.get("test_key")
         assert result is None
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_set_returns_false_when_disabled(self, mock_redis_class):
         """Test set returns False when cache is disabled"""
         cache = CacheManager(enabled=False)
         result = cache.set("test_key", "test_value")
         assert result is False
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_exists(self, mock_redis_class):
         """Test cache exists check"""
         mock_client = MagicMock()
@@ -97,8 +97,8 @@ class TestCacheManager:
         result = cache.exists("test_key")
         assert result is True
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_delete(self, mock_redis_class):
         """Test cache delete"""
         mock_client = MagicMock()
@@ -110,8 +110,8 @@ class TestCacheManager:
         result = cache.delete("test_key")
         assert result is True
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_clear(self, mock_redis_class):
         """Test cache clear"""
         mock_client = MagicMock()
@@ -123,8 +123,8 @@ class TestCacheManager:
         result = cache.clear()
         assert result is True
 
-    @patch('utils.cache.REDIS_AVAILABLE', True)
-    @patch('utils.cache.Redis')
+    @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.Redis")
     def test_cache_stats(self, mock_redis_class):
         """Test cache statistics retrieval"""
         mock_client = MagicMock()
@@ -132,7 +132,7 @@ class TestCacheManager:
         mock_client.info.return_value = {
             "used_memory_human": "1M",
             "connected_clients": 5,
-            "total_commands_processed": 1000
+            "total_commands_processed": 1000,
         }
         mock_redis_class.return_value = mock_client
 
@@ -145,7 +145,7 @@ class TestCacheManager:
 class TestQueryCache:
     """Test QueryCache helper class"""
 
-    @patch('utils.cache.get_cache')
+    @patch("utils.cache.get_cache")
     def test_query_cache_get(self, mock_get_cache):
         """Test QueryCache.get"""
         mock_cache = Mock()
@@ -155,7 +155,7 @@ class TestQueryCache:
         result = QueryCache.get("test question")
         assert result == {"answer": "test"}
 
-    @patch('utils.cache.get_cache')
+    @patch("utils.cache.get_cache")
     def test_query_cache_set(self, mock_get_cache):
         """Test QueryCache.set"""
         mock_cache = Mock()
@@ -165,7 +165,7 @@ class TestQueryCache:
         result = QueryCache.set("test question", {"answer": "test"})
         assert mock_cache.set.called
 
-    @patch('utils.cache.get_cache')
+    @patch("utils.cache.get_cache")
     def test_query_cache_invalidate(self, mock_get_cache):
         """Test QueryCache.invalidate"""
         mock_cache = Mock()
@@ -179,7 +179,7 @@ class TestQueryCache:
 class TestEntityCache:
     """Test EntityCache helper class"""
 
-    @patch('utils.cache.get_cache')
+    @patch("utils.cache.get_cache")
     def test_entity_cache_get(self, mock_get_cache):
         """Test EntityCache.get"""
         mock_cache = Mock()
@@ -189,7 +189,7 @@ class TestEntityCache:
         result = EntityCache.get("TestCo")
         assert result["name"] == "TestCo"
 
-    @patch('utils.cache.get_cache')
+    @patch("utils.cache.get_cache")
     def test_entity_cache_set(self, mock_get_cache):
         """Test EntityCache.set"""
         mock_cache = Mock()

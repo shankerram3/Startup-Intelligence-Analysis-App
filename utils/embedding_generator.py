@@ -14,7 +14,7 @@ _os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 class EmbeddingGenerator:
     """Generate embeddings for entities"""
-    
+
     def __init__(
         self,
         driver: GraphDatabase,
@@ -25,32 +25,35 @@ class EmbeddingGenerator:
         self.embedding_model = embedding_model
         self.sentence_model_name = sentence_model_name
         self.embedding_function = None
-        
+
         # Initialize embedding function based on model
         self._initialize_embedding_function()
-    
+
     def _initialize_embedding_function(self):
         """Initialize embedding function based on model"""
         # Force sentence-transformers for embeddings
         try:
             from sentence_transformers import SentenceTransformer
             import os as _os
+
             model_name = self.sentence_model_name or _os.getenv(
-                'SENTENCE_TRANSFORMERS_MODEL', 'all-MiniLM-L6-v2'
+                "SENTENCE_TRANSFORMERS_MODEL", "all-MiniLM-L6-v2"
             )
             model = SentenceTransformer(model_name)
-            
+
             def st_embed(text: str) -> List[float]:
                 return model.encode(text).tolist()
-            
+
             self.embedding_function = st_embed
         except ImportError:
-            print("⚠️  sentence-transformers not installed. Install with: pip install sentence-transformers")
+            print(
+                "⚠️  sentence-transformers not installed. Install with: pip install sentence-transformers"
+            )
             self.embedding_function = None
         except Exception as e:
             print(f"⚠️  Error initializing sentence-transformers: {e}")
             self.embedding_function = None
-    
+
     def generate_entity_embedding(self, entity: Dict) -> Optional[List[float]]:
         """
         Generate embedding for an entity
@@ -69,7 +72,9 @@ class EmbeddingGenerator:
         entity_type = entity.get("type", "")
 
         # Prefer enriched description over basic description
-        description = entity.get("enriched_description") or entity.get("description", "")
+        description = entity.get("enriched_description") or entity.get(
+            "description", ""
+        )
 
         # Start with basic text
         text_parts = [f"{entity_type}: {name}"]
@@ -97,32 +102,32 @@ class EmbeddingGenerator:
                 "enrichment_timestamp": None,  # Metadata, skip
                 "enrichment_confidence": None,  # Metadata, skip
             }
-            
+
             # Process known fields first
             if entity.get("headquarters"):
                 text_parts.append(f"Located in {entity['headquarters']}")
-            
+
             if entity.get("founded_year"):
                 text_parts.append(f"Founded in {entity['founded_year']}")
-            
+
             if entity.get("founders"):
                 founders = entity["founders"]
                 if isinstance(founders, list) and founders:
                     founders_str = ", ".join(str(f) for f in founders[:3])
                     text_parts.append(f"Founded by {founders_str}")
-            
+
             if entity.get("products"):
                 products = entity["products"]
                 if isinstance(products, list) and products:
                     products_str = ", ".join(str(p) for p in products[:5])
                     text_parts.append(f"Products: {products_str}")
-            
+
             if entity.get("technologies"):
                 technologies = entity["technologies"]
                 if isinstance(technologies, list) and technologies:
                     tech_str = ", ".join(str(t) for t in technologies[:10])
                     text_parts.append(f"Technologies: {tech_str}")
-            
+
             # Funding information (combine total and stage)
             if entity.get("funding_total"):
                 funding = entity["funding_total"]
@@ -131,20 +136,26 @@ class EmbeddingGenerator:
                     text_parts.append(f"Raised {funding} in {stage}")
                 else:
                     text_parts.append(f"Raised {funding}")
-            
+
             if entity.get("employee_count"):
                 text_parts.append(f"{entity['employee_count']} employees")
-            
+
             if entity.get("pricing_model"):
                 text_parts.append(f"Pricing: {entity['pricing_model']}")
-            
+
             # Dynamically include any other enrichment properties not in known_fields
             # This allows new properties to be automatically included in embeddings
-            skip_keys = set(known_fields.keys()) | {'id', 'name', 'type', 'description', 'enriched_description'}
+            skip_keys = set(known_fields.keys()) | {
+                "id",
+                "name",
+                "type",
+                "description",
+                "enriched_description",
+            }
             for key, value in entity.items():
                 if key in skip_keys or value is None:
                     continue
-                
+
                 # Handle lists
                 if isinstance(value, list) and value:
                     value_str = ", ".join(str(v) for v in value[:5])
@@ -167,8 +178,10 @@ class EmbeddingGenerator:
         except Exception as e:
             print(f"⚠️  Error generating embedding: {e}")
             return None
-    
-    def generate_embeddings_for_all_entities(self, entity_type: Optional[str] = None) -> Dict:
+
+    def generate_embeddings_for_all_entities(
+        self, entity_type: Optional[str] = None
+    ) -> Dict:
         """
         Generate embeddings for all entities in graph
 
@@ -251,7 +264,7 @@ class EmbeddingGenerator:
                     "products": record.get("products"),
                     "technologies": record.get("technologies"),
                     "funding_total": record.get("funding_total"),
-                    "funding_stage": record.get("funding_stage")
+                    "funding_stage": record.get("funding_stage"),
                 }
 
                 # Track if this entity has enriched data
@@ -265,13 +278,17 @@ class EmbeddingGenerator:
                     # Note: Neo4j supports vector storage, but for simplicity
                     # we'll store as list property
                     try:
-                        session.run("""
+                        session.run(
+                            """
                             MATCH (e {id: $id})
                             SET e.embedding = $embedding,
                                 e.embedding_model = $model,
                                 e.embedding_updated = timestamp()
-                        """, id=record["id"], embedding=embedding,
-                           model=self.embedding_model)
+                        """,
+                            id=record["id"],
+                            embedding=embedding,
+                            model=self.embedding_model,
+                        )
                         generated_count += 1
                     except Exception as e:
                         print(f"⚠️  Error storing embedding for {record['name']}: {e}")
@@ -283,73 +300,81 @@ class EmbeddingGenerator:
                 "generated": generated_count,
                 "failed": failed_count,
                 "enriched": enriched_count,
-                "model": self.embedding_model
+                "model": self.embedding_model,
             }
-    
+
     def find_similar_entities(self, query_text: str, limit: int = 10) -> List[Dict]:
         """
         Find entities similar to query text using embeddings
-        
+
         Args:
             query_text: Query text
             limit: Maximum number of results
-        
+
         Returns:
             List of similar entities with similarity scores
         """
         if not self.embedding_function:
             return []
-        
+
         # Generate query embedding
         query_embedding = self.embedding_function(query_text)
-        
+
         if not query_embedding:
             return []
-        
+
         # Find similar entities (cosine similarity)
         with self.driver.session() as session:
             # Get all entities with embeddings
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e)
                 WHERE NOT e:Article AND e.embedding IS NOT NULL
                 RETURN e.id as id, e.name as name, labels(e)[0] as type,
                        e.description as description, e.embedding as embedding,
                        e.source_articles as source_articles
-            """)
-            
+            """
+            )
+
             similarities = []
             query_vec = np.array(query_embedding)
-            
+
             for record in result:
                 entity_embedding = record["embedding"]
                 if not entity_embedding:
                     continue
-                
+
                 entity_vec = np.array(entity_embedding)
-                
+
                 # Skip if embedding dimensions don't match
-                if query_vec.ndim != 1 or entity_vec.ndim != 1 or query_vec.shape[0] != entity_vec.shape[0]:
+                if (
+                    query_vec.ndim != 1
+                    or entity_vec.ndim != 1
+                    or query_vec.shape[0] != entity_vec.shape[0]
+                ):
                     # Dimension mismatch (e.g., OpenAI 1536 vs ST 384); skip this entity
                     continue
-                
+
                 # Calculate cosine similarity
                 similarity = np.dot(query_vec, entity_vec) / (
                     np.linalg.norm(query_vec) * np.linalg.norm(entity_vec)
                 )
-                
-                similarities.append({
-                    "id": record["id"],
-                    "name": record["name"],
-                    "type": record["type"],
-                    "description": record.get("description", ""),
-                    "similarity": float(similarity),
-                    "source_articles": record.get("source_articles")
-                })
-            
+
+                similarities.append(
+                    {
+                        "id": record["id"],
+                        "name": record["name"],
+                        "type": record["type"],
+                        "description": record.get("description", ""),
+                        "similarity": float(similarity),
+                        "source_articles": record.get("source_articles"),
+                    }
+                )
+
             # Sort by similarity and return top results
             similarities.sort(key=lambda x: x["similarity"], reverse=True)
             return similarities[:limit]
-    
+
     def update_embeddings(self, entity_type: Optional[str] = None) -> Dict:
         """Update embeddings for entities (regenerate if model changed)"""
         return self.generate_embeddings_for_all_entities(entity_type)
@@ -401,20 +426,24 @@ class EmbeddingGenerator:
                     "products": record.get("products"),
                     "technologies": record.get("technologies"),
                     "funding_total": record.get("funding_total"),
-                    "funding_stage": record.get("funding_stage")
+                    "funding_stage": record.get("funding_stage"),
                 }
 
                 embedding = self.generate_entity_embedding(entity)
 
                 if embedding:
                     try:
-                        session.run("""
+                        session.run(
+                            """
                             MATCH (c:Company {id: $id})
                             SET c.embedding = $embedding,
                                 c.embedding_model = $model,
                                 c.embedding_updated = timestamp()
-                        """, id=record["id"], embedding=embedding,
-                           model=self.embedding_model)
+                        """,
+                            id=record["id"],
+                            embedding=embedding,
+                            model=self.embedding_model,
+                        )
                         regenerated_count += 1
                     except Exception as e:
                         print(f"⚠️  Error updating embedding for {record['name']}: {e}")
@@ -425,6 +454,5 @@ class EmbeddingGenerator:
             return {
                 "regenerated": regenerated_count,
                 "failed": failed_count,
-                "model": self.embedding_model
+                "model": self.embedding_model,
             }
-

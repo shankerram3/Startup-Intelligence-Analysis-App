@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 try:
     import redis
     from redis import Redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -23,6 +24,7 @@ load_dotenv()
 
 class CacheConfig:
     """Redis cache configuration"""
+
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB = int(os.getenv("REDIS_DB", "0"))
@@ -229,10 +231,7 @@ def generate_cache_key(prefix: str, *args, **kwargs) -> str:
         # Returns: "query:hash_of_args"
     """
     # Create a stable representation of arguments
-    key_data = {
-        "args": args,
-        "kwargs": sorted(kwargs.items())
-    }
+    key_data = {"args": args, "kwargs": sorted(kwargs.items())}
     key_str = json.dumps(key_data, sort_keys=True)
     key_hash = hashlib.md5(key_str.encode()).hexdigest()[:16]
 
@@ -253,6 +252,7 @@ def cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None)
             # Expensive operation
             return results
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -276,10 +276,13 @@ def cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None)
             return result
 
         return wrapper
+
     return decorator
 
 
-async def async_cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None):
+async def async_cached(
+    ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None
+):
     """
     Decorator to cache async function results
 
@@ -293,6 +296,7 @@ async def async_cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[
             # Expensive async operation
             return data
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -316,6 +320,7 @@ async def async_cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -352,6 +357,7 @@ def invalidate_cache_pattern(pattern: str) -> int:
 
 
 # Specific cache helpers for common operations
+
 
 class QueryCache:
     """Helper class for caching query results"""

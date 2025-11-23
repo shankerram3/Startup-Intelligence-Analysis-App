@@ -13,7 +13,7 @@ from prometheus_client import (
     Info,
     generate_latest,
     CollectorRegistry,
-    CONTENT_TYPE_LATEST
+    CONTENT_TYPE_LATEST,
 )
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -28,32 +28,32 @@ registry = CollectorRegistry()
 
 # Request counters
 api_requests_total = Counter(
-    'api_requests_total',
-    'Total API requests',
-    ['method', 'endpoint', 'status_code'],
-    registry=registry
+    "api_requests_total",
+    "Total API requests",
+    ["method", "endpoint", "status_code"],
+    registry=registry,
 )
 
 api_request_duration_seconds = Histogram(
-    'api_request_duration_seconds',
-    'API request duration in seconds',
-    ['method', 'endpoint'],
+    "api_request_duration_seconds",
+    "API request duration in seconds",
+    ["method", "endpoint"],
     buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
-    registry=registry
+    registry=registry,
 )
 
 api_request_size_bytes = Histogram(
-    'api_request_size_bytes',
-    'API request body size in bytes',
-    ['method', 'endpoint'],
-    registry=registry
+    "api_request_size_bytes",
+    "API request body size in bytes",
+    ["method", "endpoint"],
+    registry=registry,
 )
 
 api_response_size_bytes = Histogram(
-    'api_response_size_bytes',
-    'API response body size in bytes',
-    ['method', 'endpoint'],
-    registry=registry
+    "api_response_size_bytes",
+    "API response body size in bytes",
+    ["method", "endpoint"],
+    registry=registry,
 )
 
 # =============================================================================
@@ -61,24 +61,24 @@ api_response_size_bytes = Histogram(
 # =============================================================================
 
 neo4j_queries_total = Counter(
-    'neo4j_queries_total',
-    'Total Neo4j queries executed',
-    ['query_type', 'status'],
-    registry=registry
+    "neo4j_queries_total",
+    "Total Neo4j queries executed",
+    ["query_type", "status"],
+    registry=registry,
 )
 
 neo4j_query_duration_seconds = Histogram(
-    'neo4j_query_duration_seconds',
-    'Neo4j query duration in seconds',
-    ['query_type'],
+    "neo4j_query_duration_seconds",
+    "Neo4j query duration in seconds",
+    ["query_type"],
     buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0],
-    registry=registry
+    registry=registry,
 )
 
 neo4j_connection_pool_size = Gauge(
-    'neo4j_connection_pool_size',
-    'Number of active Neo4j connections',
-    registry=registry
+    "neo4j_connection_pool_size",
+    "Number of active Neo4j connections",
+    registry=registry,
 )
 
 # =============================================================================
@@ -86,25 +86,25 @@ neo4j_connection_pool_size = Gauge(
 # =============================================================================
 
 llm_requests_total = Counter(
-    'llm_requests_total',
-    'Total LLM API requests',
-    ['model', 'operation', 'status'],
-    registry=registry
+    "llm_requests_total",
+    "Total LLM API requests",
+    ["model", "operation", "status"],
+    registry=registry,
 )
 
 llm_request_duration_seconds = Histogram(
-    'llm_request_duration_seconds',
-    'LLM request duration in seconds',
-    ['model', 'operation'],
+    "llm_request_duration_seconds",
+    "LLM request duration in seconds",
+    ["model", "operation"],
     buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0],
-    registry=registry
+    registry=registry,
 )
 
 llm_tokens_used = Counter(
-    'llm_tokens_used_total',
-    'Total tokens used in LLM requests',
-    ['model', 'token_type'],
-    registry=registry
+    "llm_tokens_used_total",
+    "Total tokens used in LLM requests",
+    ["model", "token_type"],
+    registry=registry,
 )
 
 # =============================================================================
@@ -112,39 +112,39 @@ llm_tokens_used = Counter(
 # =============================================================================
 
 articles_scraped_total = Counter(
-    'articles_scraped_total',
-    'Total articles scraped',
-    ['source', 'status'],
-    registry=registry
+    "articles_scraped_total",
+    "Total articles scraped",
+    ["source", "status"],
+    registry=registry,
 )
 
 entities_extracted_total = Counter(
-    'entities_extracted_total',
-    'Total entities extracted',
-    ['entity_type'],
-    registry=registry
+    "entities_extracted_total",
+    "Total entities extracted",
+    ["entity_type"],
+    registry=registry,
 )
 
 relationships_created_total = Counter(
-    'relationships_created_total',
-    'Total relationships created',
-    ['relationship_type'],
-    registry=registry
+    "relationships_created_total",
+    "Total relationships created",
+    ["relationship_type"],
+    registry=registry,
 )
 
 pipeline_phase_duration_seconds = Histogram(
-    'pipeline_phase_duration_seconds',
-    'Pipeline phase duration in seconds',
-    ['phase'],
+    "pipeline_phase_duration_seconds",
+    "Pipeline phase duration in seconds",
+    ["phase"],
     buckets=[1.0, 5.0, 10.0, 30.0, 60.0, 300.0, 600.0],
-    registry=registry
+    registry=registry,
 )
 
 queries_executed_total = Counter(
-    'queries_executed_total',
-    'Total GraphRAG queries executed',
-    ['query_type', 'status'],
-    registry=registry
+    "queries_executed_total",
+    "Total GraphRAG queries executed",
+    ["query_type", "status"],
+    registry=registry,
 )
 
 # =============================================================================
@@ -152,40 +152,29 @@ queries_executed_total = Counter(
 # =============================================================================
 
 cache_hits_total = Counter(
-    'cache_hits_total',
-    'Total cache hits',
-    ['cache_type'],
-    registry=registry
+    "cache_hits_total", "Total cache hits", ["cache_type"], registry=registry
 )
 
 cache_misses_total = Counter(
-    'cache_misses_total',
-    'Total cache misses',
-    ['cache_type'],
-    registry=registry
+    "cache_misses_total", "Total cache misses", ["cache_type"], registry=registry
 )
 
 # =============================================================================
 # System Metrics
 # =============================================================================
 
-app_info = Info(
-    'app',
-    'Application information',
-    registry=registry
-)
+app_info = Info("app", "Application information", registry=registry)
 
 # Set app info
-app_info.info({
-    'name': 'startup-intelligence',
-    'version': '1.0.0',
-    'environment': 'production'
-})
+app_info.info(
+    {"name": "startup-intelligence", "version": "1.0.0", "environment": "production"}
+)
 
 
 # =============================================================================
 # Middleware for automatic API metrics
 # =============================================================================
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """
@@ -224,28 +213,23 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
         # Record metrics
         api_requests_total.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status_code=response.status_code
+            method=request.method, endpoint=endpoint, status_code=response.status_code
         ).inc()
 
         api_request_duration_seconds.labels(
-            method=request.method,
-            endpoint=endpoint
+            method=request.method, endpoint=endpoint
         ).observe(duration)
 
         if request_size > 0:
             api_request_size_bytes.labels(
-                method=request.method,
-                endpoint=endpoint
+                method=request.method, endpoint=endpoint
             ).observe(request_size)
 
         # Response size (if available)
         response_size = int(response.headers.get("content-length", 0))
         if response_size > 0:
             api_response_size_bytes.labels(
-                method=request.method,
-                endpoint=endpoint
+                method=request.method, endpoint=endpoint
             ).observe(response_size)
 
         return response
@@ -276,7 +260,12 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             elif len(part) > 20 and "-" in part:
                 normalized.append("{uuid}")
             # Replace entity names (heuristic: after /entities/ or /companies/)
-            elif i > 0 and parts[i-1] in ["entities", "companies", "people", "investors"]:
+            elif i > 0 and parts[i - 1] in [
+                "entities",
+                "companies",
+                "people",
+                "investors",
+            ]:
                 normalized.append("{name}")
             else:
                 normalized.append(part)
@@ -287,6 +276,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 # =============================================================================
 # Decorator for function metrics
 # =============================================================================
+
 
 def track_time(metric: Histogram, labels: Optional[dict] = None):
     """
@@ -302,6 +292,7 @@ def track_time(metric: Histogram, labels: Optional[dict] = None):
             # Query logic
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -317,6 +308,7 @@ def track_time(metric: Histogram, labels: Optional[dict] = None):
                     metric.observe(duration)
 
         return wrapper
+
     return decorator
 
 
@@ -334,6 +326,7 @@ def track_count(metric: Counter, labels: Optional[dict] = None):
             # Scraping logic
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -353,6 +346,7 @@ def track_count(metric: Counter, labels: Optional[dict] = None):
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -360,56 +354,51 @@ def track_count(metric: Counter, labels: Optional[dict] = None):
 # Helper functions for manual metric recording
 # =============================================================================
 
+
 def record_api_request(method: str, endpoint: str, status_code: int, duration: float):
     """Record API request metrics manually"""
     api_requests_total.labels(
-        method=method,
-        endpoint=endpoint,
-        status_code=status_code
+        method=method, endpoint=endpoint, status_code=status_code
     ).inc()
 
-    api_request_duration_seconds.labels(
-        method=method,
-        endpoint=endpoint
-    ).observe(duration)
+    api_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(
+        duration
+    )
 
 
 def record_neo4j_query(query_type: str, duration: float, success: bool = True):
     """Record Neo4j query metrics"""
     status = "success" if success else "error"
 
-    neo4j_queries_total.labels(
-        query_type=query_type,
-        status=status
-    ).inc()
+    neo4j_queries_total.labels(query_type=query_type, status=status).inc()
 
-    neo4j_query_duration_seconds.labels(
-        query_type=query_type
-    ).observe(duration)
+    neo4j_query_duration_seconds.labels(query_type=query_type).observe(duration)
 
 
-def record_llm_request(model: str, operation: str, duration: float,
-                       prompt_tokens: int = 0, completion_tokens: int = 0,
-                       success: bool = True):
+def record_llm_request(
+    model: str,
+    operation: str,
+    duration: float,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    success: bool = True,
+):
     """Record LLM request metrics"""
     status = "success" if success else "error"
 
-    llm_requests_total.labels(
-        model=model,
-        operation=operation,
-        status=status
-    ).inc()
+    llm_requests_total.labels(model=model, operation=operation, status=status).inc()
 
-    llm_request_duration_seconds.labels(
-        model=model,
-        operation=operation
-    ).observe(duration)
+    llm_request_duration_seconds.labels(model=model, operation=operation).observe(
+        duration
+    )
 
     if prompt_tokens > 0:
         llm_tokens_used.labels(model=model, token_type="prompt").inc(prompt_tokens)
 
     if completion_tokens > 0:
-        llm_tokens_used.labels(model=model, token_type="completion").inc(completion_tokens)
+        llm_tokens_used.labels(model=model, token_type="completion").inc(
+            completion_tokens
+        )
 
 
 def record_entity_extraction(entity_type: str, count: int = 1):

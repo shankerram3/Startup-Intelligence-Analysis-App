@@ -24,7 +24,7 @@ class GraphRAGQuery:
         neo4j_user: str,
         neo4j_password: str,
         openai_api_key: Optional[str] = None,
-        embedding_model: str = "openai"
+        embedding_model: str = "openai",
     ):
         """
         Initialize GraphRAG Query system
@@ -50,13 +50,14 @@ class GraphRAGQuery:
         """Initialize LLM for answer generation"""
         try:
             from langchain_openai import ChatOpenAI
+
             self.llm = ChatOpenAI(
-                temperature=0.7,
-                model="gpt-4o",
-                api_key=self.openai_api_key
+                temperature=0.7, model="gpt-4o", api_key=self.openai_api_key
             )
         except ImportError:
-            print("⚠️  LangChain not installed. Install with: pip install langchain-openai")
+            print(
+                "⚠️  LangChain not installed. Install with: pip install langchain-openai"
+            )
         except Exception as e:
             print(f"⚠️  Error initializing LLM: {e}")
 
@@ -69,10 +70,7 @@ class GraphRAGQuery:
     # =========================================================================
 
     def semantic_search(
-        self,
-        query: str,
-        top_k: int = 10,
-        entity_type: Optional[str] = None
+        self, query: str, top_k: int = 10, entity_type: Optional[str] = None
     ) -> List[Dict]:
         """
         Perform semantic search using embeddings
@@ -85,22 +83,22 @@ class GraphRAGQuery:
         Returns:
             List of similar entities with similarity scores
         """
-        similar_entities = self.embedding_generator.find_similar_entities(query, limit=top_k)
+        similar_entities = self.embedding_generator.find_similar_entities(
+            query, limit=top_k
+        )
 
         # Filter by entity type if specified
         if entity_type:
             similar_entities = [
-                e for e in similar_entities
+                e
+                for e in similar_entities
                 if e.get("type", "").lower() == entity_type.lower()
             ]
 
         return similar_entities
 
     def hybrid_search(
-        self,
-        query: str,
-        top_k: int = 10,
-        semantic_weight: float = 0.7
+        self, query: str, top_k: int = 10, semantic_weight: float = 0.7
     ) -> List[Dict]:
         """
         Hybrid search combining semantic similarity and keyword matching
@@ -117,7 +115,9 @@ class GraphRAGQuery:
         semantic_results = self.semantic_search(query, top_k=top_k * 2)
 
         # Keyword search
-        keyword_results = self.query_templates.search_entities_full_text(query, limit=top_k * 2)
+        keyword_results = self.query_templates.search_entities_full_text(
+            query, limit=top_k * 2
+        )
 
         # Combine and re-rank
         combined = {}
@@ -126,25 +126,20 @@ class GraphRAGQuery:
             entity_id = result["id"]
             combined[entity_id] = {
                 **result,
-                "score": result["similarity"] * semantic_weight
+                "score": result["similarity"] * semantic_weight,
             }
 
         for result in keyword_results:
             entity_id = result["id"]
             if entity_id in combined:
                 # Boost entities found in both searches
-                combined[entity_id]["score"] += (1 - semantic_weight)
+                combined[entity_id]["score"] += 1 - semantic_weight
             else:
-                combined[entity_id] = {
-                    **result,
-                    "score": (1 - semantic_weight)
-                }
+                combined[entity_id] = {**result, "score": (1 - semantic_weight)}
 
         # Sort by score
         ranked_results = sorted(
-            combined.values(),
-            key=lambda x: x["score"],
-            reverse=True
+            combined.values(), key=lambda x: x["score"], reverse=True
         )
 
         return ranked_results[:top_k]
@@ -154,10 +149,7 @@ class GraphRAGQuery:
     # =========================================================================
 
     def get_entity_context(
-        self,
-        entity_id: str,
-        max_hops: int = 2,
-        max_entities: int = 20
+        self, entity_id: str, max_hops: int = 2, max_entities: int = 20
     ) -> Dict:
         """
         Get rich context around an entity (subgraph)
@@ -170,12 +162,12 @@ class GraphRAGQuery:
         Returns:
             Entity context with relationships
         """
-        return self.query_templates.get_entity_relationships(entity_id, max_hops=max_hops)
+        return self.query_templates.get_entity_relationships(
+            entity_id, max_hops=max_hops
+        )
 
     def get_multi_entity_context(
-        self,
-        entity_ids: List[str],
-        max_hops: int = 2
+        self, entity_ids: List[str], max_hops: int = 2
     ) -> Dict:
         """
         Get context for multiple entities and their connections
@@ -193,10 +185,7 @@ class GraphRAGQuery:
             if context:
                 contexts.append(context)
 
-        return {
-            "entities": contexts,
-            "entity_count": len(contexts)
-        }
+        return {"entities": contexts, "entity_count": len(contexts)}
 
     # =========================================================================
     # QUERY ROUTING
@@ -217,26 +206,47 @@ class GraphRAGQuery:
         # Detect if this is a list query (asking for multiple entities)
         # "Which" and "What are" are strong list indicators
         # "What" alone could be singular, so check for plural indicators
-        has_plural = any(word in query_lower for word in ["companies", "startups", "investors", "firms", "businesses"])
+        has_plural = any(
+            word in query_lower
+            for word in ["companies", "startups", "investors", "firms", "businesses"]
+        )
         is_list_query = (
-            query_lower.startswith("which ") or
-            query_lower.startswith("what are ") or
-            query_lower.startswith("list ") or
-            query_lower.startswith("show ") or
-            (query_lower.startswith("what ") and has_plural) or
-            any(f" {word} " in f" {query_lower} " for word in ["which", "list", "show", "all"])
+            query_lower.startswith("which ")
+            or query_lower.startswith("what are ")
+            or query_lower.startswith("list ")
+            or query_lower.startswith("show ")
+            or (query_lower.startswith("what ") and has_plural)
+            or any(
+                f" {word} " in f" {query_lower} "
+                for word in ["which", "list", "show", "all"]
+            )
         )
 
         # Detect temporal context
-        is_recent = any(word in query_lower for word in ["recent", "recently", "latest", "new", "last"])
+        is_recent = any(
+            word in query_lower
+            for word in ["recent", "recently", "latest", "new", "last"]
+        )
 
         # Detect sector/category filters (use word boundaries to avoid partial matches)
         sector = None
         import re
-        for sector_keyword in ["artificial intelligence", "machine learning", "fintech", "blockchain", "crypto", "saas", "healthcare", "biotech", "ai", "ml"]:
+
+        for sector_keyword in [
+            "artificial intelligence",
+            "machine learning",
+            "fintech",
+            "blockchain",
+            "crypto",
+            "saas",
+            "healthcare",
+            "biotech",
+            "ai",
+            "ml",
+        ]:
             # Use word boundaries for short keywords to avoid false matches
             if len(sector_keyword) <= 2:
-                pattern = r'\b' + re.escape(sector_keyword) + r'\b'
+                pattern = r"\b" + re.escape(sector_keyword) + r"\b"
             else:
                 pattern = re.escape(sector_keyword)
             if re.search(pattern, query_lower):
@@ -244,36 +254,63 @@ class GraphRAGQuery:
                 break
 
         # Check for funding-related queries first (higher priority)
-        has_funding_keywords = any(word in query_lower for word in ["funding", "raised", "invested", "series", "investment"])
+        has_funding_keywords = any(
+            word in query_lower
+            for word in ["funding", "raised", "invested", "series", "investment"]
+        )
 
         if has_funding_keywords:
             # Check if it's asking about investor info
-            if any(word in query_lower for word in ["who funded", "which investors", "who invested"]):
+            if any(
+                word in query_lower
+                for word in ["who funded", "which investors", "who invested"]
+            ):
                 return {"intent": "funding_info", "confidence": 0.9}
             # Check if it's a list query asking for multiple companies
             elif is_list_query:
                 return {
                     "intent": "list_funded_companies",
                     "confidence": 0.9,
-                    "filters": {
-                        "sector": sector,
-                        "recent": is_recent
-                    }
+                    "filters": {"sector": sector, "recent": is_recent},
                 }
             # Single company funding query
             else:
                 return {"intent": "funding_info", "confidence": 0.9}
 
         # Company-related queries
-        has_company_keywords = any(word in query_lower for word in ["company", "companies", "startup", "startups", "firm", "business"])
+        has_company_keywords = any(
+            word in query_lower
+            for word in [
+                "company",
+                "companies",
+                "startup",
+                "startups",
+                "firm",
+                "business",
+            ]
+        )
 
         # Check if it's a "tell me about X" or "about X" query (likely company info)
-        is_about_query = any(phrase in query_lower for phrase in ["tell me about", "about ", "what is", "who is"])
+        is_about_query = any(
+            phrase in query_lower
+            for phrase in ["tell me about", "about ", "what is", "who is"]
+        )
 
-        if has_company_keywords or (is_about_query and not any(word in query_lower for word in ["investor", "vc", "person", "technology"])):
-            if any(word in query_lower for word in ["competitor", "compete", "vs", "compared to"]):
+        if has_company_keywords or (
+            is_about_query
+            and not any(
+                word in query_lower
+                for word in ["investor", "vc", "person", "technology"]
+            )
+        ):
+            if any(
+                word in query_lower
+                for word in ["competitor", "compete", "vs", "compared to"]
+            ):
                 return {"intent": "competitive_analysis", "confidence": 0.9}
-            elif any(word in query_lower for word in ["founder", "founded", "ceo", "team"]):
+            elif any(
+                word in query_lower for word in ["founder", "founded", "ceo", "team"]
+            ):
                 return {"intent": "company_leadership", "confidence": 0.8}
             else:
                 # Check if asking for list of companies in a sector
@@ -281,31 +318,47 @@ class GraphRAGQuery:
                     return {
                         "intent": "list_companies_in_sector",
                         "confidence": 0.85,
-                        "filters": {"sector": sector}
+                        "filters": {"sector": sector},
                     }
                 return {"intent": "company_info", "confidence": 0.7}
 
         # Investor queries
-        elif any(word in query_lower for word in ["investor", "vc", "venture capital", "fund"]):
-            if any(word in query_lower for word in ["portfolio", "invested in", "backed"]):
+        elif any(
+            word in query_lower
+            for word in ["investor", "vc", "venture capital", "fund"]
+        ):
+            if any(
+                word in query_lower for word in ["portfolio", "invested in", "backed"]
+            ):
                 return {"intent": "investor_portfolio", "confidence": 0.9}
             else:
                 return {"intent": "investor_info", "confidence": 0.7}
 
         # Person queries
-        elif any(word in query_lower for word in ["who is", "person", "founder", "ceo", "executive"]):
+        elif any(
+            word in query_lower
+            for word in ["who is", "person", "founder", "ceo", "executive"]
+        ):
             return {"intent": "person_info", "confidence": 0.8}
 
         # Technology queries
-        elif any(word in query_lower for word in ["technology", "tech", "ai", "ml", "blockchain"]):
+        elif any(
+            word in query_lower
+            for word in ["technology", "tech", "ai", "ml", "blockchain"]
+        ):
             return {"intent": "technology_info", "confidence": 0.8}
 
         # Trend queries
-        elif any(word in query_lower for word in ["trend", "popular", "growing", "emerging"]):
+        elif any(
+            word in query_lower for word in ["trend", "popular", "growing", "emerging"]
+        ):
             return {"intent": "trend_analysis", "confidence": 0.8}
 
         # Relationship queries
-        elif any(word in query_lower for word in ["connection", "related", "link", "relationship"]):
+        elif any(
+            word in query_lower
+            for word in ["connection", "related", "link", "relationship"]
+        ):
             return {"intent": "relationship_query", "confidence": 0.8}
 
         # General search
@@ -315,10 +368,10 @@ class GraphRAGQuery:
     def _enrich_with_article_urls(self, context: Any) -> Any:
         """
         Enrich context results with article URLs from source_articles
-        
+
         Args:
             context: Context data (dict, list, or nested structure)
-            
+
         Returns:
             Context enriched with article URLs
         """
@@ -336,47 +389,57 @@ class GraphRAGQuery:
         elif isinstance(context, dict):
             # Enrich single entity or nested dict
             enriched = dict(context)
-            
+
             # If this dict has an entity ID, get article URLs
             if enriched.get("id"):
                 entity_id = enriched["id"]
                 source_articles = enriched.get("source_articles")
-                article_urls = self._get_article_urls_for_entity(entity_id, source_articles)
+                article_urls = self._get_article_urls_for_entity(
+                    entity_id, source_articles
+                )
                 if article_urls:
                     enriched["article_urls"] = article_urls
-            
+
             # Recursively enrich nested dicts (like portfolio, investors, etc.)
             for key, value in enriched.items():
                 if isinstance(value, (dict, list)):
                     enriched[key] = self._enrich_with_article_urls(value)
-            
+
             return enriched
         else:
             return context
-    
-    def _get_article_urls_for_entity(self, entity_id: str, source_articles: Optional[List[str]] = None) -> List[str]:
+
+    def _get_article_urls_for_entity(
+        self, entity_id: str, source_articles: Optional[List[str]] = None
+    ) -> List[str]:
         """Get article URLs for an entity"""
         with self.driver.session() as session:
             if source_articles:
                 # Use provided article IDs
-                result = session.run("""
+                result = session.run(
+                    """
                     UNWIND $article_ids as article_id
                     MATCH (a:Article {id: article_id})
                     RETURN collect(DISTINCT a.url) as urls
-                """, article_ids=source_articles)
+                """,
+                    article_ids=source_articles,
+                )
             else:
                 # Get from entity's source_articles property
-                result = session.run("""
+                result = session.run(
+                    """
                     MATCH (e {id: $entity_id})
                     WHERE e.source_articles IS NOT NULL
                     UNWIND e.source_articles as article_id
                     MATCH (a:Article {id: article_id})
                     RETURN collect(DISTINCT a.url) as urls
-                """, entity_id=entity_id)
-            
+                """,
+                    entity_id=entity_id,
+                )
+
             record = result.single()
             return record["urls"] if record and record.get("urls") else []
-    
+
     def route_query(self, query: str, intent: Dict) -> Any:
         """
         Route query to appropriate handler based on intent
@@ -417,12 +480,16 @@ class GraphRAGQuery:
 
             if is_recent:
                 # Get recently funded companies (last 90 days)
-                return self.query_templates.get_recently_funded_companies(days=90, sector_keyword=sector)
+                return self.query_templates.get_recently_funded_companies(
+                    days=90, sector_keyword=sector
+                )
             elif sector:
                 # Get companies in sector with funding info
                 companies = self.query_templates.get_companies_in_sector(sector)
                 # Enrich with funding information
-                funded_companies = [c for c in companies if c.get("investor_count", 0) > 0]
+                funded_companies = [
+                    c for c in companies if c.get("investor_count", 0) > 0
+                ]
                 return funded_companies[:20]
             else:
                 # Get all companies with funding
@@ -465,10 +532,7 @@ class GraphRAGQuery:
     # =========================================================================
 
     def generate_answer(
-        self,
-        query: str,
-        context: Any,
-        temperature: float = 0.7
+        self, query: str, context: Any, temperature: float = 0.7
     ) -> str:
         """
         Generate natural language answer using LLM and context
@@ -486,9 +550,13 @@ class GraphRAGQuery:
 
         # Format context for LLM
         context_str = self._format_context_for_llm(context)
-        
+
         # Check if context is empty or minimal
-        has_minimal_context = not context_str or context_str.strip() in ['{}', '[]', 'null', ''] or len(context_str.strip()) < 50
+        has_minimal_context = (
+            not context_str
+            or context_str.strip() in ["{}", "[]", "null", ""]
+            or len(context_str.strip()) < 50
+        )
 
         # Create prompt
         if has_minimal_context:
@@ -544,10 +612,7 @@ Answer:"""
     # =========================================================================
 
     def query(
-        self,
-        question: str,
-        return_context: bool = False,
-        use_llm: bool = True
+        self, question: str, return_context: bool = False, use_llm: bool = True
     ) -> Dict:
         """
         Main query interface - handles end-to-end RAG pipeline
@@ -565,7 +630,7 @@ Answer:"""
 
         # Step 2: Route to appropriate handler and get context
         context = self.route_query(question, intent)
-        
+
         # Step 2.5: Enrich context with article URLs
         if context:
             context = self._enrich_with_article_urls(context)
@@ -579,11 +644,7 @@ Answer:"""
             answer = self.generate_answer(question, context if context else {})
 
         # Prepare response
-        response = {
-            "question": question,
-            "intent": intent,
-            "answer": answer
-        }
+        response = {"question": question, "intent": intent, "answer": answer}
 
         if return_context:
             response["context"] = context
@@ -594,11 +655,7 @@ Answer:"""
     # ADVANCED QUERY METHODS
     # =========================================================================
 
-    def multi_hop_reasoning(
-        self,
-        question: str,
-        max_hops: int = 3
-    ) -> Dict:
+    def multi_hop_reasoning(self, question: str, max_hops: int = 3) -> Dict:
         """
         Perform multi-hop reasoning across the graph
 
@@ -627,14 +684,10 @@ Answer:"""
             "starting_entity": main_entity,
             "reasoning_hops": max_hops,
             "answer": answer,
-            "context": context
+            "context": context,
         }
 
-    def compare_entities(
-        self,
-        entity1_name: str,
-        entity2_name: str
-    ) -> Dict:
+    def compare_entities(self, entity1_name: str, entity2_name: str) -> Dict:
         """
         Compare two entities
 
@@ -668,7 +721,7 @@ Answer:"""
         comparison_context = {
             "entity1": context1,
             "entity2": context2,
-            "connections": connections
+            "connections": connections,
         }
 
         question = f"Compare {entity1_name} and {entity2_name}"
@@ -678,7 +731,7 @@ Answer:"""
             "entity1": entity1,
             "entity2": entity2,
             "connections": connections,
-            "comparison": answer
+            "comparison": answer,
         }
 
     def get_insights(self, topic: str, limit: int = 5) -> Dict:
@@ -696,13 +749,15 @@ Answer:"""
         entities = self.semantic_search(topic, top_k=limit)
 
         # Get importance scores
-        important_entities = self.query_templates.get_entity_importance_scores(limit=limit)
+        important_entities = self.query_templates.get_entity_importance_scores(
+            limit=limit
+        )
 
         # Generate insights
         insights_context = {
             "relevant_entities": entities,
             "important_entities": important_entities,
-            "topic": topic
+            "topic": topic,
         }
 
         question = f"What are the key insights about {topic}?"
@@ -712,7 +767,7 @@ Answer:"""
             "topic": topic,
             "insights": insights,
             "key_entities": entities[:3],
-            "supporting_data": insights_context
+            "supporting_data": insights_context,
         }
 
     # =========================================================================
@@ -741,12 +796,13 @@ Answer:"""
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def create_rag_query(
     neo4j_uri: Optional[str] = None,
     neo4j_user: Optional[str] = None,
     neo4j_password: Optional[str] = None,
     openai_api_key: Optional[str] = None,
-    embedding_model: str = "openai"
+    embedding_model: str = "openai",
 ) -> GraphRAGQuery:
     """
     Create GraphRAG query instance with defaults from environment
@@ -771,7 +827,7 @@ def create_rag_query(
         neo4j_user=neo4j_user,
         neo4j_password=neo4j_password,
         openai_api_key=openai_api_key,
-        embedding_model=embedding_model
+        embedding_model=embedding_model,
     )
 
 
@@ -779,9 +835,11 @@ def create_rag_query(
 # MAIN - Example Usage
 # =============================================================================
 
+
 def main():
     """Example usage of GraphRAG Query"""
     from dotenv import load_dotenv
+
     load_dotenv()
 
     # Create query instance
@@ -789,32 +847,32 @@ def main():
 
     try:
         # Example 1: Simple query
-        print("="*80)
+        print("=" * 80)
         print("Example 1: Simple Query")
-        print("="*80)
+        print("=" * 80)
         result = rag.query("Tell me about AI startups that raised funding")
         print(f"Question: {result['question']}")
         print(f"Intent: {result['intent']}")
         print(f"Answer: {result['answer']}\n")
 
         # Example 2: Company comparison
-        print("="*80)
+        print("=" * 80)
         print("Example 2: Company Comparison")
-        print("="*80)
+        print("=" * 80)
         comparison = rag.compare_entities("Anthropic", "OpenAI")
         print(f"Comparison: {comparison.get('comparison')}\n")
 
         # Example 3: Investor portfolio
-        print("="*80)
+        print("=" * 80)
         print("Example 3: Investor Portfolio")
-        print("="*80)
+        print("=" * 80)
         result = rag.query("What companies has Sequoia Capital invested in?")
         print(f"Answer: {result['answer']}\n")
 
         # Example 4: Multi-hop reasoning
-        print("="*80)
+        print("=" * 80)
         print("Example 4: Multi-hop Reasoning")
-        print("="*80)
+        print("=" * 80)
         result = rag.multi_hop_reasoning(
             "What technologies are used by companies funded by top investors?"
         )

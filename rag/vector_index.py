@@ -113,9 +113,14 @@ def build_index(
             continue
         if skip_article_ids and article_id in skip_article_ids:
             if verbose:
-                print(f"[VectorIndex] Skipping already indexed article={article_id}", flush=True)
+                print(
+                    f"[VectorIndex] Skipping already indexed article={article_id}",
+                    flush=True,
+                )
             files_processed += 1
-            if verbose and (files_processed % 25 == 0 or files_processed == total_files):
+            if verbose and (
+                files_processed % 25 == 0 or files_processed == total_files
+            ):
                 print(
                     f"[VectorIndex] Processed {files_processed}/{total_files} files, total chunks embedded: {total_chunks}",
                     flush=True,
@@ -124,16 +129,20 @@ def build_index(
         title = data.get("title", "")
         url = data.get("url", "")
         published_date = data.get("published_date")
-        body = (
-            (data.get("content") or {}).get("body_text")
-            or " ".join((data.get("content") or {}).get("paragraphs") or [])
+        body = (data.get("content") or {}).get("body_text") or " ".join(
+            (data.get("content") or {}).get("paragraphs") or []
         )
         chunk_texts = chunk_text(body, max_chars=max_chars, overlap=overlap)
         if not chunk_texts:
             if verbose:
-                print(f"[VectorIndex] No content to chunk for article={article_id} ({path})", flush=True)
+                print(
+                    f"[VectorIndex] No content to chunk for article={article_id} ({path})",
+                    flush=True,
+                )
             files_processed += 1
-            if verbose and (files_processed % 25 == 0 or files_processed == total_files):
+            if verbose and (
+                files_processed % 25 == 0 or files_processed == total_files
+            ):
                 print(
                     f"[VectorIndex] Processed {files_processed}/{total_files} files, total chunks embedded: {total_chunks}",
                     flush=True,
@@ -213,7 +222,11 @@ def save_index(embeddings: np.ndarray, chunks: List[Chunk], meta: Dict) -> None:
 
 
 def load_index() -> Tuple[np.ndarray, List[Chunk], Dict]:
-    if not EMBEDDINGS_FILE.exists() or not CHUNKS_FILE.exists() or not META_FILE.exists():
+    if (
+        not EMBEDDINGS_FILE.exists()
+        or not CHUNKS_FILE.exists()
+        or not META_FILE.exists()
+    ):
         return np.zeros((0, 0), dtype=np.float32), [], {"article_to_chunk_ids": {}}
     emb = np.load(EMBEDDINGS_FILE)
     loaded_chunks: List[Chunk] = []
@@ -281,7 +294,9 @@ def ensure_index(
     existing = EMBEDDINGS_FILE.exists() and CHUNKS_FILE.exists() and META_FILE.exists()
     if existing and not resume:
         if verbose:
-            print("[VectorIndex] Existing index found. Skipping rebuild. Use resume=True to add new files.")
+            print(
+                "[VectorIndex] Existing index found. Skipping rebuild. Use resume=True to add new files."
+            )
         return
     if not existing:
         if verbose:
@@ -304,7 +319,9 @@ def ensure_index(
 
     # Resume path: load existing and append new articles
     if verbose:
-        print("[VectorIndex] Resuming index build (skipping previously indexed articles)...")
+        print(
+            "[VectorIndex] Resuming index build (skipping previously indexed articles)..."
+        )
     emb0, chunks0, meta0 = load_index()
     skip_ids: Set[str] = set((meta0.get("article_to_chunk_ids") or {}).keys())
     emb_new, chunks_new, meta_new = build_index(
@@ -324,12 +341,15 @@ def ensure_index(
     emb_all = np.concatenate([emb0, emb_new], axis=0) if emb0.size else emb_new
     chunks_all = chunks0 + chunks_new
     meta_all = {
-        "article_to_chunk_ids": {**meta0.get("article_to_chunk_ids", {}), **meta_new.get("article_to_chunk_ids", {})}
+        "article_to_chunk_ids": {
+            **meta0.get("article_to_chunk_ids", {}),
+            **meta_new.get("article_to_chunk_ids", {}),
+        }
     }
     if verbose:
-        print(f"[VectorIndex] Saving resumed index with {emb_all.shape[0]} total chunks...")
+        print(
+            f"[VectorIndex] Saving resumed index with {emb_all.shape[0]} total chunks..."
+        )
     save_index(emb_all, chunks_all, meta_all)
     if verbose:
         print("[VectorIndex] Resume complete.")
-
-
