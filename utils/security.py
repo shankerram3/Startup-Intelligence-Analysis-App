@@ -87,7 +87,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
     Returns:
         True if password matches, False otherwise
+
+    Note:
+        Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
+    # Bcrypt has a 72-byte limit - truncate if necessary
+    password_bytes = plain_password.encode("utf-8")
+    if len(password_bytes) > 72:
+        plain_password = password_bytes[:72].decode("utf-8", errors="ignore")
     return pwd_context.verify(plain_password, hashed_password)
 
 
@@ -100,7 +107,14 @@ def get_password_hash(password: str) -> str:
 
     Returns:
         Hashed password
+
+    Note:
+        Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
+    # Bcrypt has a 72-byte limit - truncate if necessary
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        password = password_bytes[:72].decode("utf-8", errors="ignore")
     return pwd_context.hash(password)
 
 
@@ -280,10 +294,11 @@ def sanitize_error_message(error: Exception, include_details: bool = False) -> s
 
     # Generic error messages for production
     error_type = type(error).__name__
+    error_str = str(error).lower()
 
-    if "Neo4j" in error_type or "database" in str(error).lower():
-        return "Database operation failed"
-    elif "OpenAI" in error_type or "api" in str(error).lower():
+    if "Neo4j" in error_type or "neo4j" in error_str or "database" in error_str:
+        return "A database error occurred"
+    elif "OpenAI" in error_type or "openai" in error_str or "api" in error_str:
         return "External service unavailable"
     elif "ValueError" in error_type or "ValidationError" in error_type:
         return "Invalid input data"

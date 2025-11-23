@@ -89,6 +89,7 @@ colorama>=0.4.6  # For colored console output
 # ============================================================================
 python-jose[cryptography]>=3.3.0  # JWT token handling
 passlib[bcrypt]>=1.7.4  # Password hashing
+bcrypt>=4.0.0  # Explicit bcrypt version to avoid compatibility issues
 slowapi>=0.1.9  # Rate limiting
 python-multipart>=0.0.6  # For form data handling
 

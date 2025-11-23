@@ -27,6 +27,16 @@ class TestPasswordHashing:
         assert hashed != password
         assert len(hashed) > 20
 
+    def test_hash_long_password(self):
+        """Test password hashing with password > 72 bytes (bcrypt limit)"""
+        # Create a password longer than 72 bytes
+        long_password = "a" * 100
+        hashed = get_password_hash(long_password)
+        assert hashed != long_password
+        assert len(hashed) > 20
+        # Should still verify correctly (truncated to 72 bytes)
+        assert verify_password(long_password, hashed) is True
+
     def test_verify_correct_password(self):
         """Test verification succeeds for correct password"""
         password = "test_password_123"
@@ -158,6 +168,10 @@ class TestErrorSanitization:
         sanitized = sanitize_error_message(error, include_details=False)
         assert "database" in sanitized.lower()
         assert "bolt://" not in sanitized
+        # Test with different Neo4j error formats
+        error2 = Exception("Database connection failed")
+        sanitized2 = sanitize_error_message(error2, include_details=False)
+        assert "database" in sanitized2.lower()
 
     def test_sanitize_openai_error(self):
         """Test OpenAI errors are sanitized"""

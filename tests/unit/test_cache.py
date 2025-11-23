@@ -57,6 +57,7 @@ class TestCacheManager:
         assert cache.enabled is False
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_initialization(self, mock_redis_class):
         """Test cache manager initialization"""
@@ -67,8 +68,10 @@ class TestCacheManager:
         cache = CacheManager()
         assert cache.enabled is True
         mock_client.ping.assert_called_once()
+        mock_redis_class.assert_called_once()
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_get_returns_none_when_disabled(self, mock_redis_class):
         """Test get returns None when cache is disabled"""
@@ -77,6 +80,7 @@ class TestCacheManager:
         assert result is None
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_set_returns_false_when_disabled(self, mock_redis_class):
         """Test set returns False when cache is disabled"""
@@ -85,6 +89,7 @@ class TestCacheManager:
         assert result is False
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_exists(self, mock_redis_class):
         """Test cache exists check"""
@@ -98,6 +103,7 @@ class TestCacheManager:
         assert result is True
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_delete(self, mock_redis_class):
         """Test cache delete"""
@@ -111,6 +117,7 @@ class TestCacheManager:
         assert result is True
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_clear(self, mock_redis_class):
         """Test cache clear"""
@@ -124,6 +131,7 @@ class TestCacheManager:
         assert result is True
 
     @patch("utils.cache.REDIS_AVAILABLE", True)
+    @patch("utils.cache.CacheConfig.CACHE_ENABLED", True)
     @patch("utils.cache.Redis")
     def test_cache_stats(self, mock_redis_class):
         """Test cache statistics retrieval"""
