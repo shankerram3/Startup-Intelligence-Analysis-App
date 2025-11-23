@@ -11,7 +11,18 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+
+# Use bcrypt directly to avoid passlib's bug detection issues
+# passlib's internal bug detection uses a 200+ byte test password
+# which exceeds bcrypt's 72-byte limit, causing errors
+try:
+    import bcrypt
+
+    _bcrypt_available = True
+except ImportError:
+    _bcrypt_available = False
+    # Fallback to passlib if bcrypt not available
+    from passlib.context import CryptContext
 
 load_dotenv()
 
@@ -49,18 +60,18 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 API_KEY_HEADER = os.getenv("API_KEY_HEADER", "X-API-Key")
 
-# Password hashing context
-# Initialize lazily to avoid passlib's bug detection during import
-# This prevents the 72-byte limit error during passlib's internal initialization
-_pwd_context = None
+# Password hashing - use bcrypt directly to avoid passlib's bug detection
+# If bcrypt is not available, fall back to passlib (with error handling)
+if not _bcrypt_available:
+    _pwd_context = None
 
+    def _get_pwd_context():
+        """Get password context (passlib fallback)"""
+        global _pwd_context
+        if _pwd_context is None:
+            _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        return _pwd_context
 
-def _get_pwd_context():
-    """Get password context, initializing lazily to avoid import-time issues"""
-    global _pwd_context
-    if _pwd_context is None:
-        _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    return _pwd_context
 
 # Bcrypt has a 72-byte limit for passwords
 MAX_BCRYPT_BYTES = 72
@@ -128,7 +139,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
     normalized_password = _normalize_password_for_bcrypt(plain_password)
-    return _get_pwd_context().verify(normalized_password, hashed_password)
+    if _bcrypt_available:
+        # Use bcrypt directly to avoid passlib's bug detection
+        try:
+            return bcrypt.checkpw(
+                normalized_password.encode("utf-8"), hashed_password.encode("utf-8")
+            )
+        except (ValueError, TypeError):
+            return False
+    else:
+        # Fallback to passlib
+        try:
+            return _get_pwd_context().verify(normalized_password, hashed_password)
+        except ValueError as e:
+            if "cannot be longer than 72 bytes" in str(e):
+                return False
+            raise
 
 
 def get_password_hash(password: str) -> str:
@@ -145,7 +171,26 @@ def get_password_hash(password: str) -> str:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
     normalized_password = _normalize_password_for_bcrypt(password)
-    return _get_pwd_context().hash(normalized_password)
+    if _bcrypt_available:
+        # Use bcrypt directly to avoid passlib's bug detection
+        password_bytes = normalized_password.encode("utf-8")
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode("utf-8")
+    else:
+        # Fallback to passlib
+        try:
+            return _get_pwd_context().hash(normalized_password)
+        except ValueError as e:
+            if "cannot be longer than 72 bytes" in str(e):
+                # Try with further truncation as a fallback
+                password_bytes = normalized_password.encode("utf-8")
+                if len(password_bytes) > MAX_BCRYPT_BYTES:
+                    normalized_password = password_bytes[:MAX_BCRYPT_BYTES].decode(
+                        "utf-8", errors="ignore"
+                    )
+                    return _get_pwd_context().hash(normalized_password)
+            raise
 
 
 def create_access_token(
