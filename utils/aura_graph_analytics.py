@@ -10,9 +10,12 @@ from dotenv import load_dotenv
 
 # Try to import graphdatascience - if not available, class will handle it gracefully
 try:
-    from graphdatascience.session import (AuraAPICredentials,
-                                          DbmsConnectionInfo, GdsSessions,
-                                          SessionMemory)
+    from graphdatascience.session import (
+        AuraAPICredentials,
+        DbmsConnectionInfo,
+        GdsSessions,
+        SessionMemory,
+    )
 
     GDS_AVAILABLE = True
 except ImportError:

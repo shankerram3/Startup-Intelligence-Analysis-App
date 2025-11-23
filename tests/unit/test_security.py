@@ -8,10 +8,15 @@ from datetime import timedelta
 import pytest
 from fastapi import HTTPException
 
-from utils.security import (create_access_token, decode_access_token,
-                            generate_test_token, get_password_hash,
-                            sanitize_error_message, validate_password_strength,
-                            verify_password)
+from utils.security import (
+    create_access_token,
+    decode_access_token,
+    generate_test_token,
+    get_password_hash,
+    sanitize_error_message,
+    validate_password_strength,
+    verify_password,
+)
 
 
 class TestPasswordHashing:

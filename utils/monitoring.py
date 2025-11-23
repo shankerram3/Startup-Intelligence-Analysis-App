@@ -8,8 +8,15 @@ from functools import wraps
 from typing import Callable, Optional
 
 from fastapi import Request, Response
-from prometheus_client import (CONTENT_TYPE_LATEST, CollectorRegistry, Counter,
-                               Gauge, Histogram, Info, generate_latest)
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    Info,
+    generate_latest,
+)
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Create registry for metrics
