@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import GraphRAGFlowDiagram from './GraphRAGFlowDiagram';
 
 interface Section {
   id: string;
@@ -13,11 +14,14 @@ const DocumentationPage: React.FC = () => {
     { id: 'overview', title: 'Overview', icon: '🏠' },
     { id: 'architecture', title: 'Architecture', icon: '🏗️' },
     { id: 'pipeline', title: 'Data Pipeline', icon: '⚙️' },
+    { id: 'company-intelligence', title: 'Company Intelligence', icon: '🏢' },
     { id: 'graphrag', title: 'GraphRAG System', icon: '🧠' },
     { id: 'entities', title: 'Entity Model', icon: '📊' },
     { id: 'api', title: 'API Reference', icon: '🔌' },
+    { id: 'performance', title: 'Performance & Monitoring', icon: '⚡' },
     { id: 'deployment', title: 'Deployment', icon: '🚀' },
     { id: 'quickstart', title: 'Quick Start', icon: '⚡' },
+    { id: 'future', title: 'Future Enhancements', icon: '🔮' },
   ];
 
   const scrollToSection = (sectionId: string) => {
@@ -404,92 +408,89 @@ python pipeline.py --max-companies-to-scrape 20`}
           </div>
         </section>
 
+        {/* Company Intelligence Section */}
+        <section id="company-intelligence" style={styles.section}>
+          <h1 style={styles.h1}>🏢 Company Intelligence Enrichment</h1>
+          
+          <p style={styles.lead}>
+            Phase 1.5 enriches companies with deep intelligence data via Playwright-powered web scraping, 
+            extracting comprehensive company profiles beyond what's available in TechCrunch articles.
+          </p>
+
+          <div style={styles.diagramCard}>
+            <h3 style={styles.diagramTitle}>Enrichment Data Extracted</h3>
+            <div style={styles.featureGrid}>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>📅</div>
+                <h3 style={styles.featureTitle}>Company Basics</h3>
+                <p style={styles.featureDesc}>Founded year, employee count, headquarters location</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>👥</div>
+                <h3 style={styles.featureTitle}>Team Information</h3>
+                <p style={styles.featureDesc}>Founders, executives, team members, and leadership</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>💰</div>
+                <h3 style={styles.featureTitle}>Funding Data</h3>
+                <p style={styles.featureDesc}>Funding rounds, investment amounts, investors, funding stages</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>🛠️</div>
+                <h3 style={styles.featureTitle}>Products & Tech</h3>
+                <p style={styles.featureDesc}>Products, technologies used, pricing models</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>🌐</div>
+                <h3 style={styles.featureTitle}>Online Presence</h3>
+                <p style={styles.featureDesc}>Website URLs, social media links, and online profiles</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>📝</div>
+                <h3 style={styles.featureTitle}>Enriched Descriptions</h3>
+                <p style={styles.featureDesc}>Detailed company descriptions with comprehensive context</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.infoBox}>
+            <div style={styles.infoIcon}>💡</div>
+            <div>
+              <strong>Automatic Enrichment:</strong> Company intelligence enrichment runs automatically during Phase 1.5 
+              of the pipeline. You can control it with <code style={styles.inlineCode}>--skip-enrichment</code> to skip 
+              or <code style={styles.inlineCode}>--max-companies-to-scrape</code> to limit the number of companies enriched.
+            </div>
+          </div>
+
+          <div style={styles.codeBlock}>
+            <div style={styles.codeHeader}>
+              <span style={styles.codeTitle}>🔧 Company Intelligence Configuration</span>
+            </div>
+            <pre style={styles.code}>
+{`# Run pipeline with company enrichment (default)
+python pipeline.py --scrape-category startups --scrape-max-pages 2
+
+# Skip company enrichment
+python pipeline.py --skip-enrichment
+
+# Limit number of companies to enrich
+python pipeline.py --max-companies-to-scrape 20
+
+# Company enrichment uses Playwright for deep scraping
+# Extracts data from company websites, Crunchbase, LinkedIn, etc.`}
+            </pre>
+          </div>
+        </section>
+
         {/* GraphRAG Section */}
         <section id="graphrag" style={styles.section}>
           <h1 style={styles.h1}>🧠 GraphRAG Query System</h1>
           
           <div style={styles.diagramCard}>
-            <h3 style={styles.diagramTitle}>Query Processing Flow</h3>
-            <div style={styles.queryFlow}>
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>1</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>📝 User Query</div>
-                  <div style={styles.queryStepDesc}>Natural language question</div>
-                  <div style={styles.queryExample}>"Which AI startups raised funding?"</div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>2</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🔀 Query Routing</div>
-                  <div style={styles.queryStepDesc}>Classify query type & select strategy</div>
-                  <div style={styles.queryTypes}>
-                    <span style={styles.queryType}>Entity</span>
-                    <span style={styles.queryType}>Relationship</span>
-                    <span style={styles.queryType}>Comparison</span>
-                    <span style={styles.queryType}>Aggregation</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>3</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🔍 Hybrid Search</div>
-                  <div style={styles.queryStepDesc}>Parallel semantic + keyword search</div>
-                  <div style={styles.searchMethods}>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🔢</div>
-                      <div>Vector Similarity</div>
-                    </div>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🔤</div>
-                      <div>Keyword Match</div>
-                    </div>
-                    <div style={styles.searchMethod}>
-                      <div style={styles.searchIcon}>🕸️</div>
-                      <div>Graph Traversal</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>4</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🎯 Context Retrieval</div>
-                  <div style={styles.queryStepDesc}>Extract relevant entities & relationships</div>
-                  <div style={styles.contextBox}>
-                    <div style={styles.contextItem}>• Companies with AI technology</div>
-                    <div style={styles.contextItem}>• Funding relationships</div>
-                    <div style={styles.contextItem}>• Investment amounts & dates</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.queryArrow}>↓</div>
-
-              <div style={styles.queryStep}>
-                <div style={styles.queryStepNumber}>5</div>
-                <div style={styles.queryStepContent}>
-                  <div style={styles.queryStepTitle}>🤖 LLM Generation</div>
-                  <div style={styles.queryStepDesc}>Generate natural language answer</div>
-                  <div style={styles.answerBox}>
-                    "Based on the knowledge graph, 3 AI startups raised funding: 
-                    OpenAI ($10B from Microsoft), Anthropic ($450M from Google), 
-                    and Stability AI ($101M from Coatue)."
-                  </div>
-                </div>
-              </div>
-            </div>
+            <h3 style={styles.diagramTitle}>Complete GraphRAG Processing Flow</h3>
+            
+            {/* Animated Flow Diagram */}
+            <GraphRAGFlowDiagram />
           </div>
 
           <div style={styles.infoBox}>
@@ -758,6 +759,74 @@ python pipeline.py --max-companies-to-scrape 20`}
           </div>
         </section>
 
+        {/* Performance & Monitoring Section */}
+        <section id="performance" style={styles.section}>
+          <h1 style={styles.h1}>⚡ Performance & Monitoring</h1>
+          
+          <p style={styles.lead}>
+            The platform includes comprehensive performance optimizations and monitoring capabilities 
+            for production-ready deployment.
+          </p>
+
+          <div style={styles.featureGrid}>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>💾</div>
+              <h3 style={styles.featureTitle}>Redis Caching</h3>
+              <p style={styles.featureDesc}>Query result caching with automatic fallback. Relationship strength calculations are cached in-memory for optimal performance.</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>📊</div>
+              <h3 style={styles.featureTitle}>Structured Logging</h3>
+              <p style={styles.featureDesc}>JSON-formatted logs with contextual metadata for easy parsing and analysis. Detailed progress tracking for all pipeline phases.</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>📈</div>
+              <h3 style={styles.featureTitle}>Prometheus Metrics</h3>
+              <p style={styles.featureDesc}>Comprehensive monitoring and metrics collection for API performance, query latency, and system health.</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>🔒</div>
+              <h3 style={styles.featureTitle}>Rate Limiting</h3>
+              <p style={styles.featureDesc}>IP-based rate limiting for API protection, preventing abuse and ensuring fair resource usage.</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>⚡</div>
+              <h3 style={styles.featureTitle}>Optimized Pipeline</h3>
+              <p style={styles.featureDesc}>Enhanced logging for relationship scoring and community detection phases with progress indicators and ETA.</p>
+            </div>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>🔄</div>
+              <h3 style={styles.featureTitle}>Relationship Caching</h3>
+              <p style={styles.featureDesc}>In-memory caching for frequency scores in relationship strength calculations, reducing redundant database queries.</p>
+            </div>
+          </div>
+
+          <div style={styles.codeBlock}>
+            <div style={styles.codeHeader}>
+              <span style={styles.codeTitle}>📊 Monitoring Endpoints</span>
+            </div>
+            <pre style={styles.code}>
+{`# Health check
+curl http://localhost:8000/health
+
+# Prometheus metrics
+curl http://localhost:8000/metrics
+
+# API status
+curl http://localhost:8000/api/status`}
+            </pre>
+          </div>
+
+          <div style={styles.infoBox}>
+            <div style={styles.infoIcon}>💡</div>
+            <div>
+              <strong>Performance Tips:</strong> Enable Redis caching for production deployments to significantly 
+              improve query response times. Monitor Prometheus metrics to identify bottlenecks and optimize 
+              query patterns. Use structured logging to track pipeline performance and debug issues.
+            </div>
+          </div>
+        </section>
+
         {/* Deployment Section */}
         <section id="deployment" style={styles.section}>
           <h1 style={styles.h1}>🚀 Deployment & Configuration</h1>
@@ -953,7 +1022,7 @@ python pipeline.py \\
             </div>
           </div>
 
-          <div style={{...styles.infoBox, backgroundColor: '#dcfce7', borderColor: '#86efac'}}>
+          <div style={{...styles.infoBox, backgroundColor: '#dcfce7', borderColor: '#86efac', color: '#14532d'}}>
             <div style={styles.infoIcon}>🎉</div>
             <div>
               <strong>You're all set!</strong> The application is now running. 
@@ -1264,6 +1333,185 @@ tmux kill-session -t graphrag
           </div>
         </section>
 
+        {/* Future Enhancements Section */}
+        <section id="future" style={styles.section}>
+          <h1 style={styles.h1}>🔮 Future Enhancements</h1>
+          
+          <p style={styles.lead}>
+            Roadmap of planned features and enhancements for the platform.
+          </p>
+
+          <div style={styles.diagramCard}>
+            <h3 style={styles.diagramTitle}>✅ Completed Features</h3>
+            <div style={styles.featureGrid}>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Hybrid RAG Implementation</h3>
+                <p style={styles.featureDesc}>Vector + keyword + graph traversal</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>REST API (40+ Endpoints)</h3>
+                <p style={styles.featureDesc}>Comprehensive FastAPI endpoints</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>React Frontend</h3>
+                <p style={styles.featureDesc}>Futuristic UI with dark theme</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Interactive Chat</h3>
+                <p style={styles.featureDesc}>History, templates, collapsible sidebar</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Semantic Search</h3>
+                <p style={styles.featureDesc}>Sentence-transformers embeddings</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Auto Post-Processing</h3>
+                <p style={styles.featureDesc}>Embeddings, deduplication, communities</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Redis Caching</h3>
+                <p style={styles.featureDesc}>Query & relationship caching</p>
+              </div>
+              <div style={styles.featureCard}>
+                <div style={styles.featureIcon}>✅</div>
+                <h3 style={styles.featureTitle}>Monitoring & Metrics</h3>
+                <p style={styles.featureDesc}>Prometheus, structured logging</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.diagramCard}>
+            <h3 style={styles.diagramTitle}>🎯 Planned Enhancements</h3>
+            
+            <div style={styles.utilitySection}>
+              <h2 style={styles.subsectionTitle}>Phase 1: Enhanced UI</h2>
+              <div style={styles.utilityGrid}>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📊</div>
+                  <h4 style={styles.utilityTitle}>Interactive Graph Visualization</h4>
+                  <p style={styles.utilityDesc}>Visual exploration of the knowledge graph</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔧</div>
+                  <h4 style={styles.utilityTitle}>Advanced Query Builder</h4>
+                  <p style={styles.utilityDesc}>Visual query construction interface</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>⚡</div>
+                  <h4 style={styles.utilityTitle}>Real-time Results Streaming</h4>
+                  <p style={styles.utilityDesc}>Stream query results as they're generated</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.utilitySection}>
+              <h2 style={styles.subsectionTitle}>Phase 2: Intelligence</h2>
+              <div style={styles.utilityGrid}>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📈</div>
+                  <h4 style={styles.utilityTitle}>Evaluation Framework</h4>
+                  <p style={styles.utilityDesc}>Query quality and accuracy metrics</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔄</div>
+                  <h4 style={styles.utilityTitle}>Query Rewriting</h4>
+                  <p style={styles.utilityDesc}>Automatic query optimization</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🎯</div>
+                  <h4 style={styles.utilityTitle}>Cross-encoder Reranking</h4>
+                  <p style={styles.utilityDesc}>Improved result relevance</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>💡</div>
+                  <h4 style={styles.utilityTitle}>Automated Insights</h4>
+                  <p style={styles.utilityDesc}>AI-generated insights and summaries</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.utilitySection}>
+              <h2 style={styles.subsectionTitle}>Phase 3: Data</h2>
+              <div style={styles.utilityGrid}>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔄</div>
+                  <h4 style={styles.utilityTitle}>Real-time Updates</h4>
+                  <p style={styles.utilityDesc}>Live data synchronization</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📚</div>
+                  <h4 style={styles.utilityTitle}>Multi-source Support</h4>
+                  <p style={styles.utilityDesc}>Support for multiple data sources</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🏷️</div>
+                  <h4 style={styles.utilityTitle}>Custom Entity Types</h4>
+                  <p style={styles.utilityDesc}>User-defined entity schemas</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📄</div>
+                  <h4 style={styles.utilityTitle}>Data Export</h4>
+                  <p style={styles.utilityDesc}>PDF, CSV export capabilities</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.utilitySection}>
+              <h2 style={styles.subsectionTitle}>Phase 4: Scale</h2>
+              <div style={styles.utilityGrid}>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📊</div>
+                  <h4 style={styles.utilityTitle}>Analytics Dashboard</h4>
+                  <p style={styles.utilityDesc}>Comprehensive analytics and reporting</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>📈</div>
+                  <h4 style={styles.utilityTitle}>Temporal Trend Analysis</h4>
+                  <p style={styles.utilityDesc}>Time-series data analysis</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔮</div>
+                  <h4 style={styles.utilityTitle}>Predictive Analytics</h4>
+                  <p style={styles.utilityDesc}>ML-based predictions and forecasting</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.utilitySection}>
+              <h2 style={styles.subsectionTitle}>Phase 5: Enterprise</h2>
+              <div style={styles.utilityGrid}>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔐</div>
+                  <h4 style={styles.utilityTitle}>Authentication</h4>
+                  <p style={styles.utilityDesc}>User authentication and authorization</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🛡️</div>
+                  <h4 style={styles.utilityTitle}>Audit Logging</h4>
+                  <p style={styles.utilityDesc}>Comprehensive audit trails</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔔</div>
+                  <h4 style={styles.utilityTitle}>Webhooks</h4>
+                  <p style={styles.utilityDesc}>Event-driven integrations</p>
+                </div>
+                <div style={styles.utilityCard}>
+                  <div style={styles.utilityIcon}>🔌</div>
+                  <h4 style={styles.utilityTitle}>GraphQL API</h4>
+                  <p style={styles.utilityDesc}>Flexible GraphQL endpoint</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Footer */}
         <footer style={styles.footer}>
           <div style={styles.footerContent}>
@@ -1475,12 +1723,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   componentName: {
     fontSize: '15px',
     fontWeight: 600,
-    color: '#f1f5f9',
+    color: '#1e293b',
     marginBottom: '4px',
   },
   componentDesc: {
     fontSize: '12px',
-    color: '#cbd5e1',
+    color: '#475569',
   },
   arrow: {
     textAlign: 'center' as const,
@@ -1546,6 +1794,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '16px',
+  },
+  graphragDiagram: {
+    width: '100%',
+    padding: '20px',
+    backgroundColor: '#0f172a',
+    borderRadius: '8px',
+    overflow: 'auto' as const,
+    marginTop: '20px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   queryStep: {
     display: 'flex',
@@ -1715,12 +1974,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   entityName: {
     fontSize: '14px',
     fontWeight: 600,
-    color: '#f1f5f9',
+    color: '#1e293b',
     marginBottom: '4px',
   },
   entityProps: {
     fontSize: '11px',
-    color: '#cbd5e1',
+    color: '#475569',
   },
   relationshipLines: {
     margin: '0 auto',
@@ -1776,6 +2035,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontFamily: 'Monaco, Consolas, monospace',
     overflow: 'auto' as const,
   },
+  inlineCode: {
+    backgroundColor: '#334155',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontFamily: 'Monaco, Consolas, monospace',
+    color: '#60a5fa',
+  },
   infoBox: {
     display: 'flex',
     gap: '16px',
@@ -1793,7 +2060,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexShrink: 0,
   },
   link: {
-    color: '#2563eb',
+    color: '#60a5fa',
     textDecoration: 'none',
     fontWeight: 600,
   },
@@ -1813,7 +2080,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '24px',
     backgroundColor: '#1e293b',
     borderRadius: '12px',
-    border: '2px solid #e2e8f0',
+    border: '2px solid rgba(51, 65, 85, 0.5)',
     textDecoration: 'none',
     transition: 'all 0.3s',
     cursor: 'pointer',

@@ -187,18 +187,18 @@ class EmbeddingGenerator:
                 if entity_type == "Company":
                     # Company nodes: include all enrichment properties
                     query = f"""
-                    MATCH (e:{entity_type})
-                    WHERE NOT e:Article
-                    RETURN e.id as id, e.name as name, labels(e)[0] as type,
-                           COALESCE(e.description, '') as description,
-                           e.enriched_description as enriched_description,
-                           e.headquarters as headquarters,
-                           e.founded_year as founded_year,
-                           e.founders as founders,
-                           e.products as products,
-                           e.technologies as technologies,
-                           e.funding_total as funding_total,
-                           e.funding_stage as funding_stage
+                        MATCH (e:{entity_type})
+                        WHERE NOT e:Article
+                        RETURN e.id as id, e.name as name, labels(e)[0] as type,
+                               COALESCE(e.description, '') as description,
+                               e.enriched_description as enriched_description,
+                               e.headquarters as headquarters,
+                               e.founded_year as founded_year,
+                               e.founders as founders,
+                               e.products as products,
+                               e.technologies as technologies,
+                               e.funding_total as funding_total,
+                               e.funding_stage as funding_stage
                     """
                 else:
                     # Non-Company nodes: exclude enrichment properties

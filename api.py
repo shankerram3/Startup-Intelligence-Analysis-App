@@ -211,6 +211,23 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Add middleware to handle OPTIONS requests (CORS preflight)
+@app.middleware("http")
+async def handle_options_requests(request: Request, call_next):
+    """Handle OPTIONS requests for CORS preflight"""
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    return await call_next(request)
+
 # Add request size limiting middleware
 @app.middleware("http")
 async def limit_upload_size(request: Request, call_next):
@@ -241,8 +258,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=SecurityConfig.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
 )
 
 # Frontend static files path (will be mounted after all API routes)
@@ -529,6 +546,20 @@ async def clear_pipeline_logs():
 # =============================================================================
 # MAIN QUERY ENDPOINTS
 # =============================================================================
+
+@app.options("/query", tags=["Query"])
+async def query_options():
+    """Handle OPTIONS preflight requests for /query endpoint"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @app.post("/query", response_model=QueryResponse, tags=["Query"])
 @limiter.limit("30/minute" if SecurityConfig.ENABLE_RATE_LIMITING else "1000/minute")

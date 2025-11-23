@@ -25,6 +25,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # HTTP Bearer scheme for JWT
 security = HTTPBearer()
+# Optional security scheme (doesn't auto-raise errors)
+optional_security = HTTPBearer(auto_error=False)
 
 
 class SecurityConfig:
@@ -33,7 +35,7 @@ class SecurityConfig:
     """
     ENABLE_AUTH = os.getenv("ENABLE_AUTH", "false").lower() == "true"
     ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
-    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174").split(",")]
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default
     API_KEYS = set(os.getenv("API_KEYS", "").split(",")) if os.getenv("API_KEYS") else set()
 
@@ -157,7 +159,7 @@ async def verify_api_key(api_key: str) -> bool:
 
 
 async def optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security, auto_error=False)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(optional_security)
 ) -> Optional[Dict[str, Any]]:
     """
     Optional authentication - allows both authenticated and anonymous access

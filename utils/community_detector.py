@@ -477,8 +477,8 @@ class CommunityDetector:
             session.run("""
                 UNWIND $entities AS entity_name
                 MATCH (e {name: entity_name})
-                WHERE NOT e:Article
-                SET e.community_id = $community_id
+                    WHERE NOT e:Article
+                    SET e.community_id = $community_id
             """, entities=entities, community_id=community_id)
             
             processed += len(entities)

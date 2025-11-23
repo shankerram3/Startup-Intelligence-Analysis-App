@@ -147,8 +147,8 @@ class TechCrunchGraphBuilder:
             
             # Initialize enrichment properties for ALL entity types
             # This allows dynamic enrichment and avoids Neo4j warnings
-            query = f"""
-                MERGE (e:{node_label} {{id: $id}})
+                query = f"""
+                    MERGE (e:{node_label} {{id: $id}})
                     ON CREATE SET 
                         e.name = $name,
                         e.description = $description,
