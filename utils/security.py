@@ -51,6 +51,30 @@ API_KEY_HEADER = os.getenv("API_KEY_HEADER", "X-API-Key")
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Bcrypt has a 72-byte limit for passwords
+MAX_BCRYPT_BYTES = 72
+
+
+def _normalize_password_for_bcrypt(password: str) -> str:
+    """
+    Normalize password for bcrypt hashing (truncate to 72 bytes if needed)
+
+    Args:
+        password: Plain text password
+
+    Returns:
+        Password string truncated to 72 bytes if necessary
+
+    Note:
+        Bcrypt has a 72-byte limit. Passwords longer than this are truncated.
+        This is a known limitation and should be documented to users.
+    """
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > MAX_BCRYPT_BYTES:
+        # Truncate to first 72 bytes (UTF-8 aware)
+        password = password_bytes[:MAX_BCRYPT_BYTES].decode("utf-8", errors="ignore")
+    return password
+
 # HTTP Bearer scheme for JWT
 security = HTTPBearer()
 # Optional security scheme (doesn't auto-raise errors)
@@ -91,11 +115,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Note:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
-    # Bcrypt has a 72-byte limit - truncate if necessary
-    password_bytes = plain_password.encode("utf-8")
-    if len(password_bytes) > 72:
-        plain_password = password_bytes[:72].decode("utf-8", errors="ignore")
-    return pwd_context.verify(plain_password, hashed_password)
+    normalized_password = _normalize_password_for_bcrypt(plain_password)
+    return pwd_context.verify(normalized_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
@@ -111,11 +132,8 @@ def get_password_hash(password: str) -> str:
     Note:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
-    # Bcrypt has a 72-byte limit - truncate if necessary
-    password_bytes = password.encode("utf-8")
-    if len(password_bytes) > 72:
-        password = password_bytes[:72].decode("utf-8", errors="ignore")
-    return pwd_context.hash(password)
+    normalized_password = _normalize_password_for_bcrypt(password)
+    return pwd_context.hash(normalized_password)
 
 
 def create_access_token(
