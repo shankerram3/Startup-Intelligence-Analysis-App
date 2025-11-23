@@ -36,7 +36,7 @@ def test_config() -> Dict[str, Any]:
         "neo4j_uri": os.getenv("NEO4J_TEST_URI", "bolt://localhost:7687"),
         "neo4j_user": os.getenv("NEO4J_TEST_USER", "neo4j"),
         "neo4j_password": os.getenv("NEO4J_TEST_PASSWORD", "testpassword"),
-        "openai_api_key": os.getenv("OPENAI_API_KEY", "sk-test-key"),
+        "openai_api_key": os.getenv("OPENAI_API_KEY", "test-fake-key-not-real"),
         "redis_host": os.getenv("REDIS_TEST_HOST", "localhost"),
         "redis_port": int(os.getenv("REDIS_TEST_PORT", "6379")),
     }
@@ -451,7 +451,7 @@ def mock_expensive_operations(monkeypatch):
         return
 
     # Mock OpenAI calls
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-fake-key-not-real")
 
     # Mock sentence transformers (prevent model download)
     def mock_encode(*args, **kwargs):
