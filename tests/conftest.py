@@ -439,14 +439,15 @@ def reset_environment():
 
 
 @pytest.fixture(autouse=True)
-def mock_expensive_operations(monkeypatch):
+def mock_expensive_operations(monkeypatch, request):
     """
     Mock expensive operations in test mode
 
     This prevents tests from making real API calls or expensive computations
     """
     # Skip if integration test
-    if "integration" in str(pytest.current_test_name):
+    test_name = request.node.name if hasattr(request, "node") else ""
+    if "integration" in test_name:
         return
 
     # Mock OpenAI calls
