@@ -52,3 +52,10 @@ delete_nodes.py
 delete_techcrunch_disrupt.cypher.env
 .env.*
 !.env.template
+
+# Coverage files
+.coverage
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
