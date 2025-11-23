@@ -15,7 +15,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+# Check if authentication is enabled first
+ENABLE_AUTH = os.getenv("ENABLE_AUTH", "false").lower() == "true"
+
+# JWT_SECRET_KEY handling:
+# - If auth is enabled, SECRET_KEY is required (fail if missing)
+# - If auth is disabled, use a dev key with warning (allows development)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if ENABLE_AUTH:
+    # Production mode: JWT_SECRET_KEY is required when auth is enabled
+    if not SECRET_KEY:
+        raise ValueError(
+            "JWT_SECRET_KEY environment variable is required when ENABLE_AUTH=true. "
+            "Set it to a secure random string (e.g., openssl rand -hex 32). "
+            "Never use default or hardcoded secrets in production."
+        )
+elif not SECRET_KEY:
+    # Development mode: Use a temporary dev key with warning
+    import warnings
+    SECRET_KEY = "dev-secret-key-change-in-production-do-not-use-in-production"
+    warnings.warn(
+        "JWT_SECRET_KEY not set. Using development key. "
+        "Set JWT_SECRET_KEY environment variable for production. "
+        "Generate with: openssl rand -hex 32",
+        UserWarning,
+        stacklevel=2
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 API_KEY_HEADER = os.getenv("API_KEY_HEADER", "X-API-Key")
@@ -33,7 +60,7 @@ class SecurityConfig:
     """
     Security configuration and settings
     """
-    ENABLE_AUTH = os.getenv("ENABLE_AUTH", "false").lower() == "true"
+    ENABLE_AUTH = ENABLE_AUTH  # Use the value determined above
     ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
     ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174").split(",")]
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default

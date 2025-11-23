@@ -9,6 +9,17 @@ from typing import List, Dict
 from neo4j import GraphDatabase
 from collections import defaultdict
 import hashlib
+import os
+from utils.logging_config import setup_logging, get_logger
+
+# Setup logging
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    json_logs=os.getenv("JSON_LOGS", "false").lower() == "true",
+    log_file=Path("logs/graph_builder.log") if os.getenv("ENABLE_FILE_LOGGING") == "true" else None
+)
+
+logger = get_logger(__name__)
 
 
 class TechCrunchGraphBuilder:
@@ -39,9 +50,9 @@ class TechCrunchGraphBuilder:
             for constraint in constraints:
                 try:
                     session.run(constraint)
-                    print(f"✓ Created constraint")
+                    logger.debug("constraint_created", constraint=constraint[:50])
                 except Exception as e:
-                    print(f"  Constraint may already exist: {e}")
+                    logger.debug("constraint_already_exists", error=str(e))
             
             # Initialize enrichment properties for existing nodes (all entity types)
             self._initialize_enrichment_properties(session)
@@ -57,9 +68,9 @@ class TechCrunchGraphBuilder:
             for index in indexes:
                 try:
                     session.run(index)
-                    print(f"✓ Created index")
+                    logger.debug("index_created", index=index[:50])
                 except Exception as e:
-                    print(f"  Index may already exist: {e}")
+                    logger.debug("index_already_exists", error=str(e))
     
     def _initialize_enrichment_properties(self, session):
         """Initialize enrichment properties for ALL entity nodes (not just Company)"""
@@ -88,9 +99,9 @@ class TechCrunchGraphBuilder:
             record = result.single()
             updated = record["updated"] if record else 0
             if updated > 0:
-                print(f"✓ Initialized enrichment properties for {updated} entity nodes")
-        except Exception as e:
-            print(f"  Note: Could not initialize enrichment properties: {e}")
+                logger.info("enrichment_properties_initialized", updated=updated)
+            except Exception as e:
+                logger.debug("enrichment_properties_init_skipped", error=str(e))
     
     @staticmethod
     def generate_entity_id(name: str, entity_type: str) -> str:
@@ -127,7 +138,7 @@ class TechCrunchGraphBuilder:
         from utils.filter_techcrunch import filter_techcrunch_entity
         should_filter, reason = filter_techcrunch_entity(entity)
         if should_filter:
-            print(f"  ⚠️  Skipping TechCrunch/Disrupt entity: {name}")
+            logger.debug("skipping_techcrunch_entity", name=name)
             return None
         
         # Generate consistent ID
@@ -243,13 +254,13 @@ class TechCrunchGraphBuilder:
         # STRICT: Skip MENTIONED_IN relationships - these are handled via properties
         # This should never happen if extraction is correct, but double-check here
         if rel_type == "MENTIONED_IN":
-            print(f"  ⚠️  WARNING: Attempted to create MENTIONED_IN relationship from {source_name} to {target_name}. Skipped.")
+            logger.warning("skipped_mentioned_in_relationship", source=source_name, target=target_name)
             return
         
         # STRICT: Skip relationships involving TechCrunch/Disrupt entities
         from utils.filter_techcrunch import is_techcrunch_related
         if is_techcrunch_related(source_name) or is_techcrunch_related(target_name):
-            print(f"  ⚠️  WARNING: Attempted to create relationship involving TechCrunch/Disrupt entity: {source_name} -> {target_name}. Skipped.")
+            logger.warning("skipped_techcrunch_relationship", source=source_name, target=target_name)
             return
         
         # Validate relationship type
@@ -261,7 +272,7 @@ class TechCrunchGraphBuilder:
             "INVESTS_IN", "ADVISES", "LEADS"
         ]
         if rel_type not in valid_types:
-            print(f"  ⚠️  WARNING: Invalid relationship type '{rel_type}' from {source_name} to {target_name}. Skipped.")
+            logger.warning("invalid_relationship_type", rel_type=rel_type, source=source_name, target=target_name)
             return
         
         # Generate entity IDs (we need to find the actual entities)
@@ -276,7 +287,7 @@ class TechCrunchGraphBuilder:
             
             source_record = source_result.single()
             if not source_record:
-                print(f"  ⚠ Source entity not found: {source_name}")
+                logger.warning("source_entity_not_found", source_name=source_name)
                 return
             
             # Find target entity
@@ -289,7 +300,7 @@ class TechCrunchGraphBuilder:
             
             target_record = target_result.single()
             if not target_record:
-                print(f"  ⚠ Target entity not found: {target_name}")
+                logger.warning("target_entity_not_found", target_name=target_name)
                 return
             
             # Create relationship
@@ -300,7 +311,7 @@ class TechCrunchGraphBuilder:
             
             # Double-check: MENTIONED_IN should never reach here, but check again
             if rel_type == "MENTIONED_IN":
-                print(f"  ❌ ERROR: MENTIONED_IN relationship reached create_relationship. This should never happen!")
+                logger.error("unexpected_mentioned_in_relationship", source=source_name, target=target_name)
                 return
             
             # Create typed relationship
@@ -357,14 +368,14 @@ class TechCrunchGraphBuilder:
         
         # Check if article already ingested
         if skip_if_exists and self.is_article_ingested(article_id):
-            print(f"\n⏭  Skipping already ingested article: {article_id}")
+            logger.debug("skipping_already_ingested_article", article_id=article_id)
             return
         
-        print(f"\nIngesting article: {article_id}")
+        logger.info("ingesting_article", article_id=article_id)
         
         # Create article node
         self.create_article_node(extraction["article_metadata"])
-        print(f"  ✓ Created article node")
+        logger.debug("article_node_created", article_id=article_id)
         
         # Create entity nodes (filter out TechCrunch/Disrupt)
         entity_count = 0
@@ -380,8 +391,8 @@ class TechCrunchGraphBuilder:
                 entity_count += 1
         
         if skipped_count > 0:
-            print(f"  ⚠️  Skipped {skipped_count} TechCrunch/Disrupt entities")
-        print(f"  ✓ Created {entity_count} entity nodes")
+            logger.debug("skipped_techcrunch_entities", count=skipped_count)
+        logger.info("entities_created", count=entity_count, article_id=article_id)
         
         # Create relationships (filter out MENTIONED_IN and TechCrunch/Disrupt related)
         rel_count = 0
@@ -407,10 +418,10 @@ class TechCrunchGraphBuilder:
             rel_count += 1
         
         if skipped_mentioned > 0:
-            print(f"  ⚠️  Skipped {skipped_mentioned} MENTIONED_IN relationships (use properties instead)")
+            logger.debug("skipped_mentioned_in_relationships", count=skipped_mentioned)
         if skipped_techcrunch > 0:
-            print(f"  ⚠️  Skipped {skipped_techcrunch} TechCrunch/Disrupt related relationships")
-        print(f"  ✓ Created {rel_count} relationships")
+            logger.debug("skipped_techcrunch_relationships", count=skipped_techcrunch)
+        logger.info("relationships_created", count=rel_count, article_id=article_id)
     
     def get_statistics(self) -> Dict:
         """Get graph statistics"""
@@ -439,17 +450,7 @@ class TechCrunchGraphBuilder:
     def print_statistics(self):
         """Print graph statistics"""
         stats = self.get_statistics()
-
-        print("\n" + "="*80)
-        print("KNOWLEDGE GRAPH STATISTICS")
-        print("="*80)
-        print(f"Total Nodes: {stats['total_nodes']}")
-        print(f"Total Relationships: {stats['total_relationships']}")
-        print("\nNode Breakdown:")
-        for label, count in stats['nodes'].items():
-            if count > 0:
-                print(f"  {label}: {count}")
-        print("="*80 + "\n")
+        logger.info("graph_statistics", **stats)
 
     def enrich_company_node(self, company_name: str, enriched_data: Dict):
         """
@@ -470,7 +471,7 @@ class TechCrunchGraphBuilder:
 
             company_record = find_result.single()
             if not company_record:
-                print(f"  ⚠ Company not found in graph: {company_name}")
+                logger.warning("company_not_found_in_graph", company_name=company_name)
                 return False
 
             company_id = company_record["id"]
@@ -540,7 +541,7 @@ class TechCrunchGraphBuilder:
             
             # Build the final query
             if not set_clauses:
-                print(f"  ⚠ No enrichment data to set for {company_name}")
+                logger.warning("no_enrichment_data", company_name=company_name)
                 return False
             
             query = f"""
@@ -553,10 +554,10 @@ class TechCrunchGraphBuilder:
                 session.run(query, **params)
                 # Log which properties were set
                 property_count = len([k for k in params.keys() if k != 'company_id' and k not in ['enrichment_timestamp', 'enrichment_confidence']])
-                print(f"  ✓ Enriched {company_name} with {property_count} properties")
+                logger.info("company_enriched", company_name=company_name, property_count=property_count)
                 return True
             except Exception as e:
-                print(f"  ❌ Error enriching {company_name}: {e}")
+                logger.error("company_enrichment_error", company_name=company_name, error=str(e), exc_info=True)
                 return False
 
     def enrich_all_companies(self, enriched_companies: Dict[str, Dict]):
@@ -566,9 +567,7 @@ class TechCrunchGraphBuilder:
         Args:
             enriched_companies: Dictionary mapping company names to enriched data
         """
-        print("\n" + "="*80)
-        print("ENRICHING COMPANY NODES WITH INTELLIGENCE DATA")
-        print("="*80 + "\n")
+        logger.info("enriching_companies_starting", company_count=len(enriched_companies))
 
         enriched_count = 0
         failed_count = 0
@@ -579,16 +578,14 @@ class TechCrunchGraphBuilder:
                 if success:
                     enriched_count += 1
                     confidence = enriched_data.get('confidence_score', 0.0)
-                    print(f"  ✓ Enriched: {company_name} (confidence: {confidence:.2f})")
+                    logger.info("company_enriched", company_name=company_name, confidence=confidence)
                 else:
                     failed_count += 1
             except Exception as e:
                 failed_count += 1
-                print(f"  ✗ Failed to enrich {company_name}: {e}")
+                logger.warning("company_enrichment_failed", company_name=company_name, error=str(e))
 
-        print("\n" + "="*80)
-        print(f"✅ ENRICHMENT COMPLETE: {enriched_count} companies enriched, {failed_count} failed")
-        print("="*80 + "\n")
+        logger.info("enrichment_complete", enriched_count=enriched_count, failed_count=failed_count)
 
         return {
             'enriched': enriched_count,
@@ -617,28 +614,28 @@ def build_graph_from_extractions(
     with open(extractions_file, 'r', encoding='utf-8') as f:
         extractions = json.load(f)
     
-    print(f"Loaded {len(extractions)} extractions")
+    logger.info("extractions_loaded", count=len(extractions))
     
     # Initialize graph builder
     builder = TechCrunchGraphBuilder(neo4j_uri, neo4j_user, neo4j_password)
     
     try:
         # Initialize schema
-        print("\nInitializing Neo4j schema...")
+        logger.info("initializing_neo4j_schema")
         builder.initialize_schema()
         
         # Ingest each extraction
-        print(f"\nIngesting {len(extractions)} articles into Neo4j...")
+        logger.info("ingesting_articles", count=len(extractions))
         ingested_count = 0
         skipped_count = 0
         
         for i, extraction in enumerate(extractions, 1):
-            print(f"\n[{i}/{len(extractions)}]", end=" ")
+            logger.debug("ingesting_article_progress", current=i+1, total=len(extractions))
             article_id = extraction.get("article_metadata", {}).get("article_id", "unknown")
             
             # Check if already ingested
             if builder.is_article_ingested(article_id):
-                print(f"⏭  Skipping already ingested: {article_id}")
+                logger.debug("skipping_already_ingested", article_id=article_id)
                 skipped_count += 1
                 continue
             
@@ -646,8 +643,8 @@ def build_graph_from_extractions(
             ingested_count += 1
         
         if skipped_count > 0:
-            print(f"\n⏭  Skipped {skipped_count} already ingested articles")
-        print(f"✓ Ingested {ingested_count} new articles")
+            logger.info("skipped_already_ingested_articles", count=skipped_count)
+        logger.info("ingestion_complete", ingested_count=ingested_count)
         
         # Print statistics
         builder.print_statistics()

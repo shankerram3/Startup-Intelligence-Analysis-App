@@ -5,8 +5,10 @@ import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
 import { LandingPage } from './components/LandingPage';
 import DocumentationPage from './components/DocumentationPage';
+import { AuraDBAnalyticsDashboard } from './components/AuraDBAnalyticsDashboard';
+import { ThemeExtractionView } from './components/ThemeExtractionView';
 
-type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'docs';
+type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'docs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -14,13 +16,13 @@ export default function App() {
   // Handle hash routing
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'docs'].includes(hash)) {
+    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'docs'].includes(hash)) {
       setActiveTab(hash as TabKey);
     }
 
     const handleHashChange = () => {
       const newHash = window.location.hash.slice(1);
-      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'docs'].includes(newHash)) {
+      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'docs'].includes(newHash)) {
         setActiveTab(newHash as TabKey);
       }
     };
@@ -141,6 +143,22 @@ export default function App() {
             </button>
             <button
               data-nav-button
+              style={{ ...styles.navButton, ...(activeTab === 'auradb' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('auradb'); window.location.hash = 'auradb'; }}
+            >
+              <span style={styles.navIcon}>📊</span>
+              <span>AuraDB Analytics</span>
+            </button>
+            <button
+              data-nav-button
+              style={{ ...styles.navButton, ...(activeTab === 'themes' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('themes'); window.location.hash = 'themes'; }}
+            >
+              <span style={styles.navIcon}>🎨</span>
+              <span>Recurring Themes</span>
+            </button>
+            <button
+              data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'docs' ? styles.navButtonActive : {}) }}
               onClick={() => { setActiveTab('docs'); window.location.hash = 'docs'; }}
             >
@@ -156,13 +174,16 @@ export default function App() {
         activeTab === 'home' ? styles.mainFull :
         activeTab === 'pipeline' ? styles.mainWide : 
         activeTab === 'query' ? styles.mainFull : 
+        activeTab === 'auradb' ? styles.mainFull :
+        activeTab === 'themes' ? styles.mainFull :
         styles.main
       }>
         {activeTab === 'home' && <LandingPage />}
         {activeTab === 'query' && <CombinedQueryChatView />}
         {activeTab === 'semantic' && <SemanticSearchView />}
         {activeTab === 'pipeline' && <EnhancedDashboardView />}
-        {activeTab === 'auradb' && <Neo4jDashboard />}
+        {activeTab === 'auradb' && <AuraDBAnalyticsDashboard />}
+        {activeTab === 'themes' && <ThemeExtractionView />}
         {activeTab === 'docs' && <DocumentationPage />}
       </main>
     </div>
@@ -323,12 +344,14 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '100%',
     boxSizing: 'border-box',
     overflowX: 'hidden',
-    height: '100%',
     overflowY: 'auto',
     flex: 1,
     minHeight: 0,
+    maxHeight: '100%',
     background: '#0f172a',
-    color: '#f1f5f9'
+    color: '#f1f5f9',
+    WebkitOverflowScrolling: 'touch',
+    position: 'relative'
   },
   mainWide: {
     padding: 24,

@@ -252,6 +252,52 @@ async def limit_upload_size(request: Request, call_next):
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware)
 
+# Add security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    
+    # HSTS - Force HTTPS (1 year, include subdomains)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    
+    # Content Security Policy - Restrict resource loading
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # Allow inline for frontend
+        "style-src 'self' 'unsafe-inline'; "  # Allow inline styles
+        "img-src 'self' data: https:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' https:; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
+    )
+    response.headers["Content-Security-Policy"] = csp_policy
+    
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+    
+    # Prevent MIME type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    # XSS Protection (legacy, but still useful)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # Referrer Policy
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Permissions Policy (formerly Feature-Policy)
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), "
+        "microphone=(), "
+        "camera=(), "
+        "payment=(), "
+        "usb=()"
+    )
+    
+    return response
+
 # Add CORS middleware with security restrictions
 app.add_middleware(
     CORSMiddleware,
@@ -1084,6 +1130,256 @@ async def get_insights(topic: str, limit: int = Query(5, ge=1, le=10)):
         raise HTTPException(status_code=500, detail=f"Failed to get insights: {str(e)}")
 
 
+@app.get("/analytics/recurring-themes", tags=["Analytics"])
+async def get_recurring_themes(
+    min_frequency: int = Query(3, ge=1, le=50, description="Minimum frequency for a theme to be included"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of themes to return"),
+    time_window_days: Optional[int] = Query(None, ge=1, le=365, description="Only consider entities mentioned within this time window")
+):
+    """Extract recurring themes from the knowledge graph"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        themes = rag_instance.query_templates.get_recurring_themes(
+            min_frequency=min_frequency,
+            limit=limit,
+            time_window_days=time_window_days
+        )
+        return {"themes": themes, "count": len(themes)}
+    except Exception as e:
+        logger.error("recurring_themes_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to extract themes: {sanitize_error_message(str(e))}")
+
+
+@app.get("/analytics/theme/{theme_name}", tags=["Analytics"])
+async def get_theme_details(
+    theme_name: str,
+    theme_type: str = Query(..., description="Type of theme: technology_trend, funding_pattern, partnership_pattern, industry_cluster")
+):
+    """Get detailed information about a specific theme"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        details = rag_instance.query_templates.get_theme_details(theme_name, theme_type)
+        if not details:
+            raise HTTPException(status_code=404, detail=f"Theme '{theme_name}' not found")
+        return details
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("theme_details_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get theme details: {sanitize_error_message(str(e))}")
+
+
+@app.post("/analytics/theme/summary", tags=["Analytics"])
+async def generate_theme_summary(
+    theme_data: Dict[str, Any] = Body(..., description="Theme details to summarize")
+):
+    """Generate an LLM-powered summary of theme details"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+        import os
+
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+
+        llm = ChatOpenAI(
+            temperature=0.3,
+            model="gpt-4o-mini",
+            api_key=openai_api_key
+        )
+
+        # Build context from theme data
+        context_parts = []
+        
+        if theme_data.get("theme_name"):
+            context_parts.append(f"Theme: {theme_data['theme_name']}")
+        
+        if theme_data.get("theme_type"):
+            context_parts.append(f"Type: {theme_data['theme_type']}")
+        
+        if theme_data.get("description"):
+            context_parts.append(f"Description: {theme_data['description']}")
+        
+        if theme_data.get("frequency"):
+            context_parts.append(f"Frequency: {theme_data['frequency']} occurrences")
+        
+        if theme_data.get("strength"):
+            context_parts.append(f"Strength Score: {theme_data['strength']}")
+        
+        if theme_data.get("technology"):
+            context_parts.append(f"\nTechnology: {theme_data['technology']}")
+        
+        if theme_data.get("investor"):
+            context_parts.append(f"\nInvestor: {theme_data['investor']}")
+        
+        if theme_data.get("entity"):
+            context_parts.append(f"\nEntity: {theme_data['entity']}")
+            if theme_data.get("mention_count"):
+                context_parts.append(f"Mentioned {theme_data['mention_count']} times")
+        
+        if theme_data.get("companies"):
+            companies = theme_data['companies']
+            context_parts.append(f"\nCompanies ({theme_data.get('total_companies', len(companies))}):")
+            for i, company in enumerate(companies[:10], 1):  # Limit to first 10
+                company_info = f"  {i}. {company.get('name', 'Unknown')}"
+                if company.get('description'):
+                    company_info += f" - {company.get('description', '')[:100]}"
+                if company.get('investors'):
+                    company_info += f" | Investors: {', '.join(company.get('investors', [])[:3])}"
+                context_parts.append(company_info)
+        
+        if theme_data.get("partnerships"):
+            partnerships = theme_data['partnerships']
+            context_parts.append(f"\nPartnerships ({theme_data.get('total_partnerships', len(partnerships))}):")
+            for i, p in enumerate(partnerships[:10], 1):
+                context_parts.append(f"  {i}. {p.get('from', 'Unknown')} ↔ {p.get('to', 'Unknown')}")
+        
+        if theme_data.get("relationships"):
+            relationships = theme_data['relationships']
+            context_parts.append(f"\nRelated Entities ({len(relationships)}):")
+            for i, rel in enumerate(relationships[:10], 1):
+                context_parts.append(f"  {i}. {rel.get('name', 'Unknown')} ({rel.get('relationship', 'related')})")
+        
+        if theme_data.get("entities"):
+            entities = theme_data['entities']
+            context_parts.append(f"\nRelated Entities: {', '.join(entities[:10])}")
+        
+        context = "\n".join(context_parts)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert analyst specializing in knowledge graph analysis. 
+Your task is to create a concise, focused summary of theme details.
+
+CRITICAL GUIDELINES:
+- Be BRIEF and DIRECT - maximum 100-120 words (2-3 short paragraphs)
+- Focus ONLY on the most significant insights - avoid listing every detail
+- Skip generic statements like "reveals patterns" or "highlights importance"
+- Don't list individual entity names unless they're truly exceptional
+- Focus on WHAT the theme means, not HOW it was identified
+- Remove redundant phrases and filler words
+- Get straight to the point - what does this theme tell us?
+- Use active voice and clear, direct language"""),
+            ("user", """Analyze the following theme details and provide a concise, focused summary:
+
+{context}
+
+Write a brief summary (100-120 words max) that:
+1. Explains what this theme represents in one clear sentence
+2. Highlights the 2-3 most important insights or patterns
+3. Mentions only the most significant statistics or entities if they add real value
+
+Be direct and avoid verbose explanations.""")
+        ])
+
+        chain = prompt | llm | StrOutputParser()
+        summary = chain.invoke({"context": context})
+
+        return {
+            "summary": summary,
+            "theme_name": theme_data.get("theme_name"),
+            "theme_type": theme_data.get("theme_type")
+        }
+    except Exception as e:
+        logger.error("theme_summary_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {sanitize_error_message(str(e))}")
+
+
+# =============================================================================
+# AURA GRAPH ANALYTICS ENDPOINTS
+# =============================================================================
+
+@app.post("/aura/community-detection", tags=["Aura Analytics"])
+async def run_community_detection(
+    algorithm: str = Body("leiden", description="Algorithm: leiden, louvain, or label_propagation"),
+    min_community_size: int = Body(3, ge=1, le=100),
+    graph_name: str = Body("entity-graph", description="Name for the projected graph")
+):
+    """Run community detection using Aura Graph Analytics"""
+    try:
+        from utils.aura_graph_analytics import AuraGraphAnalytics
+        
+        analytics = AuraGraphAnalytics()
+        result = analytics.detect_communities(
+            algorithm=algorithm,
+            min_community_size=min_community_size,
+            graph_name=graph_name
+        )
+        return result
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Aura Graph Analytics not available: {str(e)}. Install graphdatascience package."
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("community_detection_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to run community detection: {sanitize_error_message(str(e))}")
+
+
+@app.get("/aura/communities", tags=["Aura Analytics"])
+async def get_communities(
+    min_size: int = Query(3, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """Get communities from the graph"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        # Query communities from Neo4j
+        communities = rag_instance.query_templates.get_communities(min_size=min_size, limit=limit)
+        return {"communities": communities, "count": len(communities)}
+    except Exception as e:
+        logger.error("get_communities_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get communities: {sanitize_error_message(str(e))}")
+
+
+@app.get("/aura/community-stats", tags=["Aura Analytics"])
+async def get_community_statistics():
+    """Get community statistics"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        stats = rag_instance.query_templates.get_community_statistics()
+        return stats
+    except Exception as e:
+        logger.error("community_stats_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get community statistics: {sanitize_error_message(str(e))}")
+
+
+@app.get("/aura/community-graph", tags=["Aura Analytics"])
+async def get_community_graph(
+    community_id: Optional[int] = Query(None, description="Specific community ID, or None for all communities"),
+    max_nodes: int = Query(200, ge=10, le=1000, description="Maximum number of nodes to return"),
+    max_communities: int = Query(10, ge=1, le=50, description="Maximum number of communities to visualize")
+):
+    """Get community graph data for visualization"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+
+    try:
+        graph_data = rag_instance.query_templates.get_community_graph_data(
+            community_id=community_id,
+            max_nodes=max_nodes,
+            max_communities=max_communities
+        )
+        return graph_data
+    except Exception as e:
+        logger.error("community_graph_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get community graph: {sanitize_error_message(str(e))}")
+
+
 # =============================================================================
 # TECHNOLOGY & TREND ENDPOINTS
 # =============================================================================
@@ -1199,10 +1495,9 @@ if __name__ == "__main__":
     port = int(os.getenv("API_PORT", 8000))
     host = os.getenv("API_HOST", "0.0.0.0")
 
-    print(f"🚀 Starting GraphRAG API on {host}:{port}")
-    print(f"📚 API Documentation: http://{host}:{port}/docs")
-    print(f"📊 ReDoc Documentation: http://{host}:{port}/redoc")
-    print(f"📊 Prometheus Metrics: http://{host}:{port}/metrics")
+    logger.info("api_starting", host=host, port=port)
+    logger.info("api_documentation", docs_url=f"http://{host}:{port}/docs", redoc_url=f"http://{host}:{port}/redoc")
+    logger.info("api_metrics", metrics_url=f"http://{host}:{port}/metrics")
 
     uvicorn.run(
         "api:app",

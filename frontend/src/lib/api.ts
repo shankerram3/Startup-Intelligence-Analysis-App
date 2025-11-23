@@ -160,4 +160,181 @@ export function clearPipelineLogs() {
   return postJson<{}, { status: string; message: string }>(`/admin/pipeline/logs/clear`, {} as any);
 }
 
+// Aura Graph Analytics API types
+export type AuraCommunityDetectionRequest = {
+  algorithm?: string;
+  min_community_size?: number;
+  graph_name?: string;
+};
+
+export type AuraCommunityDetectionResponse = {
+  algorithm: string;
+  total_communities: number;
+  communities: Record<number, string[]>;
+  node_count: number;
+  relationship_count: number;
+  method: string;
+  write_back_failed?: boolean;
+};
+
+export type AuraCommunitiesResponse = {
+  communities: Array<{
+    community_id: number;
+    size: number;
+    members: Array<{ name: string; type: string }>;
+  }>;
+  count: number;
+};
+
+export type AuraCommunityStats = {
+  total_communities: number;
+  total_entities: number;
+  entities_in_communities: number;
+  coverage_percentage: number;
+  size_distribution: {
+    min: number;
+    max: number;
+    avg: number;
+    median: number;
+  };
+};
+
+export type AuraAnalyticsResponse = {
+  most_connected?: Array<{ id: string; name: string; type: string; degree: number }>;
+  importance?: Array<{ id: string; name: string; type: string; importance_score: number }>;
+};
+
+export type AuraCommunityGraphResponse = {
+  nodes: Array<{
+    id: string;
+    label: string;
+    type: string;
+    community_id: number | null;
+    title?: string;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    type: string;
+    label?: string;
+  }>;
+  communities: number[];
+  node_count: number;
+  edge_count: number;
+};
+
+export async function runAuraCommunityDetection(
+  params: AuraCommunityDetectionRequest
+): Promise<AuraCommunityDetectionResponse> {
+  return postJson<AuraCommunityDetectionRequest, AuraCommunityDetectionResponse>(
+    '/aura/community-detection',
+    params
+  );
+}
+
+export async function fetchAuraCommunities(
+  min_size: number = 3,
+  limit: number = 50
+): Promise<AuraCommunitiesResponse> {
+  return getJson<AuraCommunitiesResponse>(`/aura/communities?min_size=${min_size}&limit=${limit}`);
+}
+
+export async function fetchAuraCommunityStats(): Promise<AuraCommunityStats> {
+  return getJson<AuraCommunityStats>('/aura/community-stats');
+}
+
+export async function fetchAuraAnalytics(): Promise<AuraAnalyticsResponse> {
+  try {
+    const [mostConnected, importance] = await Promise.all([
+      getJson<{ results: any[]; count: number }>('/analytics/most-connected?limit=20').catch(() => ({ results: [], count: 0 })),
+      getJson<{ results: any[]; count: number }>('/analytics/importance?limit=20').catch(() => ({ results: [], count: 0 }))
+    ]);
+    return {
+      most_connected: mostConnected.results || [],
+      importance: importance.results || []
+    };
+  } catch (e) {
+    return { most_connected: [], importance: [] };
+  }
+}
+
+export async function fetchAuraCommunityGraph(
+  communityId?: number,
+  maxNodes: number = 200,
+  maxCommunities: number = 10
+): Promise<AuraCommunityGraphResponse> {
+  const params = new URLSearchParams({
+    max_nodes: maxNodes.toString(),
+    max_communities: maxCommunities.toString()
+  });
+  if (communityId !== undefined && communityId !== null) {
+    params.append('community_id', communityId.toString());
+  }
+  return getJson<AuraCommunityGraphResponse>(`/aura/community-graph?${params.toString()}`);
+}
+
+// Theme extraction API types
+export type RecurringTheme = {
+  theme: string;
+  type: 'technology_trend' | 'funding_pattern' | 'partnership_pattern' | 'industry_cluster';
+  frequency: number;
+  description: string;
+  entities: string[];
+  strength: number;
+};
+
+export type RecurringThemesResponse = {
+  themes: RecurringTheme[];
+  count: number;
+};
+
+export type ThemeDetailsResponse = {
+  technology?: string;
+  companies?: Array<{
+    name: string;
+    description?: string;
+    investors?: string[];
+  }>;
+  total_companies?: number;
+};
+
+export async function fetchRecurringThemes(
+  minFrequency: number = 3,
+  limit: number = 20,
+  timeWindowDays?: number
+): Promise<RecurringThemesResponse> {
+  const params = new URLSearchParams({
+    min_frequency: minFrequency.toString(),
+    limit: limit.toString()
+  });
+  if (timeWindowDays !== undefined) {
+    params.append('time_window_days', timeWindowDays.toString());
+  }
+  return getJson<RecurringThemesResponse>(`/analytics/recurring-themes?${params.toString()}`);
+}
+
+export async function fetchThemeDetails(
+  themeName: string,
+  themeType: string
+): Promise<ThemeDetailsResponse> {
+  const params = new URLSearchParams({
+    theme_type: themeType
+  });
+  // URL encode the theme name
+  const encodedName = encodeURIComponent(themeName);
+  return getJson<ThemeDetailsResponse>(`/analytics/theme/${encodedName}?${params.toString()}`);
+}
+
+export type ThemeSummaryResponse = {
+  summary: string;
+  theme_name?: string;
+  theme_type?: string;
+};
+
+export async function generateThemeSummary(
+  themeData: any
+): Promise<ThemeSummaryResponse> {
+  return postJson<any, ThemeSummaryResponse>('/analytics/theme/summary', themeData);
+}
+
 

@@ -486,9 +486,28 @@ class GraphRAGQuery:
 
         # Format context for LLM
         context_str = self._format_context_for_llm(context)
+        
+        # Check if context is empty or minimal
+        has_minimal_context = not context_str or context_str.strip() in ['{}', '[]', 'null', ''] or len(context_str.strip()) < 50
 
         # Create prompt
-        prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
+        if has_minimal_context:
+            prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
+
+User Question: {query}
+
+Note: The knowledge graph search didn't return much relevant context for this question.
+
+Please provide a helpful response:
+1. If you can answer based on general knowledge about the topic, provide that answer
+2. If the question is about specific data that should be in the knowledge graph, explain that the graph doesn't contain enough relevant information to answer this specific question
+3. Suggest what kind of data would be needed to answer this question (e.g., "To answer this, the knowledge graph would need information about companies located in India and their characteristics")
+
+Be helpful and informative, even if you can't provide a complete answer based on the graph data.
+
+Answer:"""
+        else:
+            prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
 
 Context from Knowledge Graph:
 {context_str}
@@ -496,11 +515,12 @@ Context from Knowledge Graph:
 User Question: {query}
 
 Instructions:
-1. Answer the question based ONLY on the provided context
+1. Answer the question based on the provided context from the knowledge graph
 2. Be specific and cite entity names when possible
-3. If the context doesn't contain enough information, say so
-4. Provide insights by connecting related information
-5. Keep the answer concise but informative (2-4 paragraphs max)
+3. If the context doesn't directly answer the question, you can make reasonable inferences based on the available data
+4. If there's no relevant data in the context, clearly state that the knowledge graph doesn't contain enough information to answer this question
+5. Provide insights by connecting related information
+6. Keep the answer concise but informative (2-4 paragraphs max)
 
 Answer:"""
 
@@ -551,9 +571,12 @@ Answer:"""
             context = self._enrich_with_article_urls(context)
 
         # Step 3: Generate answer if LLM enabled
+        # Always try to generate an answer, even if context is minimal/empty
+        # The LLM can handle cases where context is insufficient
         answer = None
-        if use_llm and context:
-            answer = self.generate_answer(question, context)
+        if use_llm:
+            # Use empty dict if context is None/empty to ensure LLM still generates a response
+            answer = self.generate_answer(question, context if context else {})
 
         # Prepare response
         response = {

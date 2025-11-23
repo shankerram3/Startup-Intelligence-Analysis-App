@@ -10,8 +10,20 @@ import json
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
+# Import structured logging
+from utils.logging_config import setup_logging, get_logger
+
 # Load environment variables from .env file
 load_dotenv()
+
+# Setup logging
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    json_logs=os.getenv("JSON_LOGS", "false").lower() == "true",
+    log_file=Path("logs/pipeline.log") if os.getenv("ENABLE_FILE_LOGGING") == "true" else None
+)
+
+logger = get_logger(__name__)
 
 
 def check_requirements():
@@ -31,8 +43,7 @@ def check_requirements():
             missing.append(package)
     
     if missing:
-        print(f"❌ Missing packages: {', '.join(missing)}")
-        print(f"Install with: pip install {' '.join(missing)}")
+        logger.error("missing_packages", packages=missing, install_command=f"pip install {' '.join(missing)}")
         return False
     
     return True
@@ -53,14 +64,15 @@ def check_environment():
             missing.append(f"  {var}: {description}")
     
     if missing:
-        print("❌ Missing environment variables:")
-        for m in missing:
-            print(m)
-        print("\nSet them with:")
-        print("export OPENAI_API_KEY='your-key'")
-        print("export NEO4J_URI='bolt://localhost:7687'")
-        print("export NEO4J_USER='neo4j'")
-        print("export NEO4J_PASSWORD='your-password'")
+        logger.error("missing_environment_variables", variables=missing)
+        logger.info("environment_setup_instructions",
+            instructions=[
+                "export OPENAI_API_KEY='your-key'",
+                "export NEO4J_URI='bolt://localhost:7687'",
+                "export NEO4J_USER='neo4j'",
+                "export NEO4J_PASSWORD='your-password'"
+            ]
+        )
         return False
     
     return True
@@ -102,9 +114,7 @@ def run_pipeline(
         max_companies_to_scrape: Maximum number of companies to scrape per article (None = all)
     """
     
-    print("\n" + "="*80)
-    print("TECHCRUNCH KNOWLEDGE GRAPH PIPELINE")
-    print("="*80 + "\n")
+    logger.info("pipeline_starting", phase="initialization")
     
     # Check requirements
     if not check_requirements():
@@ -126,9 +136,7 @@ def run_pipeline(
     
     # Phase 0: Web Scraping
     if not skip_scraping and scrape_category:
-        print("\n" + "="*80)
-        print("PHASE 0: WEB SCRAPING")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="0", name="WEB_SCRAPING")
         
         try:
             import asyncio
@@ -156,34 +164,30 @@ def run_pipeline(
             )
             
             # Discover articles
-            print(f"Discovering articles from: {category_url}")
+            logger.info("scraping_discovering_articles", category_url=category_url)
             articles = asyncio.run(scraper.discover_articles(category_url=category_url))
             
             if not articles:
-                print("❌ No articles discovered")
+                logger.error("scraping_no_articles_discovered", category_url=category_url)
                 return False
             
-            print(f"✓ Discovered {len(articles)} articles")
+            logger.info("scraping_articles_discovered", count=len(articles))
             
             # Extract articles
-            print(f"\nExtracting {len(articles)} articles...")
+            logger.info("scraping_extracting_articles", count=len(articles))
             asyncio.run(scraper.extract_articles(articles=articles, batch_size=10))
             
-            print(f"✓ Scraping complete: {scraper.stats['articles_extracted']} articles extracted")
+            logger.info("scraping_complete", articles_extracted=scraper.stats['articles_extracted'])
             
         except Exception as e:
-            print(f"❌ Scraping failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("scraping_failed", error=str(e), exc_info=True)
             return False
     elif not skip_scraping:
-        print("\n⏭  Skipping scraping (no category specified)")
+        logger.info("scraping_skipped", reason="no_category_specified")
     
     # Phase 1: Entity Extraction
     if not skip_extraction:
-        print("\n" + "="*80)
-        print("PHASE 1: ENTITY EXTRACTION")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="1", name="ENTITY_EXTRACTION")
         
         from entity_extractor import process_articles_directory
         
@@ -198,25 +202,23 @@ def run_pipeline(
             )
             
             if not extractions:
-                print("❌ No extractions generated")
+                logger.error("extraction_no_results")
                 return False
                 
         except Exception as e:
-            print(f"❌ Entity extraction failed: {e}")
+            logger.error("extraction_failed", error=str(e), exc_info=True)
             return False
     else:
-        print("\n⏭  Skipping entity extraction (using existing file)")
+        logger.info("extraction_skipped", reason="using_existing_file")
         if not extractions_file.exists():
-            print(f"❌ Extractions file not found: {extractions_file}")
+            logger.error("extraction_file_not_found", file_path=str(extractions_file))
             return False
 
     # Phase 1.5: Company Intelligence Enrichment (NEW!)
     enriched_companies_file = output_path / "enriched_companies.json"
 
     if not skip_enrichment:
-        print("\n" + "="*80)
-        print("PHASE 1.5: COMPANY INTELLIGENCE ENRICHMENT")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="1.5", name="COMPANY_INTELLIGENCE_ENRICHMENT")
 
         try:
             import asyncio
@@ -243,16 +245,16 @@ def run_pipeline(
             if max_articles:
                 extractions = extractions[:max_articles]
 
-            print(f"Processing {len(extractions)} articles for company intelligence enrichment")
+            logger.info("enrichment_processing_articles", article_count=len(extractions))
 
             # Step 1: Extract company URLs from articles
-            print("\n1. Extracting company URLs from articles...")
+            logger.info("enrichment_step", step=1, description="Extracting company URLs from articles")
             all_company_urls = extract_company_urls_from_extractions(extractions, articles_dir)
             total_urls = sum(len(urls) for urls in all_company_urls.values())
-            print(f"   ✓ Extracted {total_urls} company URLs from {len(all_company_urls)} articles")
+            logger.info("enrichment_urls_extracted", total_urls=total_urls, article_count=len(all_company_urls))
 
             # Step 2: Scrape company websites (article by article)
-            print("\n2. Scraping company websites with Playwright...")
+            logger.info("enrichment_step", step=2, description="Scraping company websites with Playwright")
             intelligence_dir = output_path / "company_intelligence"
             scraper = CompanyIntelligenceScraper(
                 output_dir=str(intelligence_dir),
@@ -263,8 +265,7 @@ def run_pipeline(
 
             total_companies_scraped = 0
             for article_id, company_urls in all_company_urls.items():
-                print(f"\n   Article {article_id}:")
-                print(f"   - Companies to scrape: {len(company_urls)}")
+                logger.debug("enrichment_article_processing", article_id=article_id, companies_count=len(company_urls))
 
                 # Scrape companies for this article
                 try:
@@ -274,19 +275,16 @@ def run_pipeline(
                         max_companies=max_companies_to_scrape
                     ))
                     total_companies_scraped += len(results)
-                    print(f"   ✓ Scraped {len(results)} companies")
+                    logger.info("enrichment_companies_scraped", article_id=article_id, count=len(results))
                 except Exception as e:
-                    print(f"   ✗ Failed to scrape companies for article {article_id}: {e}")
+                    logger.warning("enrichment_scraping_failed", article_id=article_id, error=str(e))
                     continue
 
             scraper_stats = scraper.get_stats()
-            print(f"\n   ✓ Scraping complete:")
-            print(f"     - Companies scraped: {scraper_stats['companies_scraped']}")
-            print(f"     - Pages scraped: {scraper_stats['pages_scraped']}")
-            print(f"     - Failed scrapes: {scraper_stats['failed_scrapes']}")
+            logger.info("enrichment_scraping_complete", **scraper_stats)
 
             # Step 3: Aggregate intelligence
-            print("\n3. Aggregating company intelligence...")
+            logger.info("enrichment_step", step=3, description="Aggregating company intelligence")
             aggregator = CompanyIntelligenceAggregator()
             enriched_companies = aggregator.aggregate_all_companies(
                 extractions,
@@ -299,37 +297,22 @@ def run_pipeline(
                 str(enriched_companies_file)
             )
 
-            # Print summary
+            # Log summary
             summary = create_enrichment_summary(enriched_companies)
-            print(f"\n   ✓ Enrichment Summary:")
-            print(f"     - Total companies: {summary['total_companies']}")
-            print(f"     - With website URL: {summary['companies_with_website']}")
-            print(f"     - With founded year: {summary['companies_with_founded_year']}")
-            print(f"     - With headquarters: {summary['companies_with_headquarters']}")
-            print(f"     - With founders: {summary['companies_with_founders']}")
-            print(f"     - With funding data: {summary['companies_with_funding']}")
-            print(f"     - Average confidence: {summary['average_confidence']:.2f}")
-            print(f"     - High confidence (>0.7): {summary['high_confidence_companies']}")
-
-            print("\n✅ Company intelligence enrichment complete!")
+            logger.info("enrichment_summary", **summary)
+            logger.info("enrichment_complete")
 
         except ImportError as e:
-            print(f"⚠️  Enrichment not available: {e}")
-            print("   Install Playwright with: pip install playwright && playwright install")
-            print("   Skipping enrichment phase...")
+            logger.warning("enrichment_not_available", error=str(e), 
+                install_command="pip install playwright && playwright install")
         except Exception as e:
-            print(f"⚠️  Enrichment failed: {e}")
-            import traceback
-            traceback.print_exc()
-            print("   Continuing with pipeline...")
+            logger.warning("enrichment_failed", error=str(e), exc_info=True)
     else:
-        print("\n⏭  Skipping company intelligence enrichment")
+        logger.info("enrichment_skipped")
 
     # Phase 2: Graph Construction
     if not skip_graph_building:
-        print("\n" + "="*80)
-        print("PHASE 2: KNOWLEDGE GRAPH CONSTRUCTION")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="2", name="KNOWLEDGE_GRAPH_CONSTRUCTION")
 
         from graph_builder import build_graph_from_extractions, TechCrunchGraphBuilder
 
@@ -343,9 +326,7 @@ def run_pipeline(
 
             # Phase 2.5: Enrich graph with company intelligence (if available)
             if not skip_enrichment and enriched_companies_file.exists():
-                print("\n" + "="*80)
-                print("PHASE 2.5: ENRICHING GRAPH WITH COMPANY INTELLIGENCE")
-                print("="*80 + "\n")
+                logger.info("pipeline_phase_starting", phase="2.5", name="ENRICHING_GRAPH_WITH_COMPANY_INTELLIGENCE")
 
                 try:
                     # Load enriched companies
@@ -356,14 +337,12 @@ def run_pipeline(
                     builder = TechCrunchGraphBuilder(neo4j_uri, neo4j_user, neo4j_password)
                     try:
                         enrichment_stats = builder.enrich_all_companies(enriched_companies)
-                        print(f"\n✅ Enriched {enrichment_stats['enriched']} companies in the graph")
+                        logger.info("graph_enrichment_complete", **enrichment_stats)
                     finally:
                         builder.close()
 
                     # Regenerate embeddings for enriched companies
-                    print("\n" + "-"*80)
-                    print("Regenerating embeddings for enriched companies...")
-                    print("-"*80 + "\n")
+                    logger.info("regenerating_embeddings_for_enriched_companies")
 
                     try:
                         from utils.embedding_generator import EmbeddingGenerator
@@ -374,36 +353,33 @@ def run_pipeline(
                             embed_stats = generator.regenerate_enriched_company_embeddings()
 
                             if "error" in embed_stats:
-                                print(f"   ⚠️  {embed_stats['error']}")
+                                logger.warning("embedding_regeneration_error", error=embed_stats['error'])
                             else:
-                                print(f"   ✓ Regenerated embeddings for {embed_stats.get('regenerated', 0)} enriched companies")
+                                logger.info("embedding_regeneration_complete", 
+                                    regenerated=embed_stats.get('regenerated', 0))
                                 if embed_stats.get('failed', 0) > 0:
-                                    print(f"   ⚠️  Failed: {embed_stats['failed']}")
+                                    logger.warning("embedding_regeneration_failures", failed=embed_stats['failed'])
                         finally:
                             driver.close()
 
                     except Exception as e:
-                        print(f"   ⚠️  Failed to regenerate embeddings: {e}")
+                        logger.warning("embedding_regeneration_failed", error=str(e), exc_info=True)
                         # Continue with pipeline
 
                 except Exception as e:
-                    print(f"⚠️  Failed to enrich graph with company intelligence: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.warning("graph_enrichment_failed", error=str(e), exc_info=True)
 
         except Exception as e:
-            print(f"❌ Graph construction failed: {e}")
-            print("\nMake sure Neo4j is running:")
-            print("  docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j")
+            logger.error("graph_construction_failed", error=str(e), exc_info=True)
+            logger.info("neo4j_setup_instructions",
+                command="docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j")
             return False
     else:
-        print("\n⏭  Skipping graph construction")
+        logger.info("graph_construction_skipped")
     
     # Phase 3: Graph Post-Processing (Optional)
     if not skip_graph_building and auto_cleanup_graph:
-        print("\n" + "="*80)
-        print("PHASE 3: GRAPH POST-PROCESSING")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="3", name="GRAPH_POST_PROCESSING")
         
         try:
             import sys
@@ -421,22 +397,19 @@ def run_pipeline(
             try:
                 cleaner.fix_mentioned_in_relationships()
                 cleaner.show_statistics()
-                print("✅ Graph cleanup complete!")
+                logger.info("graph_cleanup_complete")
             finally:
                 cleaner.close()
                 
         except ImportError as e:
-            print(f"⚠️  Graph cleanup utility not found: {e}")
-            print("Skipping graph cleanup...")
+            logger.warning("graph_cleanup_not_available", error=str(e))
         except Exception as e:
-            print(f"⚠️  Graph cleanup failed: {e}")
+            logger.warning("graph_cleanup_failed", error=str(e), exc_info=True)
             # Don't fail pipeline if cleanup fails
     
     # Phase 4: Post-Processing (Essential for query functionality)
     if not skip_graph_building and not skip_post_processing:
-        print("\n" + "="*80)
-        print("PHASE 4: POST-PROCESSING (Embeddings, Deduplication, Communities)")
-        print("="*80 + "\n")
+        logger.info("pipeline_phase_starting", phase="4", name="POST_PROCESSING")
         
         try:
             import sys
@@ -462,68 +435,53 @@ def run_pipeline(
             
             try:
                 # 1. Entity Deduplication
-                print("1. Entity Deduplication")
-                print("-" * 80)
+                logger.info("postprocessing_step", step=1, name="Entity Deduplication")
                 resolver = EntityResolver(driver)
                 merge_stats = resolver.merge_all_duplicates(dry_run=False, threshold=0.85)
-                print(f"   ✓ Merged {merge_stats.get('merged', 0)} duplicate entities\n")
+                logger.info("postprocessing_deduplication_complete", **merge_stats)
                 
                 # 2. Relationship Strength Calculation
-                print("2. Relationship Strength Calculation")
-                print("-" * 80)
+                logger.info("postprocessing_step", step=2, name="Relationship Strength Calculation")
                 scorer = RelationshipScorer(driver)
                 update_stats = scorer.update_relationship_strengths()
-                print(f"   ✓ Updated {update_stats.get('updated', 0)} relationship strengths\n")
+                logger.info("postprocessing_relationship_scoring_complete", **update_stats)
                 
                 # 3. Community Detection
-                print("3. Community Detection")
-                print("-" * 80)
+                logger.info("postprocessing_step", step=3, name="Community Detection")
                 detector = CommunityDetector(driver)
                 communities = detector.detect_communities(algorithm="leiden", min_community_size=3)
                 method = communities.get('method', 'simple')
-                if method == 'aura_graph_analytics':
-                    print(f"   ✓ Detected {communities.get('total_communities', 0)} communities using Aura Graph Analytics\n")
-                else:
-                    print(f"   ✓ Detected {communities.get('total_communities', 0)} communities using {method} method\n")
+                logger.info("postprocessing_community_detection_complete", 
+                    method=method, **{k: v for k, v in communities.items() if k != 'method'})
                 
                 # 4. Embedding Generation (includes enriched company data)
-                print("4. Embedding Generation (with enriched company intelligence)")
-                print("-" * 80)
+                logger.info("postprocessing_step", step=4, name="Embedding Generation")
                 generator = EmbeddingGenerator(driver, embedding_model="sentence_transformers")
                 embed_stats = generator.generate_embeddings_for_all_entities()
-                print(f"   ✓ Generated {embed_stats.get('generated', 0)} embeddings")
-                if embed_stats.get('enriched', 0) > 0:
-                    print(f"   ✓ Including {embed_stats.get('enriched', 0)} enriched companies with detailed profiles")
-                print()
+                logger.info("postprocessing_embedding_generation_complete", **embed_stats)
                 
-                print("="*80)
-                print("✅ POST-PROCESSING COMPLETE!")
-                print("="*80 + "\n")
+                logger.info("postprocessing_complete")
                 
             finally:
                 driver.close()
                 
         except ImportError as e:
-            print(f"⚠️  Post-processing not available: {e}")
-            print("Skipping post-processing...")
+            logger.warning("postprocessing_not_available", error=str(e))
         except Exception as e:
-            print(f"⚠️  Post-processing failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("postprocessing_failed", error=str(e), exc_info=True)
             # Don't fail pipeline if post-processing fails
     
     # Success!
-    print("\n" + "="*80)
-    print("✅ PIPELINE COMPLETE!")
-    print("="*80)
-    print("\nNext steps:")
-    print("1. Open Neo4j Browser: http://localhost:7474")
-    print("2. Run Cypher queries to explore the graph")
-    print("3. Start GraphRAG API: python api.py")
-    print("4. View API docs: http://localhost:8000/docs")
-    print("5. Query with Python: python api_client_example.py")
-    print("6. Read documentation: RAG_DOCUMENTATION.md")
-    print("="*80 + "\n")
+    logger.info("pipeline_complete")
+    logger.info("pipeline_next_steps",
+        steps=[
+            "Open Neo4j Browser: http://localhost:7474",
+            "Run Cypher queries to explore the graph",
+            "Start GraphRAG API: python api.py",
+            "View API docs: http://localhost:8000/docs",
+            "Query with Python: python api_client_example.py",
+            "Read documentation: RAG_DOCUMENTATION.md"
+        ])
     
     return True
 
