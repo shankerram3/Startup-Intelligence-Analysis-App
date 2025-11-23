@@ -189,7 +189,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     backdropFilter: 'blur(20px) saturate(180%)',
     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-    position: 'relative',
     overflow: 'hidden'
   },
   headerContainer: {

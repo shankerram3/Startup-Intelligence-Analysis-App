@@ -13,8 +13,7 @@ Version 2.0.0 - Enhanced with:
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import subprocess
@@ -262,8 +261,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
 )
 
-# Frontend static files path (will be mounted after all API routes)
-frontend_dist = Path(__file__).parent / "frontend" / "dist"
+# Frontend is served separately - removed frontend serving from FastAPI
 
 
 # =============================================================================
@@ -1186,27 +1184,9 @@ async def get_readme():
 
 
 # =============================================================================
-# STATIC FILES & FRONTEND SERVING (must be after all API routes)
+# FRONTEND SERVING REMOVED
+# Frontend is now served separately - FastAPI only serves API endpoints
 # =============================================================================
-
-# Mount static files and SPA route (must be last, after all API routes)
-if frontend_dist.exists():
-    # Serve static assets
-    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
-    
-    # Serve frontend index.html for all non-API routes (catch-all, must be last)
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        """Serve frontend SPA - catch all non-API routes"""
-        # Don't serve frontend for API routes
-        # Note: /docs/readme is handled by the endpoint above, so it won't reach here
-        if full_path.startswith(("api/", "docs/", "redoc", "openapi.json", "health", "query", "search", "company", "investors", "admin")):
-            raise HTTPException(status_code=404, detail="Not found")
-        
-        index_file = frontend_dist / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file))
-        raise HTTPException(status_code=404, detail="Frontend not found")
 
 
 # =============================================================================
@@ -1222,8 +1202,7 @@ if __name__ == "__main__":
     print(f"🚀 Starting GraphRAG API on {host}:{port}")
     print(f"📚 API Documentation: http://{host}:{port}/docs")
     print(f"📊 ReDoc Documentation: http://{host}:{port}/redoc")
-    if frontend_dist.exists():
-        print(f"🌐 Frontend: http://{host}:{port}/")
+    print(f"📊 Prometheus Metrics: http://{host}:{port}/metrics")
 
     uvicorn.run(
         "api:app",
