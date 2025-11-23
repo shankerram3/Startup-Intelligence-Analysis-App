@@ -7,13 +7,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from utils.cache import (
-    CacheManager,
-    EntityCache,
-    QueryCache,
-    generate_cache_key,
-    get_cache,
-)
+from utils.cache import (CacheManager, EntityCache, QueryCache,
+                         generate_cache_key, get_cache)
 
 
 class TestCacheKeyGeneration:

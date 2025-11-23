@@ -248,15 +248,12 @@ def run_pipeline(
             if scraper_dir.exists():
                 sys.path.insert(0, str(scraper_dir))
 
-            from scraper.company_intelligence_scraper import CompanyIntelligenceScraper
+            from scraper.company_intelligence_scraper import \
+                CompanyIntelligenceScraper
             from utils.company_intelligence_aggregator import (
-                CompanyIntelligenceAggregator,
-                create_enrichment_summary,
-            )
+                CompanyIntelligenceAggregator, create_enrichment_summary)
             from utils.company_url_extractor import (
-                CompanyURLExtractor,
-                extract_company_urls_from_extractions,
-            )
+                CompanyURLExtractor, extract_company_urls_from_extractions)
 
             # Load extractions
             with open(extractions_file, "r", encoding="utf-8") as f:
@@ -371,7 +368,8 @@ def run_pipeline(
             "pipeline_phase_starting", phase="2", name="KNOWLEDGE_GRAPH_CONSTRUCTION"
         )
 
-        from graph_builder import TechCrunchGraphBuilder, build_graph_from_extractions
+        from graph_builder import (TechCrunchGraphBuilder,
+                                   build_graph_from_extractions)
 
         try:
             build_graph_from_extractions(
@@ -410,7 +408,8 @@ def run_pipeline(
                     logger.info("regenerating_embeddings_for_enriched_companies")
 
                     try:
-                        from utils.embedding_generator import EmbeddingGenerator
+                        from utils.embedding_generator import \
+                            EmbeddingGenerator
 
                         driver = GraphDatabase.driver(
                             neo4j_uri, auth=(neo4j_user, neo4j_password)

@@ -32,22 +32,13 @@ from slowapi.util import get_remote_address
 from query_templates import QueryTemplates
 from rag_query import GraphRAGQuery, create_rag_query
 from utils.cache import EntityCache, QueryCache, get_cache
-
 # Import new utility modules
 from utils.logging_config import get_logger, setup_logging
-from utils.monitoring import (
-    PrometheusMiddleware,
-    get_metrics,
-    get_metrics_content_type,
-    record_cache_operation,
-    record_query_execution,
-)
-from utils.security import (
-    SecurityConfig,
-    optional_auth,
-    sanitize_error_message,
-    verify_token,
-)
+from utils.monitoring import (PrometheusMiddleware, get_metrics,
+                              get_metrics_content_type, record_cache_operation,
+                              record_query_execution)
+from utils.security import (SecurityConfig, optional_auth,
+                            sanitize_error_message, verify_token)
 
 # Load environment variables
 load_dotenv()

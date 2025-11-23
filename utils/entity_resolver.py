@@ -8,11 +8,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from neo4j import GraphDatabase
 
-from .entity_normalization import (
-    are_similar_entities,
-    get_canonical_name,
-    normalize_entity_name,
-)
+from .entity_normalization import (are_similar_entities, get_canonical_name,
+                                   normalize_entity_name)
 
 
 class EntityResolver:
