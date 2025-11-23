@@ -50,7 +50,17 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 API_KEY_HEADER = os.getenv("API_KEY_HEADER", "X-API-Key")
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Initialize lazily to avoid passlib's bug detection during import
+# This prevents the 72-byte limit error during passlib's internal initialization
+_pwd_context = None
+
+
+def _get_pwd_context():
+    """Get password context, initializing lazily to avoid import-time issues"""
+    global _pwd_context
+    if _pwd_context is None:
+        _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    return _pwd_context
 
 # Bcrypt has a 72-byte limit for passwords
 MAX_BCRYPT_BYTES = 72
@@ -118,7 +128,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
     normalized_password = _normalize_password_for_bcrypt(plain_password)
-    return pwd_context.verify(normalized_password, hashed_password)
+    return _get_pwd_context().verify(normalized_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
@@ -135,7 +145,7 @@ def get_password_hash(password: str) -> str:
         Bcrypt has a 72-byte limit, so passwords are truncated if necessary
     """
     normalized_password = _normalize_password_for_bcrypt(password)
-    return pwd_context.hash(normalized_password)
+    return _get_pwd_context().hash(normalized_password)
 
 
 def create_access_token(
