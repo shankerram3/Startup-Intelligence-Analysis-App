@@ -14,8 +14,7 @@ from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
-from crawl4ai import (AsyncWebCrawler, BrowserConfig, CacheMode,
-                      CrawlerRunConfig)
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from pydantic import BaseModel, Field
 

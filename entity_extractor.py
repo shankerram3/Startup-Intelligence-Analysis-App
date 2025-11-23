@@ -21,8 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.checkpoint import CheckpointManager
 from utils.data_validation import validate_article, validate_extraction
 from utils.entity_normalization import normalize_entity_name
-from utils.filter_techcrunch import (filter_techcrunch_entities,
-                                     filter_techcrunch_relationship)
+from utils.filter_techcrunch import (
+    filter_techcrunch_entities,
+    filter_techcrunch_relationship,
+)
 from utils.progress_tracker import ProgressTracker
 from utils.retry import retry_with_backoff
 
@@ -221,8 +223,7 @@ Output:
                 entity = self._parse_entity(record)
                 if entity:
                     # Filter out TechCrunch/Disrupt related entities
-                    from utils.filter_techcrunch import \
-                        filter_techcrunch_entity
+                    from utils.filter_techcrunch import filter_techcrunch_entity
 
                     should_filter, reason = filter_techcrunch_entity(entity)
                     if should_filter:
