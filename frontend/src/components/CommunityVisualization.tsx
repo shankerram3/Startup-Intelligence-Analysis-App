@@ -128,8 +128,12 @@ export function CommunityVisualization({
           title: node.title || `${node.label} (${node.type})`,
           color: {
             background: color,
-            border: color,
+            border: '#ffffff', // White border to make nodes stand out from edges
             highlight: {
+              background: color,
+              border: '#fbbf24' // Yellow border when highlighted
+            },
+            hover: {
               background: color,
               border: '#ffffff'
             }
@@ -139,28 +143,41 @@ export function CommunityVisualization({
             size: 12
           },
           shape: 'dot',
-          size: 16,
+          size: 18, // Slightly larger for better visibility
+          borderWidth: 2, // Thicker border to distinguish from edges
           community_id: communityId,
           type: node.type
         };
       });
 
-      // Format edges
-      const edges = data.edges.map((edge: any) => ({
-        from: edge.from,
-        to: edge.to,
-        label: edge.label || edge.type || '',
-        arrows: 'to',
-        color: {
-          color: 'rgba(148, 163, 184, 0.5)',
-          highlight: 'rgba(59, 130, 246, 0.8)'
-        },
-        width: 1,
-        smooth: {
-          type: 'continuous',
-          roundness: 0.5
-        }
-      }));
+      // Format edges with distinct colors from nodes
+      const edges = data.edges.map((edge: any) => {
+        // Get the colors of the connected nodes to determine edge color
+        const fromNode = nodes.find((n: any) => n.id === edge.from);
+        const toNode = nodes.find((n: any) => n.id === edge.to);
+        
+        // Use a neutral gray color that's distinct from node colors
+        // Make it darker and more visible
+        const edgeColor = 'rgba(100, 116, 139, 0.7)'; // slate-500 with more opacity
+        const edgeHighlight = 'rgba(148, 163, 184, 1.0)'; // lighter gray when highlighted
+        
+        return {
+          from: edge.from,
+          to: edge.to,
+          label: edge.label || edge.type || '',
+          arrows: 'to',
+          color: {
+            color: edgeColor,
+            highlight: edgeHighlight,
+            hover: edgeHighlight
+          },
+          width: 2, // Make edges slightly thicker for better visibility
+          smooth: {
+            type: 'continuous',
+            roundness: 0.5
+          }
+        };
+      });
 
       const networkData = { nodes, edges };
 
@@ -181,21 +198,26 @@ export function CommunityVisualization({
           }
         },
         edges: {
-          width: 1.5,
+          width: 2, // Thicker edges for better visibility
           shadow: {
             enabled: true,
-            color: 'rgba(0,0,0,0.2)',
-            size: 3
+            color: 'rgba(0,0,0,0.3)',
+            size: 4
           },
           font: {
             size: 10,
-            color: '#94a3b8',
-            align: 'middle'
+            color: '#cbd5e1', // Lighter color for edge labels
+            align: 'middle',
+            background: 'rgba(15, 23, 42, 0.8)', // Dark background for label readability
+            strokeWidth: 2,
+            strokeColor: 'rgba(15, 23, 42, 0.8)'
           },
           smooth: {
             type: 'continuous',
             roundness: 0.5
-          }
+          },
+          selectionWidth: 3, // Thicker when selected
+          hoverWidth: 2.5 // Slightly thicker on hover
         },
         physics: {
           enabled: true,
