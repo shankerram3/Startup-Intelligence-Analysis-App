@@ -1179,6 +1179,48 @@ class QueryTemplates:
                 return record.get("details", {}) if record else {}
 
             elif theme_type == "industry_cluster":
+                # Handle community-based themes (format: "Community X Cluster")
+                if theme_name.startswith("Community ") and theme_name.endswith(" Cluster"):
+                    # Extract community ID from theme name (e.g., "Community 2 Cluster" -> 2)
+                    try:
+                        comm_id_str = theme_name.replace("Community ", "").replace(" Cluster", "").strip()
+                        comm_id = int(comm_id_str)
+                        query = """
+                            MATCH (e)
+                            WHERE NOT e:Article 
+                              AND e.community_id = $comm_id
+                            WITH e
+                            OPTIONAL MATCH (e)-[r]->(related)
+                            WHERE NOT related:Article
+                            WITH e, collect(DISTINCT {
+                                name: related.name,
+                                type: labels(related)[0],
+                                relationship: type(r)
+                            })[0..20] as relationships
+                            WITH collect({
+                                name: e.name,
+                                type: labels(e)[0],
+                                description: e.description,
+                                mention_count: e.mention_count
+                            }) as entities, relationships
+                            UNWIND relationships as rel
+                            WITH entities, collect(DISTINCT rel) as all_relationships
+                            RETURN {
+                                community_id: $comm_id,
+                                entities: entities,
+                                total_entities: size(entities),
+                                relationships: all_relationships,
+                                description: 'Community ' + toString($comm_id) + ' contains ' + toString(size(entities)) + ' entities'
+                            } as details
+                        """
+                        result = session.run(query, comm_id=comm_id)
+                        record = result.single()
+                        if record and record.get("details"):
+                            return record.get("details", {})
+                    except (ValueError, TypeError):
+                        # If community ID extraction fails, fall through to other handlers
+                        pass
+                
                 # For industry clusters, try to extract the keyword
                 # Theme format might be "Industry: keyword" or "Entity Name (Popular Type)"
                 if theme_name.startswith("Industry: "):
