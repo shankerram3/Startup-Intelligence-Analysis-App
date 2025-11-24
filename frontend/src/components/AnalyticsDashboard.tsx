@@ -9,9 +9,10 @@ export function AnalyticsDashboard() {
   const [timePeriod, setTimePeriod] = useState(24);
   const [groupBy, setGroupBy] = useState<'hour' | 'day' | 'minute'>('hour');
   const [selectedCallType, setSelectedCallType] = useState<string>('all');
+  const [refreshing, setRefreshing] = useState(false);
 
   async function loadData() {
-    setLoading(true);
+    if (!refreshing) setRefreshing(true);
     setError(null);
     try {
       const [dashboardData, callsData] = await Promise.all([
@@ -24,6 +25,7 @@ export function AnalyticsDashboard() {
       setError(e?.message || 'Failed to load analytics');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -37,8 +39,16 @@ export function AnalyticsDashboard() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
         <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ fontSize: 24, marginBottom: 12 }}>⏳</div>
-          <div>Loading analytics...</div>
+          <div style={{ 
+            width: 48, 
+            height: 48, 
+            border: '4px solid rgba(59, 130, 246, 0.2)',
+            borderTop: '4px solid #3b82f6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Loading analytics...</div>
         </div>
       </div>
     );
@@ -46,8 +56,31 @@ export function AnalyticsDashboard() {
 
   if (error && !data) {
     return (
-      <div style={{ padding: 24, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8, color: '#fca5a5' }}>
-        ⚠️ {error}
+      <div style={{ 
+        padding: 24, 
+        background: 'rgba(239, 68, 68, 0.1)', 
+        borderRadius: 12,
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        color: '#fca5a5',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
+        <div style={{ fontSize: 16, fontWeight: 500 }}>{error}</div>
+        <button
+          onClick={loadData}
+          style={{
+            marginTop: 16,
+            padding: '8px 16px',
+            background: 'rgba(239, 68, 68, 0.2)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 6,
+            color: '#fca5a5',
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -59,27 +92,93 @@ export function AnalyticsDashboard() {
 
   return (
     <div style={{ display: 'grid', gap: 24, minHeight: 0 }}>
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .metric-card {
+          animation: slideIn 0.3s ease-out;
+          transition: all 0.3s ease;
+        }
+        .metric-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3) !important;
+        }
+        .chart-card {
+          animation: slideIn 0.4s ease-out;
+        }
+        .refresh-indicator {
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        flexWrap: 'wrap', 
+        gap: 16,
+        padding: '20px 24px',
+        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+        borderRadius: 16,
+        border: '1px solid rgba(59, 130, 246, 0.2)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
+      }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Analytics Dashboard
+          <h1 style={{ 
+            margin: 0, 
+            fontSize: 32, 
+            fontWeight: 700, 
+            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', 
+            WebkitBackgroundClip: 'text', 
+            WebkitTextFillColor: 'transparent',
+            marginBottom: 8
+          }}>
+            📊 Analytics Dashboard
           </h1>
-          <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 14 }}>
-            Monitor API calls, OpenAI usage, and system performance
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
+            Monitor API calls, OpenAI usage, and system performance in real-time
+            {refreshing && <span className="refresh-indicator" style={{ marginLeft: 8 }}>🔄</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <select
             value={timePeriod}
             onChange={(e) => setTimePeriod(parseInt(e.target.value))}
             style={{
-              padding: '8px 12px',
+              padding: '10px 14px',
               background: 'rgba(15, 23, 42, 0.8)',
               border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: 6,
+              borderRadius: 8,
               color: '#f1f5f9',
-              fontSize: 14
+              fontSize: 14,
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+              e.currentTarget.style.background = 'rgba(15, 23, 42, 0.9)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+              e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)';
             }}
           >
             <option value={1}>Last Hour</option>
@@ -91,12 +190,23 @@ export function AnalyticsDashboard() {
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as any)}
             style={{
-              padding: '8px 12px',
+              padding: '10px 14px',
               background: 'rgba(15, 23, 42, 0.8)',
               border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: 6,
+              borderRadius: 8,
               color: '#f1f5f9',
-              fontSize: 14
+              fontSize: 14,
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+              e.currentTarget.style.background = 'rgba(15, 23, 42, 0.9)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+              e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)';
             }}
           >
             <option value="minute">By Minute</option>
@@ -105,30 +215,50 @@ export function AnalyticsDashboard() {
           </select>
           <button
             onClick={loadData}
+            disabled={refreshing}
             style={{
-              padding: '8px 16px',
-              background: 'rgba(59, 130, 246, 0.2)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: 6,
+              padding: '10px 20px',
+              background: refreshing 
+                ? 'rgba(100, 116, 139, 0.2)' 
+                : 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.2) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              borderRadius: 8,
               color: '#60a5fa',
-              cursor: 'pointer',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
               fontSize: 14,
-              fontWeight: 500
+              fontWeight: 500,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              if (!refreshing) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.4) 0%, rgba(37, 99, 235, 0.3) 100%)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!refreshing) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.2) 100%)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.2)';
+              }
             }}
           >
-            🔄 Refresh
+            {refreshing ? '⏳ Refreshing...' : '🔄 Refresh'}
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
         <MetricCard
           title="API Calls"
           value={summary.total_api_calls.toLocaleString()}
           subtitle={`${summary.total_api_errors} errors`}
           color="#3b82f6"
           icon="📡"
+          trend={summary.total_api_calls > 0 ? 'up' : 'neutral'}
         />
         <MetricCard
           title="OpenAI Calls"
@@ -136,13 +266,15 @@ export function AnalyticsDashboard() {
           subtitle={`${summary.total_openai_errors} errors`}
           color="#10b981"
           icon="🤖"
+          trend={summary.total_openai_calls > 0 ? 'up' : 'neutral'}
         />
         <MetricCard
           title="OpenAI Tokens"
           value={summary.total_openai_tokens.toLocaleString()}
-          subtitle={`${(summary.total_openai_tokens / 1000).toFixed(1)}K`}
+          subtitle={`${(summary.total_openai_tokens / 1000).toFixed(1)}K tokens`}
           color="#f59e0b"
           icon="🔢"
+          trend={summary.total_openai_tokens > 0 ? 'up' : 'neutral'}
         />
         <MetricCard
           title="OpenAI Cost"
@@ -150,6 +282,7 @@ export function AnalyticsDashboard() {
           subtitle={`${timePeriod}h period`}
           color="#ef4444"
           icon="💰"
+          trend={summary.total_openai_cost > 0 ? 'up' : 'neutral'}
         />
         <MetricCard
           title="Queries"
@@ -157,6 +290,7 @@ export function AnalyticsDashboard() {
           subtitle="GraphRAG queries"
           color="#8b5cf6"
           icon="🔍"
+          trend={summary.total_query_executions > 0 ? 'up' : 'neutral'}
         />
         <MetricCard
           title="Neo4j Queries"
@@ -164,63 +298,76 @@ export function AnalyticsDashboard() {
           subtitle="Database queries"
           color="#06b6d4"
           icon="🗄️"
+          trend={summary.total_neo4j_queries > 0 ? 'up' : 'neutral'}
         />
       </div>
 
       {/* Time Series Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 16 }}>
-        <ChartCard title="API Calls Over Time">
-          <SimpleLineChart
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
+        <ChartCard title="API Calls Over Time" icon="📈">
+          <EnhancedLineChart
             data={timeSeriesEntries}
             dataKey="api_calls"
             color="#3b82f6"
+            gradientColor="rgba(59, 130, 246, 0.2)"
           />
         </ChartCard>
-        <ChartCard title="OpenAI Calls Over Time">
-          <SimpleLineChart
+        <ChartCard title="OpenAI Calls Over Time" icon="🤖">
+          <EnhancedLineChart
             data={timeSeriesEntries}
             dataKey="openai_calls"
             color="#10b981"
+            gradientColor="rgba(16, 185, 129, 0.2)"
           />
         </ChartCard>
-        <ChartCard title="OpenAI Cost Over Time">
-          <SimpleLineChart
+        <ChartCard title="OpenAI Cost Over Time" icon="💰">
+          <EnhancedLineChart
             data={timeSeriesEntries}
             dataKey="openai_cost"
             color="#ef4444"
+            gradientColor="rgba(239, 68, 68, 0.2)"
             formatValue={(v) => `$${v.toFixed(2)}`}
           />
         </ChartCard>
-        <ChartCard title="OpenAI Tokens Over Time">
-          <SimpleLineChart
+        <ChartCard title="OpenAI Tokens Over Time" icon="🔢">
+          <EnhancedLineChart
             data={timeSeriesEntries}
             dataKey="openai_tokens"
             color="#f59e0b"
+            gradientColor="rgba(245, 158, 11, 0.2)"
             formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
           />
         </ChartCard>
       </div>
 
       {/* Breakdowns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
         <BreakdownCard
           title="Top Endpoints"
+          icon="🔗"
           data={Object.entries(data.endpoints.counts)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 10)
-            .map(([name, count]) => ({ name, value: count }))}
+            .map(([name, count]) => ({ 
+              name: name.length > 40 ? name.substring(0, 40) + '...' : name, 
+              value: count,
+              errorCount: data.endpoints.errors[name] || 0
+            }))}
         />
         <BreakdownCard
           title="OpenAI Models"
+          icon="🎯"
           data={Object.entries(data.openai_models.counts)
             .map(([name, count]) => ({
               name,
               value: count,
-              subtitle: `$${data.openai_models.costs[name]?.toFixed(2) || '0.00'}`
+              subtitle: `$${data.openai_models.costs[name]?.toFixed(2) || '0.00'}`,
+              tokens: data.openai_models.tokens[name] || 0
             }))}
         />
         <BreakdownCard
           title="OpenAI Operations"
+          icon="⚙️"
           data={Object.entries(data.openai_operations.counts)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 10)
@@ -234,25 +381,40 @@ export function AnalyticsDashboard() {
 
       {/* Recent Calls */}
       <div style={{
-        padding: 20,
+        padding: 24,
         background: 'rgba(30, 41, 59, 0.6)',
-        borderRadius: 12,
-        border: '1px solid rgba(59, 130, 246, 0.2)'
+        borderRadius: 16,
+        border: '1px solid rgba(59, 130, 246, 0.2)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#f1f5f9' }}>
-            Recent Calls
-          </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#f1f5f9', marginBottom: 4 }}>
+              📋 Recent Calls
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>
+              Last {recentCalls.length} calls • Auto-refreshes every 30s
+            </p>
+          </div>
           <select
             value={selectedCallType}
             onChange={(e) => setSelectedCallType(e.target.value)}
             style={{
-              padding: '6px 12px',
+              padding: '8px 14px',
               background: 'rgba(15, 23, 42, 0.8)',
               border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: 6,
+              borderRadius: 8,
               color: '#f1f5f9',
-              fontSize: 13
+              fontSize: 13,
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
             }}
           >
             <option value="all">All Types</option>
@@ -262,134 +424,200 @@ export function AnalyticsDashboard() {
             <option value="query_execution">Query Executions</option>
           </select>
         </div>
-        <div style={{ display: 'grid', gap: 8, maxHeight: 400, overflowY: 'auto' }}>
-          {recentCalls.map((call, i) => (
-            <div
-              key={i}
-              style={{
-                padding: 12,
-                background: 'rgba(15, 23, 42, 0.6)',
-                borderRadius: 8,
-                border: '1px solid rgba(59, 130, 246, 0.1)',
-                fontSize: 12
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ color: '#cbd5e1', fontWeight: 600 }}>
-                  {call.type === 'api_call' && '📡'}
-                  {call.type === 'openai_call' && '🤖'}
-                  {call.type === 'neo4j_query' && '🗄️'}
-                  {call.type === 'query_execution' && '🔍'}
-                  {' '}
-                  {call.type.replace('_', ' ').toUpperCase()}
-                </span>
-                <span style={{ color: '#94a3b8' }}>
-                  {new Date(call.timestamp).toLocaleString()}
-                </span>
-              </div>
-              {call.type === 'api_call' && (
-                <div style={{ color: '#94a3b8', fontSize: 11 }}>
-                  {call.method} {call.endpoint} • {call.status_code} • {call.duration_ms?.toFixed(0)}ms
-                </div>
-              )}
-              {call.type === 'openai_call' && (
-                <div style={{ color: '#94a3b8', fontSize: 11 }}>
-                  {call.model} • {call.operation} • {call.total_tokens} tokens • ${call.cost_usd?.toFixed(4)} • {call.duration_ms?.toFixed(0)}ms
-                </div>
-              )}
-              {call.type === 'query_execution' && (
-                <div style={{ color: '#94a3b8', fontSize: 11 }}>
-                  {call.query_text} • {call.duration_ms?.toFixed(0)}ms {call.cache_hit && '• Cached'}
-                </div>
-              )}
+        <div style={{ display: 'grid', gap: 10, maxHeight: 500, overflowY: 'auto', paddingRight: 4 }}>
+          {recentCalls.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
+              <div>No calls recorded yet</div>
             </div>
-          ))}
+          ) : (
+            recentCalls.map((call, i) => (
+              <CallCard key={i} call={call} />
+            ))
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function MetricCard({ title, value, subtitle, color, icon }: {
+function MetricCard({ title, value, subtitle, color, icon, trend }: {
   title: string;
   value: string | number;
   subtitle?: string;
   color: string;
   icon: string;
+  trend?: 'up' | 'down' | 'neutral';
 }) {
   return (
-    <div style={{
-      padding: 20,
-      background: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 12,
+    <div className="metric-card" style={{
+      padding: 24,
+      background: `linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.6) 100%)`,
+      borderRadius: 16,
       border: `1px solid ${color}40`,
-      boxShadow: `0 4px 12px ${color}20`
+      boxShadow: `0 4px 20px ${color}15`,
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-        <span style={{ fontSize: 24 }}>{icon}</span>
-        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{title}</div>
+      {/* Background glow effect */}
+      <div style={{
+        position: 'absolute',
+        top: -50,
+        right: -50,
+        width: 100,
+        height: 100,
+        background: `radial-gradient(circle, ${color}20 0%, transparent 70%)`,
+        borderRadius: '50%'
+      }} />
+      
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            background: `${color}20`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 24,
+            border: `1px solid ${color}30`
+          }}>
+            {icon}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {title}
+            </div>
+            {trend && (
+              <div style={{ fontSize: 10, color: trend === 'up' ? '#10b981' : '#94a3b8', marginTop: 2 }}>
+                {trend === 'up' && '↑ Active'}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color, marginBottom: 4 }}>{value}</div>
-      {subtitle && <div style={{ fontSize: 12, color: '#64748b' }}>{subtitle}</div>}
+      <div style={{ fontSize: 36, fontWeight: 700, color, marginBottom: 8, position: 'relative', zIndex: 1 }}>
+        {value}
+      </div>
+      {subtitle && (
+        <div style={{ fontSize: 12, color: '#64748b', position: 'relative', zIndex: 1 }}>
+          {subtitle}
+        </div>
+      )}
     </div>
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      padding: 20,
+    <div className="chart-card" style={{
+      padding: 24,
       background: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 12,
-      border: '1px solid rgba(59, 130, 246, 0.2)'
+      borderRadius: 16,
+      border: '1px solid rgba(59, 130, 246, 0.2)',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
     }}>
-      <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#cbd5e1' }}>{title}</h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#cbd5e1' }}>{title}</h3>
+      </div>
       {children}
     </div>
   );
 }
 
-function SimpleLineChart({ data, dataKey, color, formatValue }: {
+function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }: {
   data: Array<[string, any]>;
   dataKey: string;
   color: string;
+  gradientColor: string;
   formatValue?: (v: number) => string;
 }) {
   const values = data.map(([, d]) => d[dataKey] || 0);
   const max = Math.max(...values, 1);
   const min = Math.min(...values);
+  const range = max - min || 1;
+
+  // Create path for area fill
+  const areaPath = data.map(([, d], i) => {
+    const value = d[dataKey] || 0;
+    const x = (i / (data.length - 1 || 1)) * 100;
+    const y = 100 - ((value - min) / range) * 80;
+    return `${i === 0 ? 'M' : 'L'} ${x}% ${y}%`;
+  }).join(' ') + ` L 100% 100% L 0% 100% Z`;
 
   return (
-    <div style={{ height: 200, position: 'relative' }}>
+    <div style={{ height: 240, position: 'relative' }}>
       <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id={`gradient-${dataKey}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+        
+        {/* Area fill */}
+        <path
+          d={areaPath}
+          fill={`url(#gradient-${dataKey})`}
+        />
+        
+        {/* Line */}
         <polyline
           points={data.map(([, d], i) => {
             const value = d[dataKey] || 0;
             const x = (i / (data.length - 1 || 1)) * 100;
-            const y = 100 - ((value - min) / (max - min || 1)) * 80;
+            const y = 100 - ((value - min) / range) * 80;
             return `${x}%,${y}%`;
           }).join(' ')}
           fill="none"
           stroke={color}
-          strokeWidth="2"
-          opacity={0.8}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
+        
+        {/* Data points */}
         {data.map(([, d], i) => {
           const value = d[dataKey] || 0;
           const x = (i / (data.length - 1 || 1)) * 100;
-          const y = 100 - ((value - min) / (max - min || 1)) * 80;
+          const y = 100 - ((value - min) / range) * 80;
           return (
-            <circle
-              key={i}
-              cx={`${x}%`}
-              cy={`${y}%`}
-              r="3"
-              fill={color}
-            />
+            <g key={i}>
+              <circle
+                cx={`${x}%`}
+                cy={`${y}%`}
+                r="5"
+                fill={color}
+                stroke="#0f172a"
+                strokeWidth="2"
+              />
+              <circle
+                cx={`${x}%`}
+                cy={`${y}%`}
+                r="8"
+                fill={color}
+                opacity="0.2"
+              />
+            </g>
           );
         })}
       </svg>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', paddingTop: 8 }}>
+      
+      {/* Min/Max labels */}
+      <div style={{ 
+        position: 'absolute', 
+        bottom: 0, 
+        left: 0, 
+        right: 0, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        fontSize: 11, 
+        color: '#64748b',
+        paddingTop: 12,
+        fontWeight: 500
+      }}>
         <span>{formatValue ? formatValue(min) : min.toLocaleString()}</span>
         <span>{formatValue ? formatValue(max) : max.toLocaleString()}</span>
       </div>
@@ -397,38 +625,101 @@ function SimpleLineChart({ data, dataKey, color, formatValue }: {
   );
 }
 
-function BreakdownCard({ title, data }: { title: string; data: Array<{ name: string; value: number; subtitle?: string }> }) {
+function BreakdownCard({ title, icon, data }: { 
+  title: string; 
+  icon?: string;
+  data: Array<{ 
+    name: string; 
+    value: number; 
+    subtitle?: string;
+    errorCount?: number;
+    tokens?: number;
+  }> 
+}) {
   const max = Math.max(...data.map(d => d.value), 1);
 
   return (
     <div style={{
-      padding: 20,
+      padding: 24,
       background: 'rgba(30, 41, 59, 0.6)',
-      borderRadius: 12,
-      border: '1px solid rgba(59, 130, 246, 0.2)'
+      borderRadius: 16,
+      border: '1px solid rgba(59, 130, 246, 0.2)',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
     }}>
-      <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#cbd5e1' }}>{title}</h3>
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        {icon && <span style={{ fontSize: 18 }}>{icon}</span>}
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#cbd5e1' }}>{title}</h3>
+      </div>
+      <div style={{ display: 'grid', gap: 12 }}>
         {data.map((item, i) => (
-          <div key={i}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
-              <span style={{ color: '#cbd5e1' }}>{item.name}</span>
-              <span style={{ color: '#94a3b8' }}>
-                {item.value.toLocaleString()}
-                {item.subtitle && <span style={{ marginLeft: 8, color: '#64748b' }}>{item.subtitle}</span>}
-              </span>
+          <div key={i} style={{
+            padding: 12,
+            background: 'rgba(15, 23, 42, 0.4)',
+            borderRadius: 10,
+            border: '1px solid rgba(59, 130, 246, 0.1)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(15, 23, 42, 0.6)';
+            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+            e.currentTarget.style.transform = 'translateX(4px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(15, 23, 42, 0.4)';
+            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.1)';
+            e.currentTarget.style.transform = 'translateX(0)';
+          }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ color: '#cbd5e1', fontWeight: 500, fontSize: 13, flex: 1 }}>{item.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {item.errorCount !== undefined && item.errorCount > 0 && (
+                  <span style={{ 
+                    fontSize: 11, 
+                    color: '#ef4444', 
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    padding: '2px 6px',
+                    borderRadius: 4
+                  }}>
+                    {item.errorCount} errors
+                  </span>
+                )}
+                {item.tokens && (
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                    {(item.tokens / 1000).toFixed(1)}K tokens
+                  </span>
+                )}
+                <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: 13, minWidth: 60, textAlign: 'right' }}>
+                  {item.value.toLocaleString()}
+                </span>
+                {item.subtitle && (
+                  <span style={{ 
+                    fontSize: 11, 
+                    color: '#f59e0b', 
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontWeight: 500
+                  }}>
+                    {item.subtitle}
+                  </span>
+                )}
+              </div>
             </div>
             <div style={{
-              height: 4,
+              height: 6,
               background: 'rgba(15, 23, 42, 0.8)',
-              borderRadius: 2,
-              overflow: 'hidden'
+              borderRadius: 3,
+              overflow: 'hidden',
+              position: 'relative'
             }}>
               <div style={{
                 height: '100%',
                 width: `${(item.value / max) * 100}%`,
-                background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                transition: 'width 0.3s ease'
+                background: `linear-gradient(90deg, ${item.errorCount && item.errorCount > 0 ? '#ef4444' : '#3b82f6'}, ${item.errorCount && item.errorCount > 0 ? '#dc2626' : '#8b5cf6'})`,
+                transition: 'width 0.5s ease',
+                borderRadius: 3,
+                boxShadow: `0 0 10px ${item.errorCount && item.errorCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
               }} />
             </div>
           </div>
@@ -438,3 +729,136 @@ function BreakdownCard({ title, data }: { title: string; data: Array<{ name: str
   );
 }
 
+function CallCard({ call }: { call: RecentCall }) {
+  const getCallIcon = () => {
+    switch (call.type) {
+      case 'api_call': return '📡';
+      case 'openai_call': return '🤖';
+      case 'neo4j_query': return '🗄️';
+      case 'query_execution': return '🔍';
+      default: return '📋';
+    }
+  };
+
+  const getCallColor = () => {
+    switch (call.type) {
+      case 'api_call': return '#3b82f6';
+      case 'openai_call': return '#10b981';
+      case 'neo4j_query': return '#06b6d4';
+      case 'query_execution': return '#8b5cf6';
+      default: return '#94a3b8';
+    }
+  };
+
+  const color = getCallColor();
+  const isError = (call.type === 'api_call' && call.status_code >= 400) || 
+                 (call.type === 'openai_call' && !call.success);
+
+  return (
+    <div style={{
+      padding: 16,
+      background: isError 
+        ? 'rgba(239, 68, 68, 0.1)' 
+        : 'rgba(15, 23, 42, 0.6)',
+      borderRadius: 12,
+      border: `1px solid ${isError ? 'rgba(239, 68, 68, 0.3)' : color + '20'}`,
+      fontSize: 13,
+      transition: 'all 0.2s ease'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateX(4px)';
+      e.currentTarget.style.borderColor = isError ? 'rgba(239, 68, 68, 0.5)' : color + '40';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateX(0)';
+      e.currentTarget.style.borderColor = isError ? 'rgba(239, 68, 68, 0.3)' : color + '20';
+    }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>{getCallIcon()}</span>
+          <span style={{ 
+            color: isError ? '#ef4444' : '#cbd5e1', 
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: 'capitalize'
+          }}>
+            {call.type.replace('_', ' ')}
+          </span>
+          {isError && (
+            <span style={{
+              fontSize: 10,
+              color: '#ef4444',
+              background: 'rgba(239, 68, 68, 0.2)',
+              padding: '2px 6px',
+              borderRadius: 4,
+              fontWeight: 500
+            }}>
+              ERROR
+            </span>
+          )}
+        </div>
+        <span style={{ color: '#94a3b8', fontSize: 11 }}>
+          {new Date(call.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      
+      {call.type === 'api_call' && (
+        <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
+          <span style={{ 
+            color: call.status_code >= 400 ? '#ef4444' : call.status_code >= 300 ? '#f59e0b' : '#10b981',
+            fontWeight: 600,
+            marginRight: 8
+          }}>
+            {call.method}
+          </span>
+          <span style={{ color: '#cbd5e1' }}>{call.endpoint}</span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span style={{ color: call.status_code >= 400 ? '#ef4444' : '#94a3b8' }}>
+            {call.status_code}
+          </span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span>{call.duration_ms?.toFixed(0)}ms</span>
+        </div>
+      )}
+      
+      {call.type === 'openai_call' && (
+        <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
+          <span style={{ color: '#cbd5e1', fontWeight: 500 }}>{call.model}</span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span>{call.operation}</span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span style={{ color: '#f59e0b' }}>{call.total_tokens?.toLocaleString()} tokens</span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span style={{ color: '#ef4444', fontWeight: 500 }}>${call.cost_usd?.toFixed(4)}</span>
+          <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+          <span>{call.duration_ms?.toFixed(0)}ms</span>
+        </div>
+      )}
+      
+      {call.type === 'query_execution' && (
+        <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
+          <div style={{ 
+            color: '#cbd5e1', 
+            marginBottom: 4,
+            fontStyle: 'italic',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            "{call.query_text}"
+          </div>
+          <div>
+            <span>{call.duration_ms?.toFixed(0)}ms</span>
+            {call.cache_hit && (
+              <>
+                <span style={{ margin: '0 8px', color: '#64748b' }}>•</span>
+                <span style={{ color: '#10b981', fontWeight: 500 }}>Cached</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
