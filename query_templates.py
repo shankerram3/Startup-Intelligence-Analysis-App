@@ -13,17 +13,17 @@ class QueryTemplates:
 
     def __init__(self, driver: Driver):
         self.driver = driver
-
+    
     def _enrich_with_article_urls(
         self, entity_id: str, source_articles: Optional[List[str]] = None
     ) -> List[str]:
         """
         Helper method to get article URLs for an entity
-
+        
         Args:
             entity_id: Entity ID
             source_articles: Optional list of article IDs (if already known)
-
+            
         Returns:
             List of article URLs
         """
