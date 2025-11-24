@@ -18,7 +18,8 @@ export function ThemeExtractionView() {
     minFrequency: 3,
     limit: 20,
     timeWindowDays: undefined as number | undefined,
-    type: 'all' as 'all' | RecurringTheme['type']
+    type: 'all' as 'all' | RecurringTheme['type'],
+    searchQuery: '' as string
   });
 
   async function loadThemes() {
@@ -32,8 +33,22 @@ export function ThemeExtractionView() {
       );
       let filteredThemes = response.themes;
       
+      // Filter by type
       if (filters.type !== 'all') {
         filteredThemes = filteredThemes.filter(t => t.type === filters.type);
+      }
+      
+      // Filter by search query (case-insensitive search in theme name, description, and entities)
+      if (filters.searchQuery.trim()) {
+        const query = filters.searchQuery.toLowerCase().trim();
+        filteredThemes = filteredThemes.filter(t => {
+          const themeName = (t.theme || '').toLowerCase();
+          const description = (t.description || '').toLowerCase();
+          const entities = (t.entities || []).join(' ').toLowerCase();
+          return themeName.includes(query) || 
+                 description.includes(query) || 
+                 entities.includes(query);
+        });
       }
       
       setThemes(filteredThemes);
@@ -47,6 +62,17 @@ export function ThemeExtractionView() {
   useEffect(() => {
     loadThemes();
   }, []);
+
+  // Auto-apply search filter when search query changes (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (filters.searchQuery !== undefined) {
+        loadThemes();
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [filters.searchQuery]);
 
   async function handleThemeClick(theme: RecurringTheme) {
     setSelectedTheme(theme);
@@ -268,6 +294,64 @@ export function ThemeExtractionView() {
         >
           {loading ? 'Loading...' : '🔄 Refresh'}
         </button>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{
+        padding: 16,
+        background: 'rgba(30, 41, 59, 0.5)',
+        borderRadius: 12,
+        border: '1px solid rgba(59, 130, 246, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 18 }}>🔍</span>
+          <input
+            type="text"
+            value={filters.searchQuery}
+            onChange={(e) => {
+              setFilters({ ...filters, searchQuery: e.target.value });
+              // Auto-apply search as user types (debounced by React's state updates)
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                loadThemes();
+              }
+            }}
+            placeholder="Search themes by name, description, or entities..."
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              background: 'rgba(15, 23, 42, 0.8)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: 8,
+              color: '#f1f5f9',
+              fontSize: 14,
+              outline: 'none'
+            }}
+          />
+          {filters.searchQuery && (
+            <button
+              onClick={() => setFilters({ ...filters, searchQuery: '' })}
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: 6,
+                color: '#fca5a5',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 500
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {filters.searchQuery && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+            Searching for: "{filters.searchQuery}" • {themes.length} {themes.length === 1 ? 'theme' : 'themes'} found
+          </div>
+        )}
       </div>
 
       {/* Filters */}
