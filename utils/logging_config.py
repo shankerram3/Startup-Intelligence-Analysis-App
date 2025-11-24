@@ -141,7 +141,7 @@ def log_api_request(
     status_code: int,
     duration_ms: float,
     request_id: Optional[str] = None,
-    **context
+    **context,
 ):
     """
     Log API request with standard fields
@@ -166,7 +166,7 @@ def log_api_request(
         status_code=status_code,
         duration_ms=duration_ms,
         request_id=request_id,
-        **context
+        **context,
     )
 
 
