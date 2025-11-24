@@ -1372,11 +1372,36 @@ async def generate_theme_summary(
                     f"  {i}. {p.get('from', 'Unknown')} ↔ {p.get('to', 'Unknown')}"
                 )
 
+        if theme_data.get("entities"):
+            entities = theme_data["entities"]
+            context_parts.append(f"\nEntities ({theme_data.get('total_entities', len(entities))}):")
+            for i, entity in enumerate(entities[:10], 1):
+                if isinstance(entity, dict):
+                    entity_name = entity.get("name", entity.get("entity", "Unknown"))
+                    entity_type = entity.get("type", "")
+                    entity_desc = entity.get("description", "")
+                    entity_info = f"  {i}. {entity_name}"
+                    if entity_type:
+                        entity_info += f" ({entity_type})"
+                    if entity_desc:
+                        entity_info += f" - {entity_desc[:100]}"
+                    context_parts.append(entity_info)
+                else:
+                    context_parts.append(f"  {i}. {entity}")
+
         if theme_data.get("relationships"):
             relationships = theme_data["relationships"]
-            context_parts.append(f"\nRelated Entities ({len(relationships)}):")
+            context_parts.append(f"\nRelationships ({len(relationships)}):")
             for i, rel in enumerate(relationships[:10], 1):
-                context_parts.append(
+                if isinstance(rel, dict):
+                    rel_info = f"  {i}. {rel.get('name', 'Unknown')}"
+                    if rel.get("relationship"):
+                        rel_info += f" - {rel.get('relationship')}"
+                    if rel.get("type"):
+                        rel_info += f" ({rel.get('type')})"
+                    context_parts.append(rel_info)
+                else:
+                    context_parts.append(
                     f"  {i}. {rel.get('name', 'Unknown')} ({rel.get('relationship', 'related')})"
                 )
 

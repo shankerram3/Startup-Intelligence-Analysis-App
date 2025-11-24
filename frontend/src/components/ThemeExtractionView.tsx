@@ -146,7 +146,11 @@ export function ThemeExtractionView() {
           themeContext += `\n\nKey Partnerships: ${partnerships}`;
         }
         if (themeDetails.entities && themeDetails.entities.length > 0) {
-          themeContext += `\n\nRelated Entities: ${themeDetails.entities.slice(0, 10).join(', ')}`;
+          // Handle entities as objects or strings
+          const entityNames = themeDetails.entities.slice(0, 10).map((e: any) => 
+            typeof e === 'string' ? e : e.name || e.entity || String(e)
+          );
+          themeContext += `\n\nRelated Entities: ${entityNames.join(', ')}`;
         }
       }
       
@@ -876,21 +880,38 @@ export function ThemeExtractionView() {
                       {themeDetails.entities && themeDetails.entities.length > 0 && (
                         <div>
                           <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12, fontWeight: 500 }}>
-                            RELATED ENTITIES ({themeDetails.entities.length})
+                            ENTITIES ({themeDetails.total_entities || themeDetails.entities.length})
                           </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {themeDetails.entities.map((entity: string, i: number) => (
-                              <span
+                          <div style={{ display: 'grid', gap: 10 }}>
+                            {themeDetails.entities.slice(0, 20).map((entity: any, i: number) => (
+                              <div
                                 key={i}
                                 style={{
-                                  padding: '4px 10px',
-                                  background: 'rgba(59, 130, 246, 0.2)',
-                                  borderRadius: 6,
-                                  fontSize: 12
+                                  padding: 12,
+                                  background: 'rgba(30, 41, 59, 0.6)',
+                                  borderRadius: 8,
+                                  border: '1px solid rgba(59, 130, 246, 0.1)'
                                 }}
                               >
-                                {entity}
-                              </span>
+                                <div style={{ fontWeight: 600, color: '#f1f5f9', marginBottom: 4 }}>
+                                  {typeof entity === 'string' ? entity : entity.name || entity.entity || 'Unknown'}
+                                </div>
+                                {typeof entity === 'object' && entity.type && (
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                                    Type: {entity.type}
+                                  </div>
+                                )}
+                                {typeof entity === 'object' && entity.description && (
+                                  <div style={{ fontSize: 13, color: '#cbd5e1', marginBottom: 4 }}>
+                                    {entity.description}
+                                  </div>
+                                )}
+                                {typeof entity === 'object' && entity.mention_count && (
+                                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                    Mentioned {entity.mention_count} times
+                                  </div>
+                                )}
+                              </div>
                             ))}
                           </div>
                         </div>
