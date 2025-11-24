@@ -48,7 +48,7 @@ echo "Verifying..."
 echo ""
 
 # Test that credentials are set
-python test_aura_api_credentials.py
+python tests/test_aura_api_credentials.py
 
 echo ""
 echo "======================================================================"
