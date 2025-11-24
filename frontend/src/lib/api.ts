@@ -447,4 +447,72 @@ export async function fetchRecentCalls(
   return getJson<RecentCallsResponse>(`/analytics/recent-calls?${params.toString()}`);
 }
 
+// Evaluation Types
+export type EvaluationQuery = {
+  query: string;
+  expected_answer?: string;
+};
+
+export type EvaluationResult = {
+  query: string;
+  expected_answer?: string;
+  actual_answer?: string;
+  latency_ms: number;
+  tokens_used: number;
+  cost_usd: number;
+  relevance_score: number;
+  accuracy_score: number;
+  completeness_score: number;
+  coherence_score: number;
+  context_relevance: number;
+  answer_faithfulness: number;
+  answer_relevancy: number;
+  cache_hit: boolean;
+  success: boolean;
+  error?: string;
+  timestamp: string;
+};
+
+export type EvaluationSummary = {
+  total_queries: number;
+  successful_queries: number;
+  failed_queries: number;
+  avg_latency_ms: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  p99_latency_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  avg_relevance: number;
+  avg_accuracy: number;
+  avg_completeness: number;
+  avg_coherence: number;
+  avg_context_relevance: number;
+  avg_answer_faithfulness: number;
+  avg_answer_relevancy: number;
+  cache_hit_rate: number;
+  error_rate: number;
+};
+
+export type EvaluationResponse = {
+  summary: EvaluationSummary;
+  results: EvaluationResult[];
+};
+
+export type EvaluationRequest = {
+  queries: EvaluationQuery[];
+  use_llm?: boolean;
+  use_sample_dataset?: boolean;
+};
+
+export async function runEvaluation(
+  request: EvaluationRequest
+): Promise<EvaluationResponse> {
+  return postJson<EvaluationRequest, EvaluationResponse>('/evaluation/run', request);
+}
+
+export async function getSampleEvaluationDataset(): Promise<{ queries: EvaluationQuery[] }> {
+  return getJson<{ queries: EvaluationQuery[] }>('/evaluation/sample-dataset');
+}
+
 

@@ -55,6 +55,12 @@ from utils.security import (
     sanitize_error_message,
     verify_token,
 )
+from utils.evaluation import (
+    QueryEvaluator,
+    create_sample_evaluation_dataset,
+    EvaluationSummary,
+    QueryEvaluationResult,
+)
 
 # Load environment variables
 load_dotenv()
@@ -455,6 +461,123 @@ async def get_recent_calls_endpoint(
             status_code=500,
             detail=f"Failed to get recent calls: {sanitize_error_message(str(e))}"
         )
+
+
+# =============================================================================
+# EVALUATION ENDPOINTS
+# =============================================================================
+
+
+class EvaluationRequest(BaseModel):
+    """Request model for evaluation"""
+    queries: List[Dict[str, Any]] = Field(
+        ...,
+        description="List of queries to evaluate. Each query should have 'query' and optionally 'expected_answer'"
+    )
+    use_llm: bool = Field(True, description="Whether to use LLM for answer generation")
+    use_sample_dataset: bool = Field(
+        False, 
+        description="If true, use built-in sample dataset instead of provided queries"
+    )
+
+
+@app.post("/evaluation/run", tags=["Evaluation"])
+async def run_evaluation(
+    request: EvaluationRequest,
+    user: Optional[Dict] = Depends(optional_auth),
+):
+    """
+    Run evaluation metrics on a set of queries
+    
+    Evaluates:
+    - Query performance (latency, throughput)
+    - Response quality (relevance, accuracy, completeness, coherence)
+    - RAG metrics (context relevance, answer faithfulness, answer relevancy)
+    - System metrics (cache hit rate, error rate)
+    """
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+    
+    try:
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        evaluator = QueryEvaluator(rag_instance=rag_instance, openai_api_key=openai_api_key)
+        
+        # Use sample dataset if requested
+        if request.use_sample_dataset:
+            queries = create_sample_evaluation_dataset()
+        else:
+            queries = request.queries
+        
+        # Run evaluation
+        summary = evaluator.evaluate_batch(queries, use_llm=request.use_llm)
+        
+        # Convert to dict for JSON serialization
+        result = {
+            "summary": {
+                "total_queries": summary.total_queries,
+                "successful_queries": summary.successful_queries,
+                "failed_queries": summary.failed_queries,
+                "avg_latency_ms": round(summary.avg_latency_ms, 2),
+                "p50_latency_ms": round(summary.p50_latency_ms, 2),
+                "p95_latency_ms": round(summary.p95_latency_ms, 2),
+                "p99_latency_ms": round(summary.p99_latency_ms, 2),
+                "total_tokens": summary.total_tokens,
+                "total_cost_usd": round(summary.total_cost_usd, 4),
+                "avg_relevance": round(summary.avg_relevance, 3),
+                "avg_accuracy": round(summary.avg_accuracy, 3),
+                "avg_completeness": round(summary.avg_completeness, 3),
+                "avg_coherence": round(summary.avg_coherence, 3),
+                "avg_context_relevance": round(summary.avg_context_relevance, 3),
+                "avg_answer_faithfulness": round(summary.avg_answer_faithfulness, 3),
+                "avg_answer_relevancy": round(summary.avg_answer_relevancy, 3),
+                "cache_hit_rate": round(summary.cache_hit_rate, 3),
+                "error_rate": round(summary.error_rate, 3),
+            },
+            "results": [
+                {
+                    "query": r.query,
+                    "expected_answer": r.expected_answer,
+                    "actual_answer": r.actual_answer,
+                    "latency_ms": round(r.latency_ms, 2),
+                    "tokens_used": r.tokens_used,
+                    "cost_usd": round(r.cost_usd, 4),
+                    "relevance_score": round(r.relevance_score, 3),
+                    "accuracy_score": round(r.accuracy_score, 3),
+                    "completeness_score": round(r.completeness_score, 3),
+                    "coherence_score": round(r.coherence_score, 3),
+                    "context_relevance": round(r.context_relevance, 3),
+                    "answer_faithfulness": round(r.answer_faithfulness, 3),
+                    "answer_relevancy": round(r.answer_relevancy, 3),
+                    "cache_hit": r.cache_hit,
+                    "success": r.success,
+                    "error": r.error,
+                    "timestamp": r.timestamp,
+                }
+                for r in summary.results
+            ]
+        }
+        
+        logger.info(
+            "evaluation_completed",
+            total_queries=summary.total_queries,
+            success_rate=1 - summary.error_rate,
+            avg_latency_ms=summary.avg_latency_ms
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error("evaluation_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to run evaluation: {sanitize_error_message(str(e))}"
+        )
+
+
+@app.get("/evaluation/sample-dataset", tags=["Evaluation"])
+async def get_sample_dataset():
+    """Get the sample evaluation dataset"""
+    return {"queries": create_sample_evaluation_dataset()}
 
 
 @app.get("/admin/status", tags=["Admin"])

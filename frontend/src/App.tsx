@@ -8,8 +8,9 @@ import DocumentationPage from './components/DocumentationPage';
 import { AuraDBAnalyticsDashboard } from './components/AuraDBAnalyticsDashboard';
 import { ThemeExtractionView } from './components/ThemeExtractionView';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { EvaluationDashboard } from './components/EvaluationDashboard';
 
-type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'analytics' | 'docs';
+type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'analytics' | 'evaluation' | 'docs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -17,13 +18,13 @@ export default function App() {
   // Handle hash routing
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'docs'].includes(hash)) {
+    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(hash)) {
       setActiveTab(hash as TabKey);
     }
 
     const handleHashChange = () => {
       const newHash = window.location.hash.slice(1);
-      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'docs'].includes(newHash)) {
+      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(newHash)) {
         setActiveTab(newHash as TabKey);
       }
     };
@@ -186,6 +187,7 @@ export default function App() {
         activeTab === 'auradb' ? styles.mainFull :
         activeTab === 'themes' ? styles.mainFull :
         activeTab === 'analytics' ? styles.mainFull :
+        activeTab === 'evaluation' ? styles.mainFull :
         styles.main
       }>
         {activeTab === 'home' && <LandingPage />}
@@ -195,6 +197,7 @@ export default function App() {
         {activeTab === 'auradb' && <AuraDBAnalyticsDashboard />}
         {activeTab === 'themes' && <ThemeExtractionView />}
         {activeTab === 'analytics' && <AnalyticsDashboard />}
+        {activeTab === 'evaluation' && <EvaluationDashboard />}
         {activeTab === 'docs' && <DocumentationPage />}
       </main>
     </div>
