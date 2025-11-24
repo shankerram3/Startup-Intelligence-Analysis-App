@@ -232,6 +232,22 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
                 method=request.method, endpoint=endpoint
             ).observe(response_size)
 
+        # Track API call for analytics (if analytics module is available)
+        try:
+            from utils.analytics import track_api_call
+            track_api_call(
+                endpoint=endpoint,
+                method=request.method,
+                status_code=response.status_code,
+                duration=duration,
+                user_agent=request.headers.get("user-agent"),
+                ip_address=request.client.host if request.client else None,
+                request_size=request_size,
+                response_size=response_size
+            )
+        except (ImportError, Exception):
+            pass  # Don't fail request if analytics tracking fails
+
         return response
 
     @staticmethod

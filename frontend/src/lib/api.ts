@@ -373,4 +373,78 @@ export async function generateThemeSummary(
   return postJson<any, ThemeSummaryResponse>('/analytics/theme/summary', themeData);
 }
 
+// Analytics Dashboard Types
+export type AnalyticsTimeSeries = Record<string, {
+  api_calls: number;
+  openai_calls: number;
+  neo4j_queries: number;
+  query_executions: number;
+  openai_tokens: number;
+  openai_cost: number;
+  api_errors: number;
+  openai_errors: number;
+  avg_api_duration: number;
+  avg_openai_duration: number;
+}>;
+
+export type AnalyticsDashboardResponse = {
+  time_period_hours: number;
+  total_records: number;
+  time_series: AnalyticsTimeSeries;
+  endpoints: {
+    counts: Record<string, number>;
+    errors: Record<string, number>;
+  };
+  openai_models: {
+    counts: Record<string, number>;
+    tokens: Record<string, number>;
+    costs: Record<string, number>;
+  };
+  openai_operations: {
+    counts: Record<string, number>;
+    costs: Record<string, number>;
+  };
+  summary: {
+    total_api_calls: number;
+    total_openai_calls: number;
+    total_neo4j_queries: number;
+    total_query_executions: number;
+    total_openai_tokens: number;
+    total_openai_cost: number;
+    total_api_errors: number;
+    total_openai_errors: number;
+  };
+};
+
+export type RecentCall = {
+  type: 'api_call' | 'openai_call' | 'neo4j_query' | 'query_execution';
+  timestamp: string;
+  [key: string]: any;
+};
+
+export type RecentCallsResponse = {
+  calls: RecentCall[];
+  count: number;
+};
+
+export async function fetchAnalyticsDashboard(
+  hours: number = 24,
+  groupBy: string = 'hour'
+): Promise<AnalyticsDashboardResponse> {
+  return getJson<AnalyticsDashboardResponse>(
+    `/analytics/dashboard?hours=${hours}&group_by=${groupBy}`
+  );
+}
+
+export async function fetchRecentCalls(
+  limit: number = 100,
+  callType?: string
+): Promise<RecentCallsResponse> {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (callType) {
+    params.append('call_type', callType);
+  }
+  return getJson<RecentCallsResponse>(`/analytics/recent-calls?${params.toString()}`);
+}
+
 

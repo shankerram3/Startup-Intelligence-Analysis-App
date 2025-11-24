@@ -35,6 +35,13 @@ from utils.cache import EntityCache, QueryCache, get_cache
 
 # Import new utility modules
 from utils.logging_config import get_logger, setup_logging
+from utils.analytics import (
+    get_analytics_summary,
+    get_recent_calls,
+    track_api_call,
+    track_openai_call,
+    track_query_execution as track_query_exec,
+)
 from utils.monitoring import (
     PrometheusMiddleware,
     get_metrics,
@@ -88,11 +95,11 @@ class QueryRequest(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "question": "Which AI startups raised funding recently?",
-                "return_context": False,
+        "example": {
+            "question": "Which AI startups raised funding recently?",
+            "return_context": False,
                 "use_llm": True,
-            }
+        }
         }
     )
 
@@ -106,11 +113,11 @@ class SemanticSearchRequest(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "query": "artificial intelligence",
-                "top_k": 10,
+        "example": {
+            "query": "artificial intelligence",
+            "top_k": 10,
                 "entity_type": "Company",
-            }
+        }
         }
     )
 
@@ -135,13 +142,13 @@ class BatchQueryRequest(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "questions": [
-                    "What is Anthropic?",
-                    "Who are the top investors?",
+        "example": {
+            "questions": [
+                "What is Anthropic?",
+                "Who are the top investors?",
                     "What are trending technologies?",
-                ]
-            }
+            ]
+        }
         }
     )
 
@@ -287,12 +294,12 @@ app.add_middleware(PrometheusMiddleware)
 async def add_security_headers(request: Request, call_next):
     """Add security headers to all responses"""
     response = await call_next(request)
-
+    
     # HSTS - Force HTTPS (1 year, include subdomains)
     response.headers["Strict-Transport-Security"] = (
         "max-age=31536000; includeSubDomains; preload"
     )
-
+    
     # Content Security Policy - Restrict resource loading
     csp_policy = (
         "default-src 'self'; "
@@ -306,24 +313,24 @@ async def add_security_headers(request: Request, call_next):
         "form-action 'self';"
     )
     response.headers["Content-Security-Policy"] = csp_policy
-
+    
     # Prevent clickjacking
     response.headers["X-Frame-Options"] = "DENY"
-
+    
     # Prevent MIME type sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
-
+    
     # XSS Protection (legacy, but still useful)
     response.headers["X-XSS-Protection"] = "1; mode=block"
-
+    
     # Referrer Policy
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-
+    
     # Permissions Policy (formerly Feature-Policy)
     response.headers["Permissions-Policy"] = (
         "geolocation=(), " "microphone=(), " "camera=(), " "payment=(), " "usb=()"
     )
-
+    
     return response
 
 
@@ -406,6 +413,48 @@ async def metrics():
     Returns metrics in Prometheus text format for scraping
     """
     return Response(content=get_metrics(), media_type=get_metrics_content_type())
+
+
+@app.get("/analytics/dashboard", tags=["Analytics"])
+async def get_analytics_dashboard(
+    hours: int = Query(24, ge=1, le=168, description="Time period in hours (max 7 days)"),
+    group_by: str = Query("hour", description="Group by: hour, day, or minute")
+):
+    """
+    Get analytics dashboard data including API calls, OpenAI usage, and system metrics
+    
+    Returns:
+    - Time series data for the specified period
+    - Endpoint breakdown
+    - OpenAI model and operation breakdown
+    - Summary statistics
+    """
+    try:
+        summary = get_analytics_summary(hours=hours, group_by=group_by)
+        return summary
+    except Exception as e:
+        logger.error("analytics_dashboard_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get analytics: {sanitize_error_message(str(e))}"
+        )
+
+
+@app.get("/analytics/recent-calls", tags=["Analytics"])
+async def get_recent_calls_endpoint(
+    limit: int = Query(100, ge=1, le=1000, description="Number of recent calls to return"),
+    call_type: Optional[str] = Query(None, description="Filter by type: api_call, openai_call, neo4j_query, query_execution")
+):
+    """Get recent API/OpenAI calls for detailed inspection"""
+    try:
+        calls = get_recent_calls(limit=limit, call_type=call_type)
+        return {"calls": calls, "count": len(calls)}
+    except Exception as e:
+        logger.error("recent_calls_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get recent calls: {sanitize_error_message(str(e))}"
+        )
 
 
 @app.get("/admin/status", tags=["Admin"])
@@ -559,7 +608,7 @@ async def start_pipeline(options: PipelineStartRequest):
         if os.path.exists(pipeline_log_path):
             with open(pipeline_log_path, "w") as f:
                 f.write("")
-
+        
         # Open log file in append mode for the new run
         log_fh = open(pipeline_log_path, "ab")
         pipeline_proc = subprocess.Popen(
@@ -625,7 +674,7 @@ async def clear_pipeline_logs():
         raise HTTPException(
             status_code=409, detail="Cannot clear logs while pipeline is running"
         )
-
+    
     try:
         # Clear the log file by truncating it
         if os.path.exists(pipeline_log_path):
@@ -719,6 +768,15 @@ async def query(
             cached=False,
         )
         record_query_execution("natural_language", success=True)
+        
+        # Track query execution
+        track_query_exec(
+            query_text=query_request.question,
+            query_type="natural_language",
+            duration=(time.time() - start_time),
+            success=True,
+            cache_hit=False
+        )
 
         return result
 
@@ -732,6 +790,15 @@ async def query(
             exc_info=True,
         )
         record_query_execution("natural_language", success=False)
+        
+        # Track failed query
+        track_query_exec(
+            query_text=query_request.question,
+            query_type="natural_language",
+            duration=(time.time() - start_time),
+            success=False,
+            cache_hit=False
+        )
 
         error_msg = sanitize_error_message(e, include_details=False)
         raise HTTPException(status_code=500, detail=error_msg)
@@ -1446,7 +1513,35 @@ Be direct and avoid verbose explanations.""",
         )
 
         chain = prompt | llm | StrOutputParser()
+
+        # Track OpenAI call
+        import time
+        start_time = time.time()
         summary = chain.invoke({"context": context})
+        duration = time.time() - start_time
+        
+        # Extract token usage if available
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        
+        # Try to get token usage from response metadata
+        if hasattr(llm, 'get_num_tokens'):
+            try:
+                prompt_tokens = llm.get_num_tokens(context)
+            except:
+                pass
+        
+        track_openai_call(
+            model="gpt-4o-mini",
+            operation="theme_summary",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            duration=duration,
+            success=True,
+            theme_name=theme_data.get("theme_name", "unknown")
+        )
 
         return {
             "summary": summary,
@@ -1665,13 +1760,13 @@ async def get_readme():
             if candidate.exists():
                 readme_path = candidate
                 break
-
+        
         if not readme_path:
             raise HTTPException(status_code=404, detail="README.md not found")
-
+        
         with open(readme_path, "r", encoding="utf-8") as f:
             content = f.read()
-
+        
         return Response(content=content, media_type="text/markdown; charset=utf-8")
     except HTTPException:
         raise

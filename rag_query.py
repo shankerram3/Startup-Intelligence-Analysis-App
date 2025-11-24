@@ -594,9 +594,53 @@ Instructions:
 Answer:"""
 
         try:
+            import time
+            from utils.analytics import track_openai_call
+            
+            start_time = time.time()
             response = self.llm.invoke(prompt)
+            duration = time.time() - start_time
+            
+            # Extract token usage if available
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = 0
+            
+            if hasattr(response, 'response_metadata'):
+                usage = response.response_metadata.get('token_usage', {})
+                prompt_tokens = usage.get('prompt_tokens', 0)
+                completion_tokens = usage.get('completion_tokens', 0)
+                total_tokens = usage.get('total_tokens', 0)
+            
+            # Track the OpenAI call
+            track_openai_call(
+                model=self.llm.model_name if hasattr(self.llm, 'model_name') else 'gpt-4o',
+                operation='generate_answer',
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                duration=duration,
+                success=True,
+                query_preview=query[:100]  # Store query preview for context
+            )
+            
             return response.content
         except Exception as e:
+            import time
+            from utils.analytics import track_openai_call
+            
+            duration = time.time() - start_time if 'start_time' in locals() else 0.0
+            
+            # Track failed call
+            track_openai_call(
+                model=self.llm.model_name if hasattr(self.llm, 'model_name') else 'gpt-4o',
+                operation='generate_answer',
+                duration=duration,
+                success=False,
+                error=str(e),
+                query_preview=query[:100]
+            )
+            
             return f"Error generating answer: {e}"
 
     def _format_context_for_llm(self, context: Any) -> str:

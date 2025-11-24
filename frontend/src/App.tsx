@@ -7,8 +7,9 @@ import { LandingPage } from './components/LandingPage';
 import DocumentationPage from './components/DocumentationPage';
 import { AuraDBAnalyticsDashboard } from './components/AuraDBAnalyticsDashboard';
 import { ThemeExtractionView } from './components/ThemeExtractionView';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 
-type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'docs';
+type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'analytics' | 'docs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -16,13 +17,13 @@ export default function App() {
   // Handle hash routing
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'docs'].includes(hash)) {
+    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'docs'].includes(hash)) {
       setActiveTab(hash as TabKey);
     }
 
     const handleHashChange = () => {
       const newHash = window.location.hash.slice(1);
-      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'docs'].includes(newHash)) {
+      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'docs'].includes(newHash)) {
         setActiveTab(newHash as TabKey);
       }
     };
@@ -176,6 +177,7 @@ export default function App() {
         activeTab === 'query' ? styles.mainFull : 
         activeTab === 'auradb' ? styles.mainFull :
         activeTab === 'themes' ? styles.mainFull :
+        activeTab === 'analytics' ? styles.mainFull :
         styles.main
       }>
         {activeTab === 'home' && <LandingPage />}
@@ -184,6 +186,7 @@ export default function App() {
         {activeTab === 'pipeline' && <EnhancedDashboardView />}
         {activeTab === 'auradb' && <AuraDBAnalyticsDashboard />}
         {activeTab === 'themes' && <ThemeExtractionView />}
+        {activeTab === 'analytics' && <AnalyticsDashboard />}
         {activeTab === 'docs' && <DocumentationPage />}
       </main>
     </div>
