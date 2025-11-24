@@ -160,6 +160,14 @@ export default function App() {
             </button>
             <button
               data-nav-button
+              style={{ ...styles.navButton, ...(activeTab === 'analytics' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('analytics'); window.location.hash = 'analytics'; }}
+            >
+              <span style={styles.navIcon}>📈</span>
+              <span>Analytics</span>
+            </button>
+            <button
+              data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'docs' ? styles.navButtonActive : {}) }}
               onClick={() => { setActiveTab('docs'); window.location.hash = 'docs'; }}
             >
