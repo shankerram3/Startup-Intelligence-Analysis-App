@@ -618,8 +618,17 @@ export function ThemeExtractionView() {
                           return `This theme represents ${themeDetails.total_partnerships || themeDetails.partnerships.length} partnership ${(themeDetails.total_partnerships || themeDetails.partnerships.length) === 1 ? 'relationship' : 'relationships'} in the knowledge graph. Key partnerships include ${themeDetails.partnerships.slice(0, 3).map((p: any) => `${p.from} ↔ ${p.to}`).join(', ')}${(themeDetails.total_partnerships || 0) > 3 ? ` and ${(themeDetails.total_partnerships || 0) - 3} more` : ''}.`;
                         } else if (themeDetails.keyword) {
                           return `The keyword "${themeDetails.keyword}" appears in descriptions of ${themeDetails.total_companies || 0} ${(themeDetails.total_companies || 0) === 1 ? 'company' : 'companies'}, indicating a common industry focus or characteristic.`;
+                        } else if (themeDetails.community_id !== undefined) {
+                          const entityCount = themeDetails.total_entities || themeDetails.entities?.length || 0;
+                          const entityNames = themeDetails.entities?.slice(0, 5).map((e: any) => 
+                            typeof e === 'string' ? e : e.name || e.entity || 'Unknown'
+                          ) || [];
+                          return `Community ${themeDetails.community_id} contains ${entityCount} entities. ${entityNames.length > 0 ? `Key entities include ${entityNames.join(', ')}${entityCount > 5 ? ` and ${entityCount - 5} more` : ''}.` : ''}`;
                         } else if (selectedTheme) {
-                          return `${selectedTheme.description}. This theme has a strength score of ${selectedTheme.strength} and appears ${selectedTheme.frequency} times. ${selectedTheme.entities && selectedTheme.entities.length > 0 ? `Key entities: ${selectedTheme.entities.slice(0, 5).join(', ')}${selectedTheme.entities.length > 5 ? ` and ${selectedTheme.entities.length - 5} more` : ''}.` : ''}`;
+                          const entityNames = selectedTheme.entities?.slice(0, 5).map((e: any) => 
+                            typeof e === 'string' ? e : e.name || e.entity || String(e)
+                          ) || [];
+                          return `${selectedTheme.description}. This theme has a strength score of ${selectedTheme.strength} and appears ${selectedTheme.frequency} times. ${entityNames.length > 0 ? `Key entities: ${entityNames.join(', ')}${(selectedTheme.entities?.length || 0) > 5 ? ` and ${(selectedTheme.entities?.length || 0) - 5} more` : ''}.` : ''}`;
                         } else {
                           return themeDetails.description || 'Theme details available below.';
                         }

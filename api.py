@@ -1347,6 +1347,11 @@ async def generate_theme_summary(
             if theme_data.get("mention_count"):
                 context_parts.append(f"Mentioned {theme_data['mention_count']} times")
 
+        if theme_data.get("community_id") is not None:
+            context_parts.append(f"\nCommunity ID: {theme_data['community_id']}")
+            if theme_data.get("total_entities"):
+                context_parts.append(f"Total Entities: {theme_data['total_entities']}")
+
         if theme_data.get("companies"):
             companies = theme_data["companies"]
             context_parts.append(
@@ -1402,12 +1407,8 @@ async def generate_theme_summary(
                     context_parts.append(rel_info)
                 else:
                     context_parts.append(
-                    f"  {i}. {rel.get('name', 'Unknown')} ({rel.get('relationship', 'related')})"
-                )
-
-        if theme_data.get("entities"):
-            entities = theme_data["entities"]
-            context_parts.append(f"\nRelated Entities: {', '.join(entities[:10])}")
+                        f"  {i}. {rel.get('name', 'Unknown')} ({rel.get('relationship', 'related')})"
+                    )
 
         context = "\n".join(context_parts)
 
