@@ -98,6 +98,7 @@ class QueryRequest(BaseModel):
     question: str = Field(..., description="Natural language question", min_length=3)
     return_context: bool = Field(False, description="Include raw context in response")
     use_llm: bool = Field(True, description="Generate LLM answer")
+    return_traversal: bool = Field(False, description="Include graph traversal data for visualization")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -105,6 +106,7 @@ class QueryRequest(BaseModel):
             "question": "Which AI startups raised funding recently?",
             "return_context": False,
                 "use_llm": True,
+                "return_traversal": False,
         }
         }
     )
@@ -166,6 +168,7 @@ class QueryResponse(BaseModel):
     intent: Dict[str, Any]
     answer: Optional[str]
     context: Optional[Any] = None
+    traversal: Optional[Dict[str, Any]] = None
 
 
 class ErrorResponse(BaseModel):
@@ -552,6 +555,11 @@ async def run_evaluation(
                     "success": r.success,
                     "error": r.error,
                     "timestamp": r.timestamp,
+                    "logs": r.logs,
+                    "calculation_details": r.calculation_details,
+                    "intent_classified": r.intent_classified,
+                    "context_size": r.context_size,
+                    "context_entities": r.context_entities,
                 }
                 for r in summary.results
             ]
@@ -877,6 +885,7 @@ async def query(
             question=query_request.question,
             return_context=query_request.return_context,
             use_llm=query_request.use_llm,
+            return_traversal=query_request.return_traversal,
         )
 
         # Cache result if LLM was used

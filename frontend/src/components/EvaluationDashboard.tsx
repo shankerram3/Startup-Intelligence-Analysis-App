@@ -40,6 +40,15 @@ export function EvaluationDashboard() {
         use_llm: useLLM
       };
 
+      // Show which queries will be run
+      const queriesToRun = useSampleDataset 
+        ? queries.length > 0 ? queries : []
+        : queries;
+      
+      if (queriesToRun.length > 0) {
+        console.log(`Running evaluation on ${queriesToRun.length} queries:`, queriesToRun.map(q => q.query));
+      }
+
       const result = await runEvaluation(request);
       setEvaluationResult(result);
     } catch (e: any) {
@@ -233,6 +242,42 @@ export function EvaluationDashboard() {
                 {queries.length === 0 && (
                   <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
                     No custom queries. Click "Add Query" to add one, or use the sample dataset.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Queries Preview */}
+          {!loading && (useSampleDataset || queries.length > 0) && (
+            <div style={{
+              padding: 16,
+              background: 'rgba(15, 23, 42, 0.4)',
+              borderRadius: 8,
+              border: '1px solid rgba(59, 130, 246, 0.2)'
+            }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>
+                Queries to Evaluate ({useSampleDataset ? queries.length || 5 : queries.length}):
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {(useSampleDataset ? queries : queries).slice(0, 5).map((q, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      fontSize: 12,
+                      color: '#cbd5e1',
+                      padding: '6px 10px',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      borderRadius: 6,
+                      border: '1px solid rgba(59, 130, 246, 0.1)'
+                    }}
+                  >
+                    {i + 1}. {q.query}
+                  </div>
+                ))}
+                {((useSampleDataset ? queries : queries).length > 5) && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>
+                    ... and {((useSampleDataset ? queries : queries).length - 5)} more
                   </div>
                 )}
               </div>
@@ -471,6 +516,9 @@ function QueryResultCard({ result, index }: {
 }) {
   const isSuccess = result.success;
   const hasExpected = result.expected_answer;
+  const [showLogs, setShowLogs] = useState(false);
+  const [showCalculations, setShowCalculations] = useState(false);
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
 
   return (
     <div style={{
@@ -574,6 +622,278 @@ function QueryResultCard({ result, index }: {
           marginBottom: 12
         }}>
           Error: {result.error}
+        </div>
+      )}
+
+      {/* Query Info */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+        gap: 8,
+        marginBottom: 12,
+        padding: 12,
+        background: 'rgba(15, 23, 42, 0.4)',
+        borderRadius: 8
+      }}>
+        {result.intent_classified && (
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>Intent</div>
+            <div style={{ fontSize: 12, color: '#60a5fa', fontWeight: 600 }}>
+              {typeof result.intent_classified === 'string' 
+                ? result.intent_classified 
+                : (result.intent_classified as any)?.intent || JSON.stringify(result.intent_classified)}
+            </div>
+            {typeof result.intent_classified === 'object' && (result.intent_classified as any)?.confidence && (
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                {(result.intent_classified as any).confidence.toFixed(2)} confidence
+              </div>
+            )}
+          </div>
+        )}
+        {result.context_size !== undefined && (
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>Context Size</div>
+            <div style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
+              {result.context_size.toLocaleString()} chars
+            </div>
+          </div>
+        )}
+        {result.context_entities && result.context_entities.length > 0 && (
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>Entities Found</div>
+            <div style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>
+              {result.context_entities.length}
+            </div>
+          </div>
+        )}
+        {result.cache_hit && (
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4 }}>Cache</div>
+            <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+              ⚡ Hit
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Context Entities */}
+      {result.context_entities && result.context_entities.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, fontWeight: 500 }}>
+            Entities in Context:
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: 6,
+            padding: 8,
+            background: 'rgba(15, 23, 42, 0.3)',
+            borderRadius: 6
+          }}>
+            {result.context_entities.map((entity: string, i: number) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 8px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: 4,
+                  color: '#60a5fa'
+                }}
+              >
+                {entity}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Execution Logs */}
+      {result.logs && result.logs.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: 8,
+              color: '#60a5fa',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: showLogs ? 8 : 0
+            }}
+          >
+            <span>📋 Execution Logs ({result.logs.length} entries)</span>
+            <span>{showLogs ? '▼' : '▶'}</span>
+          </button>
+          {showLogs && (
+            <div style={{
+              padding: 12,
+              background: 'rgba(15, 23, 42, 0.6)',
+              borderRadius: 8,
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              maxHeight: 300,
+              overflowY: 'auto',
+              fontFamily: 'monospace',
+              fontSize: 11
+            }}>
+              {result.logs.map((log: string, i: number) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '4px 0',
+                    color: log.includes('✅') ? '#10b981' : 
+                           log.includes('❌') ? '#ef4444' : 
+                           log.includes('⚡') ? '#f59e0b' : '#cbd5e1',
+                    borderBottom: i < result.logs.length - 1 ? '1px solid rgba(59, 130, 246, 0.1)' : 'none'
+                  }}
+                >
+                  {log}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Calculation Details */}
+      {result.calculation_details && Object.keys(result.calculation_details).length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={() => setShowCalculations(!showCalculations)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              background: 'rgba(139, 92, 246, 0.1)',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: 8,
+              color: '#a78bfa',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: showCalculations ? 8 : 0
+            }}
+          >
+            <span>🔬 Calculation Details ({Object.keys(result.calculation_details).length} metrics)</span>
+            <span>{showCalculations ? '▼' : '▶'}</span>
+          </button>
+          {showCalculations && (
+            <div style={{
+              display: 'grid',
+              gap: 8
+            }}>
+              {Object.entries(result.calculation_details).map(([metric, details]: [string, any]) => (
+                <div
+                  key={metric}
+                  style={{
+                    padding: 12,
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(139, 92, 246, 0.2)'
+                  }}
+                >
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: 8
+                  }}>
+                    <div>
+                      <div style={{ 
+                        fontSize: 12, 
+                        fontWeight: 600, 
+                        color: '#cbd5e1',
+                        textTransform: 'capitalize',
+                        marginBottom: 4
+                      }}>
+                        {metric.replace('_', ' ')}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        Score: <span style={{ color: '#a78bfa', fontWeight: 600 }}>
+                          {(details.score * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExpandedMetric(expandedMetric === metric ? null : metric)}
+                      style={{
+                        padding: '4px 8px',
+                        background: 'rgba(139, 92, 246, 0.2)',
+                        border: '1px solid rgba(139, 92, 246, 0.3)',
+                        borderRadius: 4,
+                        color: '#a78bfa',
+                        cursor: 'pointer',
+                        fontSize: 10
+                      }}
+                    >
+                      {expandedMetric === metric ? 'Hide' : 'Details'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+                    {details.explanation}
+                  </div>
+                  {details.method && (
+                    <div style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic' }}>
+                      Method: {details.method}
+                    </div>
+                  )}
+                  {expandedMetric === metric && (
+                    <div style={{
+                      marginTop: 8,
+                      padding: 8,
+                      background: 'rgba(15, 23, 42, 0.4)',
+                      borderRadius: 6,
+                      fontSize: 10,
+                      color: '#cbd5e1'
+                    }}>
+                      {details.query_words && (
+                        <div style={{ marginBottom: 4 }}>
+                          <strong>Query Words:</strong> {details.query_words.join(', ')}
+                        </div>
+                      )}
+                      {details.overlap_words && (
+                        <div style={{ marginBottom: 4 }}>
+                          <strong>Overlap Words:</strong> {details.overlap_words.join(', ')}
+                        </div>
+                      )}
+                      {details.matched_words && (
+                        <div style={{ marginBottom: 4 }}>
+                          <strong>Matched Words:</strong> {details.matched_words.join(', ')}
+                        </div>
+                      )}
+                      {details.grounded_words && (
+                        <div style={{ marginBottom: 4 }}>
+                          <strong>Grounded Words:</strong> {details.grounded_words.slice(0, 10).join(', ')}
+                          {details.grounded_words.length > 10 && ` (+${details.grounded_words.length - 10} more)`}
+                        </div>
+                      )}
+                      {details.sentence_count !== undefined && (
+                        <div style={{ marginBottom: 4 }}>
+                          <strong>Sentences:</strong> {details.sentence_count} 
+                          {details.avg_sentence_length && ` (avg ${details.avg_sentence_length} words)`}
+                        </div>
+                      )}
+                      {details.context_size !== undefined && (
+                        <div>
+                          <strong>Context Size:</strong> {details.context_size.toLocaleString()} characters
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

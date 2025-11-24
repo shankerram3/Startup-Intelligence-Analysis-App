@@ -656,8 +656,140 @@ Answer:"""
     # MAIN QUERY INTERFACE
     # =========================================================================
 
+    def _extract_traversal_data(self, context: Any) -> Dict:
+        """
+        Extract graph traversal data from context for visualization
+        
+        Args:
+            context: Query context (can be dict, list, or nested structure)
+            
+        Returns:
+            Dictionary with nodes and edges visited during traversal
+        """
+        nodes = {}
+        edges = []
+        node_order = []
+        edge_order = []
+        visited_edges = set()
+        
+        def extract_from_item(item: Any, parent_id: Optional[str] = None, relationship_type: Optional[str] = None):
+            """Recursively extract nodes and edges from context"""
+            if isinstance(item, dict):
+                # Extract node information
+                if "id" in item:
+                    node_id = item["id"]
+                    if node_id not in nodes:
+                        nodes[node_id] = {
+                            "id": node_id,
+                            "label": item.get("name", item.get("id", "")),
+                            "type": item.get("type", "Unknown"),
+                            "description": item.get("description", ""),
+                        }
+                        node_order.append(node_id)
+                    
+                    # Create edge if there's a parent
+                    if parent_id and parent_id != node_id:
+                        edge_id = f"{parent_id}-{node_id}"
+                        if edge_id not in visited_edges:
+                            visited_edges.add(edge_id)
+                            edges.append({
+                                "id": edge_id,
+                                "from": parent_id,
+                                "to": node_id,
+                                "type": relationship_type or "RELATED_TO",
+                                "label": relationship_type or "related"
+                            })
+                            edge_order.append(edge_id)
+                    
+                    # Recursively process nested structures
+                    for key, value in item.items():
+                        if key not in ["id", "name", "type", "description", "mention_count", "source_articles", "article_urls", "similarity", "score"]:
+                            if isinstance(value, (dict, list)):
+                                # Determine relationship type from key name
+                                rel_type = key.upper().replace("_", "_")
+                                extract_from_item(value, node_id, rel_type)
+                
+                # Handle relationship structures (investors, founders, etc.)
+                elif "investors" in item or "founders" in item or "technologies" in item:
+                    for key in ["investors", "founders", "technologies", "competitors", "locations", "portfolio"]:
+                        if key in item and isinstance(item[key], list):
+                            for related_item in item[key]:
+                                if isinstance(related_item, dict):
+                                    extract_from_item(related_item, parent_id, key.upper())
+                                elif isinstance(related_item, str) and parent_id:
+                                    # Create a node for the string entity
+                                    related_id = related_item.lower().replace(" ", "_").replace("-", "_")
+                                    if related_id not in nodes:
+                                        nodes[related_id] = {
+                                            "id": related_id,
+                                            "label": related_item,
+                                            "type": key[:-1].title() if key.endswith("s") else key.title(),
+                                        }
+                                        node_order.append(related_id)
+                                    
+                                    edge_id = f"{parent_id}-{related_id}"
+                                    if edge_id not in visited_edges:
+                                        visited_edges.add(edge_id)
+                                        edges.append({
+                                            "id": edge_id,
+                                            "from": parent_id,
+                                            "to": related_id,
+                                            "type": key.upper(),
+                                            "label": key
+                                        })
+                                        edge_order.append(edge_id)
+            
+            elif isinstance(item, list):
+                # For lists, connect items sequentially if no parent
+                prev_id = parent_id
+                for idx, sub_item in enumerate(item):
+                    if isinstance(sub_item, dict) and "id" in sub_item:
+                        current_id = sub_item["id"]
+                        extract_from_item(sub_item, prev_id)
+                        # Connect sequential items in list
+                        if prev_id and prev_id != current_id and idx > 0:
+                            edge_id = f"{prev_id}-{current_id}"
+                            if edge_id not in visited_edges:
+                                visited_edges.add(edge_id)
+                                edges.append({
+                                    "id": edge_id,
+                                    "from": prev_id,
+                                    "to": current_id,
+                                    "type": "SEQUENTIAL",
+                                    "label": "next"
+                                })
+                                edge_order.append(edge_id)
+                        prev_id = current_id
+                    else:
+                        extract_from_item(sub_item, prev_id)
+        
+        # Extract traversal data from context
+        extract_from_item(context)
+        
+        # If we have nodes but no edges (e.g., from semantic search), create a simple chain
+        if len(nodes) > 0 and len(edges) == 0 and len(node_order) > 1:
+            for i in range(len(node_order) - 1):
+                edge_id = f"{node_order[i]}-{node_order[i+1]}"
+                if edge_id not in visited_edges:
+                    visited_edges.add(edge_id)
+                    edges.append({
+                        "id": edge_id,
+                        "from": node_order[i],
+                        "to": node_order[i+1],
+                        "type": "RELATED_TO",
+                        "label": "related"
+                    })
+                    edge_order.append(edge_id)
+        
+        return {
+            "nodes": list(nodes.values()),
+            "edges": edges,
+            "node_order": node_order,
+            "edge_order": edge_order
+        }
+
     def query(
-        self, question: str, return_context: bool = False, use_llm: bool = True
+        self, question: str, return_context: bool = False, use_llm: bool = True, return_traversal: bool = False
     ) -> Dict:
         """
         Main query interface - handles end-to-end RAG pipeline
@@ -666,6 +798,7 @@ Answer:"""
             question: User question
             return_context: Whether to return raw context
             use_llm: Whether to generate LLM answer
+            return_traversal: Whether to return graph traversal data for visualization
 
         Returns:
             Query results with answer and/or context
@@ -693,6 +826,11 @@ Answer:"""
 
         if return_context:
             response["context"] = context
+        
+        # Extract traversal data for visualization
+        if return_traversal and context:
+            traversal_data = self._extract_traversal_data(context)
+            response["traversal"] = traversal_data
 
         return response
 

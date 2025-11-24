@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { postJson, QueryRequest, QueryResponse } from '../lib/api';
 import { useTypewriter } from '../hooks/useTypewriter';
+import { GraphTraversalAnimation } from './GraphTraversalAnimation';
 
 type ChatMessage = {
   id: string;
@@ -91,6 +92,7 @@ export function CombinedQueryChatView() {
   const [loading, setLoading] = useState(false);
   const [returnContext, setReturnContext] = useState(false);
   const [useLlm, setUseLlm] = useState(true);
+  const [returnTraversal, setReturnTraversal] = useState(true);
   const [showTemplates, setShowTemplates] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>(() => loadChatHistory());
@@ -214,7 +216,8 @@ export function CombinedQueryChatView() {
       const body: QueryRequest = { 
         question: text, 
         return_context: returnContext, 
-        use_llm: useLlm 
+        use_llm: useLlm,
+        return_traversal: returnTraversal
       };
       const res = await postJson<QueryRequest, QueryResponse>('/query', body);
       const answer = (res.answer && String(res.answer).trim()) || 'No answer found.';
@@ -226,7 +229,7 @@ export function CombinedQueryChatView() {
         id: generateUUID(),
         role: 'assistant',
         content: answer,
-        meta: { intent: res.intent, context: res.context },
+        meta: { intent: res.intent, context: res.context, traversal: res.traversal },
         isTyping: true
       };
         const updated = [...withoutLoading, assistantMsg];
@@ -407,6 +410,14 @@ export function CombinedQueryChatView() {
               />
               <span>Use LLM</span>
             </label>
+            <label style={styles.checkbox}>
+              <input 
+                type="checkbox" 
+                checked={returnTraversal} 
+                onChange={(e) => setReturnTraversal(e.target.checked)} 
+              />
+              <span>Show Graph</span>
+            </label>
             <button
               onClick={() => setShowTemplates(!showTemplates)}
               style={styles.templatesToggle}
@@ -560,6 +571,11 @@ function ChatMessageBubble({
           <span style={{ color: '#ffffff' }}>{m.content}</span>
         )}
       </div>
+      {m.role === 'assistant' && m.meta?.traversal && (
+        <GraphTraversalAnimation 
+          traversalData={m.meta.traversal} 
+        />
+      )}
       {m.role === 'assistant' && m.meta?.context && (
         <details style={{ marginTop: 12 }}>
           <summary style={styles.detailsSummary}>📊 Context Data</summary>

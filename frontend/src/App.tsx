@@ -106,7 +106,7 @@ export default function App() {
               <div style={styles.logoIcon}>🚀</div>
               <div style={styles.logoText}>
                 <h1 style={styles.title}>GraphRAG</h1>
-                <p style={styles.subtitle}>Knowledge Graph Platform</p>
+                <p style={styles.subtitle}>TrendScout AI</p>
               </div>
             </div>
           </div>
@@ -166,6 +166,14 @@ export default function App() {
             >
               <span style={styles.navIcon}>📈</span>
               <span>Analytics</span>
+            </button>
+            <button
+              data-nav-button
+              style={{ ...styles.navButton, ...(activeTab === 'evaluation' ? styles.navButtonActive : {}) }}
+              onClick={() => { setActiveTab('evaluation'); window.location.hash = 'evaluation'; }}
+            >
+              <span style={styles.navIcon}>🧪</span>
+              <span>Evaluation</span>
             </button>
             <button
               data-nav-button

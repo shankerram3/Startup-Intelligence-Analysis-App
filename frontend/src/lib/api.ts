@@ -31,6 +31,29 @@ export type QueryRequest = {
   question: string;
   return_context?: boolean;
   use_llm?: boolean;
+  return_traversal?: boolean;
+};
+
+export type TraversalNode = {
+  id: string;
+  label: string;
+  type: string;
+  description?: string;
+};
+
+export type TraversalEdge = {
+  id: string;
+  from: string;
+  to: string;
+  type: string;
+  label: string;
+};
+
+export type TraversalData = {
+  nodes: TraversalNode[];
+  edges: TraversalEdge[];
+  node_order: string[];
+  edge_order: string[];
 };
 
 export type QueryResponse = {
@@ -38,6 +61,7 @@ export type QueryResponse = {
   intent: Record<string, unknown>;
   answer?: string | null;
   context?: unknown;
+  traversal?: TraversalData;
 };
 
 export type SemanticSearchRequest = {
@@ -471,6 +495,11 @@ export type EvaluationResult = {
   success: boolean;
   error?: string;
   timestamp: string;
+  logs?: string[];
+  calculation_details?: Record<string, any>;
+  intent_classified?: string;
+  context_size?: number;
+  context_entities?: string[];
 };
 
 export type EvaluationSummary = {

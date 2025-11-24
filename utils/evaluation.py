@@ -50,6 +50,13 @@ class QueryEvaluationResult:
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     model_used: Optional[str] = None
     endpoint: str = "/query"
+    
+    # Detailed logs and calculation breakdowns
+    logs: List[str] = field(default_factory=list)
+    calculation_details: Dict[str, Any] = field(default_factory=dict)
+    intent_classified: Optional[str] = None
+    context_size: int = 0
+    context_entities: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -127,17 +134,35 @@ class QueryEvaluator:
         start_time = time.time()
         
         try:
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Starting evaluation for query: '{query}'")
+            
             # Execute query
+            query_start = time.time()
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Executing query through RAG system...")
+            
             response = self.rag_instance.query(
                 question=query,
                 return_context=True,
                 use_llm=use_llm
             )
             
+            query_latency = (time.time() - query_start) * 1000
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Query completed in {query_latency:.2f}ms")
+            
             result.actual_answer = response.get("answer", "")
             result.context_retrieved = response.get("context")
+            
+            # Handle intent - could be string or object
+            intent_data = response.get("intent", "unknown")
+            if isinstance(intent_data, dict):
+                result.intent_classified = intent_data.get("intent", "unknown")
+            else:
+                result.intent_classified = str(intent_data) if intent_data else "unknown"
+            
             result.latency_ms = (time.time() - start_time) * 1000
             result.success = True
+            
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Intent classified as: {result.intent_classified}")
             
             # Extract metadata if available (response is a dict, not an object)
             if isinstance(response, dict):
@@ -145,41 +170,107 @@ class QueryEvaluator:
                 result.cost_usd = response.get("cost_usd", 0.0)
                 result.model_used = response.get("model", None)
                 result.cache_hit = response.get("cache_hit", False)
+                
+                if result.tokens_used > 0:
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Tokens used: {result.tokens_used}, Cost: ${result.cost_usd:.4f}")
+                if result.cache_hit:
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] ⚡ Cache hit - response served from cache")
+            
+            # Analyze context
+            if result.context_retrieved:
+                context_str = str(result.context_retrieved)
+                result.context_size = len(context_str)
+                
+                # Try to extract entity names from context
+                if isinstance(result.context_retrieved, dict):
+                    # Look for common entity keys
+                    entities = []
+                    for key in ['entities', 'nodes', 'results', 'data']:
+                        if key in result.context_retrieved:
+                            data = result.context_retrieved[key]
+                            if isinstance(data, list):
+                                for item in data[:10]:  # Limit to first 10
+                                    if isinstance(item, dict):
+                                        name = item.get('name') or item.get('label') or item.get('title')
+                                        if name:
+                                            entities.append(str(name))
+                    result.context_entities = entities[:10]  # Limit to 10
+                
+                result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Context retrieved: {result.context_size} characters, {len(result.context_entities)} entities identified")
             
             # Calculate quality metrics
             if result.actual_answer:
-                result.relevance_score = self._calculate_relevance(query, result.actual_answer)
-                result.coherence_score = self._calculate_coherence(result.actual_answer)
+                result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Calculating quality metrics...")
+                
+                # Relevance calculation
+                relevance_details = self._calculate_relevance_with_details(query, result.actual_answer)
+                result.relevance_score = relevance_details['score']
+                result.calculation_details['relevance'] = relevance_details
+                result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Relevance score: {result.relevance_score:.3f} ({relevance_details.get('explanation', '')})")
+                
+                # Coherence calculation
+                coherence_details = self._calculate_coherence_with_details(result.actual_answer)
+                result.coherence_score = coherence_details['score']
+                result.calculation_details['coherence'] = coherence_details
+                result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Coherence score: {result.coherence_score:.3f} ({coherence_details.get('explanation', '')})")
                 
                 if expected_answer:
-                    result.accuracy_score = self._calculate_accuracy(
+                    # Accuracy calculation
+                    accuracy_details = self._calculate_accuracy_with_details(
                         expected_answer, 
                         result.actual_answer
                     )
-                    result.completeness_score = self._calculate_completeness(
+                    result.accuracy_score = accuracy_details['score']
+                    result.calculation_details['accuracy'] = accuracy_details
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Accuracy score: {result.accuracy_score:.3f} ({accuracy_details.get('explanation', '')})")
+                    
+                    # Completeness calculation
+                    completeness_details = self._calculate_completeness_with_details(
                         expected_answer,
                         result.actual_answer
                     )
+                    result.completeness_score = completeness_details['score']
+                    result.calculation_details['completeness'] = completeness_details
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Completeness score: {result.completeness_score:.3f} ({completeness_details.get('explanation', '')})")
                 
                 # RAG-specific metrics
                 if result.context_retrieved:
-                    result.context_relevance = self._calculate_context_relevance(
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Calculating RAG metrics...")
+                    
+                    # Context relevance
+                    ctx_rel_details = self._calculate_context_relevance_with_details(
                         query,
                         result.context_retrieved
                     )
-                    result.answer_faithfulness = self._calculate_faithfulness(
+                    result.context_relevance = ctx_rel_details['score']
+                    result.calculation_details['context_relevance'] = ctx_rel_details
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Context relevance: {result.context_relevance:.3f} ({ctx_rel_details.get('explanation', '')})")
+                    
+                    # Answer faithfulness
+                    faithfulness_details = self._calculate_faithfulness_with_details(
                         result.actual_answer,
                         result.context_retrieved
                     )
-                    result.answer_relevancy = self._calculate_answer_relevancy(
+                    result.answer_faithfulness = faithfulness_details['score']
+                    result.calculation_details['answer_faithfulness'] = faithfulness_details
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Answer faithfulness: {result.answer_faithfulness:.3f} ({faithfulness_details.get('explanation', '')})")
+                    
+                    # Answer relevancy
+                    answer_rel_details = self._calculate_answer_relevancy_with_details(
                         query,
                         result.actual_answer
                     )
+                    result.answer_relevancy = answer_rel_details['score']
+                    result.calculation_details['answer_relevancy'] = answer_rel_details
+                    result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Answer relevancy: {result.answer_relevancy:.3f} ({answer_rel_details.get('explanation', '')})")
+            
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] ✅ Evaluation completed successfully")
             
         except Exception as e:
             result.success = False
             result.error = str(e)
             result.latency_ms = (time.time() - start_time) * 1000
+            result.logs.append(f"[{datetime.utcnow().strftime('%H:%M:%S')}] ❌ Error: {str(e)}")
         
         return result
     
@@ -224,6 +315,30 @@ class QueryEvaluator:
         overlap = len(query_words.intersection(answer_words))
         return min(overlap / len(query_words), 1.0)
     
+    def _calculate_relevance_with_details(self, query: str, answer: str) -> Dict[str, Any]:
+        """Calculate relevance with detailed breakdown"""
+        if not answer or not query:
+            return {"score": 0.0, "explanation": "Empty query or answer"}
+        
+        query_words = set(query.lower().split())
+        answer_words = set(answer.lower().split())
+        
+        if not query_words:
+            return {"score": 0.0, "explanation": "Query has no words"}
+        
+        overlap_words = query_words.intersection(answer_words)
+        overlap_count = len(overlap_words)
+        total_query_words = len(query_words)
+        score = min(overlap_count / total_query_words, 1.0)
+        
+        return {
+            "score": score,
+            "explanation": f"{overlap_count}/{total_query_words} query words found in answer",
+            "query_words": list(query_words),
+            "overlap_words": list(overlap_words),
+            "method": "Keyword overlap (Jaccard similarity)"
+        }
+    
     def _calculate_accuracy(self, expected: str, actual: str) -> float:
         """Calculate accuracy by comparing expected vs actual (0-1)"""
         if not expected or not actual:
@@ -239,6 +354,30 @@ class QueryEvaluator:
         overlap = len(expected_words.intersection(actual_words))
         return min(overlap / len(expected_words), 1.0)
     
+    def _calculate_accuracy_with_details(self, expected: str, actual: str) -> Dict[str, Any]:
+        """Calculate accuracy with detailed breakdown"""
+        if not expected or not actual:
+            return {"score": 0.0, "explanation": "Missing expected or actual answer"}
+        
+        expected_words = set(expected.lower().split())
+        actual_words = set(actual.lower().split())
+        
+        if not expected_words:
+            return {"score": 0.0, "explanation": "Expected answer has no words"}
+        
+        overlap_words = expected_words.intersection(actual_words)
+        overlap_count = len(overlap_words)
+        total_expected = len(expected_words)
+        score = min(overlap_count / total_expected, 1.0)
+        
+        return {
+            "score": score,
+            "explanation": f"{overlap_count}/{total_expected} expected words found in actual answer",
+            "expected_words": list(expected_words),
+            "overlap_words": list(overlap_words),
+            "method": "Word overlap between expected and actual"
+        }
+    
     def _calculate_completeness(self, expected: str, actual: str) -> float:
         """Calculate how complete the answer is (0-1)"""
         if not expected or not actual:
@@ -253,6 +392,30 @@ class QueryEvaluator:
         
         coverage = len(expected_key_terms.intersection(actual_terms)) / len(expected_key_terms)
         return min(coverage, 1.0)
+    
+    def _calculate_completeness_with_details(self, expected: str, actual: str) -> Dict[str, Any]:
+        """Calculate completeness with detailed breakdown"""
+        if not expected or not actual:
+            return {"score": 0.0, "explanation": "Missing expected or actual answer"}
+        
+        expected_terms = set(expected.lower().split())
+        actual_terms = set(actual.lower().split())
+        
+        if not expected_terms:
+            return {"score": 0.0, "explanation": "Expected answer has no terms"}
+        
+        covered_terms = expected_terms.intersection(actual_terms)
+        coverage_count = len(covered_terms)
+        total_expected = len(expected_terms)
+        score = min(coverage_count / total_expected, 1.0)
+        
+        return {
+            "score": score,
+            "explanation": f"{coverage_count}/{total_expected} expected terms covered",
+            "expected_terms": list(expected_terms),
+            "covered_terms": list(covered_terms),
+            "method": "Term coverage analysis"
+        }
     
     def _calculate_coherence(self, answer: str) -> float:
         """Calculate answer coherence (0-1)"""
@@ -275,6 +438,45 @@ class QueryEvaluator:
         else:
             return 0.4
     
+    def _calculate_coherence_with_details(self, answer: str) -> Dict[str, Any]:
+        """Calculate coherence with detailed breakdown"""
+        if not answer:
+            return {"score": 0.0, "explanation": "Empty answer"}
+        
+        sentences = [s.strip() for s in answer.split('.') if s.strip()]
+        sentence_count = len(sentences)
+        
+        if sentence_count < 2:
+            return {
+                "score": 0.5,
+                "explanation": "Single sentence - moderate coherence",
+                "sentence_count": sentence_count,
+                "method": "Sentence structure analysis"
+            }
+        
+        sentence_lengths = [len(s.split()) for s in sentences]
+        avg_length = sum(sentence_lengths) / len(sentence_lengths)
+        
+        # Score based on sentence length
+        if 10 <= avg_length <= 20:
+            score = 1.0
+            explanation = f"Optimal sentence length ({avg_length:.1f} words avg)"
+        elif 5 <= avg_length < 10 or 20 < avg_length <= 30:
+            score = 0.7
+            explanation = f"Acceptable sentence length ({avg_length:.1f} words avg)"
+        else:
+            score = 0.4
+            explanation = f"Suboptimal sentence length ({avg_length:.1f} words avg)"
+        
+        return {
+            "score": score,
+            "explanation": explanation,
+            "sentence_count": sentence_count,
+            "avg_sentence_length": round(avg_length, 1),
+            "sentence_lengths": sentence_lengths,
+            "method": "Sentence structure and length analysis"
+        }
+    
     def _calculate_context_relevance(self, query: str, context: Any) -> float:
         """Calculate how relevant the retrieved context is (0-1)"""
         if not context:
@@ -290,6 +492,31 @@ class QueryEvaluator:
         # Count query word occurrences in context
         matches = sum(1 for word in query_words if word in context_str)
         return min(matches / len(query_words), 1.0)
+    
+    def _calculate_context_relevance_with_details(self, query: str, context: Any) -> Dict[str, Any]:
+        """Calculate context relevance with detailed breakdown"""
+        if not context:
+            return {"score": 0.0, "explanation": "No context retrieved"}
+        
+        context_str = str(context).lower()
+        query_words = set(query.lower().split())
+        
+        if not query_words:
+            return {"score": 0.0, "explanation": "Query has no words"}
+        
+        matched_words = [word for word in query_words if word in context_str]
+        match_count = len(matched_words)
+        total_query_words = len(query_words)
+        score = min(match_count / total_query_words, 1.0)
+        
+        return {
+            "score": score,
+            "explanation": f"{match_count}/{total_query_words} query words found in context",
+            "query_words": list(query_words),
+            "matched_words": matched_words,
+            "context_size": len(context_str),
+            "method": "Query word matching in context"
+        }
     
     def _calculate_faithfulness(self, answer: str, context: Any) -> float:
         """Calculate how faithful the answer is to the context (0-1)"""
@@ -308,10 +535,39 @@ class QueryEvaluator:
         
         return min(overlap / len(answer_words), 1.0)
     
+    def _calculate_faithfulness_with_details(self, answer: str, context: Any) -> Dict[str, Any]:
+        """Calculate faithfulness with detailed breakdown"""
+        if not answer or not context:
+            return {"score": 0.0, "explanation": "Missing answer or context"}
+        
+        context_str = str(context).lower()
+        answer_words = set(answer.lower().split())
+        context_words = set(context_str.split())
+        
+        if not answer_words:
+            return {"score": 0.0, "explanation": "Answer has no words"}
+        
+        grounded_words = answer_words.intersection(context_words)
+        grounded_count = len(grounded_words)
+        total_answer_words = len(answer_words)
+        score = min(grounded_count / total_answer_words, 1.0)
+        
+        return {
+            "score": score,
+            "explanation": f"{grounded_count}/{total_answer_words} answer words found in context",
+            "answer_word_count": total_answer_words,
+            "grounded_words": list(grounded_words)[:20],  # Limit to first 20
+            "method": "Answer word grounding in context"
+        }
+    
     def _calculate_answer_relevancy(self, query: str, answer: str) -> float:
         """Calculate how relevant the answer is to the query (0-1)"""
         # Same as relevance, but can be enhanced with LLM
         return self._calculate_relevance(query, answer)
+    
+    def _calculate_answer_relevancy_with_details(self, query: str, answer: str) -> Dict[str, Any]:
+        """Calculate answer relevancy with detailed breakdown"""
+        return self._calculate_relevance_with_details(query, answer)
     
     def _summarize_results(self, results: List[QueryEvaluationResult]) -> EvaluationSummary:
         """Aggregate evaluation results into summary"""
