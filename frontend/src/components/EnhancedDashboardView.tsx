@@ -52,14 +52,41 @@ export function EnhancedDashboardView() {
     };
   };
 
-  const [activeSection, setActiveSection] = useState<ConfigSection>('scraping');
+  // Load saved pipeline state from localStorage
+  const loadSavedPipelineState = () => {
+    try {
+      const saved = localStorage.getItem('pipeline-state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          activeSection: parsed.activeSection || 'scraping',
+          logs: parsed.logs || '',
+          progress: parsed.progress || null,
+          lastRunSummary: parsed.lastRunSummary || null,
+          autoScroll: parsed.autoScroll !== undefined ? parsed.autoScroll : true
+        };
+      }
+    } catch (e) {
+      console.error('Failed to load saved pipeline state:', e);
+    }
+    return {
+      activeSection: 'scraping' as ConfigSection,
+      logs: '',
+      progress: null,
+      lastRunSummary: null,
+      autoScroll: true
+    };
+  };
+
+  const savedState = loadSavedPipelineState();
+  const [activeSection, setActiveSection] = useState<ConfigSection>(savedState.activeSection);
   const [opts, setOpts] = useState<PipelineStartRequest>(loadSavedOptions);
   const [status, setStatus] = useState<PipelineStatus>({ running: false });
   const [presetKey, setPresetKey] = useState(0); // Force re-render key
   const [lastPresetLoaded, setLastPresetLoaded] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string>('');
+  const [logs, setLogs] = useState<string>(savedState.logs);
   const [busy, setBusy] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState<boolean>(savedState.autoScroll);
   const [progress, setProgress] = useState<{
     phase: string;
     current: number;
@@ -70,7 +97,7 @@ export function EnhancedDashboardView() {
     subTotal?: number;
     subPercentage?: number;
     detail?: string;
-  } | null>(null);
+  } | null>(savedState.progress);
   const [lastRunSummary, setLastRunSummary] = useState<{
     phase: string;
     articlesProcessed?: number;
@@ -81,7 +108,7 @@ export function EnhancedDashboardView() {
     nodesTotal?: number;
     relationshipsTotal?: number;
     errors?: number;
-  } | null>(null);
+  } | null>(savedState.lastRunSummary);
 
   const [runHistory, setRunHistory] = useState<Array<{
     id: string;
@@ -131,6 +158,21 @@ export function EnhancedDashboardView() {
       localStorage.setItem('pipeline-run-history', JSON.stringify(history));
     } catch (e) {
       console.error('Failed to save run history:', e);
+    }
+  }
+
+  // Save pipeline state to localStorage
+  function savePipelineState() {
+    try {
+      localStorage.setItem('pipeline-state', JSON.stringify({
+        activeSection,
+        logs,
+        progress,
+        lastRunSummary,
+        autoScroll
+      }));
+    } catch (e) {
+      console.error('Failed to save pipeline state:', e);
     }
   }
 
@@ -458,6 +500,77 @@ export function EnhancedDashboardView() {
       setCurrentRunDuration(0);
     }
   }, [status.running]);
+
+  // Save pipeline state to localStorage whenever it changes
+  useEffect(() => {
+    // Debounce saves to avoid excessive writes
+    const timeoutId = setTimeout(() => {
+      savePipelineState();
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [activeSection, logs, progress, lastRunSummary, autoScroll]);
+
+  // Listen for changes from other tabs/windows to sync pipeline state
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      // Sync pipeline state from other tabs
+      if (e.key === 'pipeline-state' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          // Only update if different to avoid unnecessary re-renders
+          if (parsed.activeSection && parsed.activeSection !== activeSection) {
+            setActiveSection(parsed.activeSection);
+          }
+          if (parsed.logs !== undefined && parsed.logs !== logs && !status.running) {
+            // Only sync logs if pipeline is not running (to avoid conflicts)
+            setLogs(parsed.logs);
+          }
+          if (JSON.stringify(parsed.progress) !== JSON.stringify(progress)) {
+            setProgress(parsed.progress);
+          }
+          if (JSON.stringify(parsed.lastRunSummary) !== JSON.stringify(lastRunSummary)) {
+            setLastRunSummary(parsed.lastRunSummary);
+          }
+          if (parsed.autoScroll !== undefined && parsed.autoScroll !== autoScroll) {
+            setAutoScroll(parsed.autoScroll);
+          }
+        } catch (error) {
+          console.error('Failed to sync pipeline state from other tab:', error);
+        }
+      }
+      
+      // Sync pipeline options from other tabs
+      if (e.key === 'pipeline-options' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setOpts(parsed);
+        } catch (error) {
+          console.error('Failed to sync pipeline options from other tab:', error);
+        }
+      }
+      
+      // Sync run history from other tabs
+      if (e.key === 'pipeline-run-history' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          const history = parsed.map((r: any) => ({
+            ...r,
+            timestamp: new Date(r.timestamp)
+          }));
+          setRunHistory(history);
+        } catch (error) {
+          console.error('Failed to sync run history from other tab:', error);
+        }
+      }
+    };
+
+    // Listen for storage events (fires when localStorage changes in other tabs)
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [activeSection, logs, progress, lastRunSummary, autoScroll, status.running]);
 
   useEffect(() => {
     if (autoScroll) {
