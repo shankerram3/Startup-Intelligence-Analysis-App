@@ -2048,34 +2048,59 @@ if __name__ == "__main__":
     # Exclude log files and data directories from file watcher to prevent reloads when pipeline writes logs
     # This prevents Uvicorn from reloading when:
     # - Pipeline writes to pipeline.log
+    # - Scraped articles are saved (tc_*.json files in data/articles/)
     # - Checkpoint files are updated (extraction_checkpoint_*.json, discovery_checkpoint_*.json)
     # - Progress files are updated (extraction_progress.json)
     # - Data files are written (all_extractions.json, enriched_companies.json, etc.)
-    # - Article JSON files are created/updated
+    # - Article JSON files are created/updated anywhere in data directories
     reload_excludes = [
         "*.log",
         "pipeline.log",
         "logs/*",
         "logs/**/*",
+        # Exclude all data directories recursively
         "data/*",
         "data/**/*",
         "data/articles/**/*",
+        "data/articles/*/*/*.json",  # Article files like data/articles/2025-10/31/tc_*.json
         "data/metadata/**/*",
         "data/processing/**/*",
+        "data/processing/vector_index/**/*",  # Vector index directory
         "data/raw_data/**/*",
+        # Exclude all JSON files in data directories (articles, checkpoints, etc.)
+        "data/**/*.json",
+        "data/**/*.jsonl",
+        # Vector index files specifically
+        "**/vector_index/**/*",
+        "**/vector_index/*.npy",
+        "**/vector_index/*.json",
+        "**/vector_index/*.jsonl",
+        # Specific patterns for pipeline-generated files
         "*checkpoint*.json",
         "*progress*.json",
         "*_extractions.json",
         "*_companies.json",
         "all_extractions.json",
         "enriched_companies.json",
+        "tc_*.json",  # TechCrunch article files
+        "discovered_articles_*.json",
+        "failed_articles_*.json",
+        "scraping_stats_*.json",
+        # Python cache files
         "__pycache__/*",
         "__pycache__/**/*",
         "*.pyc",
+        # Git files
         ".git/*",
         ".git/**/*",
-        "*.npy",  # NumPy array files
-        "*.jsonl",  # JSON Lines files
+        # Binary/data files
+        "*.npy",  # NumPy array files (embeddings)
+        "*.jsonl",  # JSON Lines files (vector index chunks)
+        "*.pkl",  # Pickle files (if any caching uses pickle files)
+        "*.pickle",  # Pickle files (alternative extension)
+        "*.tmp",  # Temporary files
+        "*.temp",  # Temporary files
+        "*.cache",  # Cache files
     ]
     
     uvicorn.run(
