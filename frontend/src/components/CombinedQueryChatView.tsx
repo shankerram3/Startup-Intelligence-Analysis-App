@@ -80,14 +80,45 @@ function saveChatHistory(history: ChatHistory[]) {
   }
 }
 
-export function CombinedQueryChatView() {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
+// Load current conversation from localStorage
+function loadCurrentConversation(): { messages: ChatMessage[], chatId: string | null } {
+  try {
+    const saved = localStorage.getItem('current-conversation');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        messages: parsed.messages || [],
+        chatId: parsed.chatId || null
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load current conversation:', e);
+  }
+  return {
+    messages: [{
       id: 'm0',
       role: 'system',
       content: 'Ask about companies, investors, people, or technologies. I will answer using the knowledge graph.'
-    }
-  ]);
+    }],
+    chatId: null
+  };
+}
+
+// Save current conversation to localStorage
+function saveCurrentConversation(messages: ChatMessage[], chatId: string | null) {
+  try {
+    localStorage.setItem('current-conversation', JSON.stringify({
+      messages: messages.map(m => ({ ...m, isTyping: false })),
+      chatId
+    }));
+  } catch (e) {
+    console.error('Failed to save current conversation:', e);
+  }
+}
+
+export function CombinedQueryChatView() {
+  const initialConversation = loadCurrentConversation();
+  const [messages, setMessages] = useState<ChatMessage[]>(initialConversation.messages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [returnContext, setReturnContext] = useState(false);
@@ -96,7 +127,7 @@ export function CombinedQueryChatView() {
   const [showTemplates, setShowTemplates] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>(() => loadChatHistory());
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(initialConversation.chatId);
   const listRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const lastMessageIdRef = useRef<string>('m0');
@@ -160,6 +191,15 @@ export function CombinedQueryChatView() {
       return () => clearInterval(interval);
     }
   }, [messages]);
+
+  // Save current conversation to localStorage whenever messages or chatId changes
+  useEffect(() => {
+    // Only save if there are user messages (not just the system message)
+    const hasUserMessages = messages.some(m => m.role === 'user');
+    if (hasUserMessages) {
+      saveCurrentConversation(messages, currentChatId);
+    }
+  }, [messages, currentChatId]);
 
   // Save conversation to history
   const saveToHistory = useCallback((msgs: ChatMessage[]) => {
@@ -254,13 +294,16 @@ export function CombinedQueryChatView() {
   }
 
   function startNewChat() {
-    setMessages([{
+    const newMessages = [{
       id: 'm0',
       role: 'system',
       content: 'Ask about companies, investors, people, or technologies. I will answer using the knowledge graph.'
-    }]);
+    }];
+    setMessages(newMessages);
     setCurrentChatId(null);
     setInput('');
+    // Clear current conversation from localStorage
+    saveCurrentConversation(newMessages, null);
   }
 
   function loadChat(historyItem: ChatHistory) {
