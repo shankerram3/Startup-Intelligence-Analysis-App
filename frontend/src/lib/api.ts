@@ -356,6 +356,10 @@ export type ThemeDetailsResponse = {
   
   // Related entities
   entities?: string[];
+  
+  // Community/Industry cluster fields
+  community_id?: number;
+  total_entities?: number;
 };
 
 export async function fetchRecurringThemes(

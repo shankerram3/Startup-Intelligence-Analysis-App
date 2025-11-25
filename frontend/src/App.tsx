@@ -105,8 +105,8 @@ export default function App() {
             <div style={styles.logoContainer}>
               <div style={styles.logoIcon}>🚀</div>
               <div style={styles.logoText}>
-                <h1 style={styles.title}>GraphRAG</h1>
-                <p style={styles.subtitle}>TrendScout AI</p>
+                <h1 style={styles.title}>TrendScout AI</h1>
+                <p style={styles.subtitle}>powered by Graphrag engine RAGPiper</p>
               </div>
             </div>
           </div>
