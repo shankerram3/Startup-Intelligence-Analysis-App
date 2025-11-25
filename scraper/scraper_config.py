@@ -27,8 +27,8 @@ SCRAPER_CONFIG = {
     },
     # Crawler configuration
     "crawler": {
-        "page_timeout": 60000,  # milliseconds (60 seconds)
-        "wait_until": "load",  # Changed from "networkidle" for faster, more reliable completion
+        "page_timeout": 120000,  # milliseconds (120 seconds) - increased for Render/slow networks
+        "wait_until": "domcontentloaded",  # Faster than "load", waits for DOM ready
         "delay_before_return_html": 2.0,  # seconds
     },
 }

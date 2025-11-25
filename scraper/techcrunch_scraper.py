@@ -111,9 +111,9 @@ class TechCrunchScraper:
         crawler_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             wait_for_images=False,
-            page_timeout=60000,  # Increased to 60 seconds
+            page_timeout=120000,  # Increased to 120 seconds for Render/slow networks
             delay_before_return_html=2.0,
-            wait_until="load",  # Changed from "networkidle" to "load" for faster, more reliable completion
+            wait_until="domcontentloaded",  # Faster than "load", waits for DOM ready
         )
 
         current_url = category_url
@@ -126,11 +126,30 @@ class TechCrunchScraper:
                 print(f"\n📄 Crawling page {page_num}: {current_url}")
 
                 try:
-                    result = await crawler.arun(url=current_url, config=crawler_config)
-
-                    if not result.success:
+                    # Retry logic for timeout issues
+                    max_retries = 3
+                    retry_count = 0
+                    result = None
+                    
+                    while retry_count < max_retries:
+                        try:
+                            result = await crawler.arun(url=current_url, config=crawler_config)
+                            if result.success:
+                                break
+                        except Exception as e:
+                            retry_count += 1
+                            if "Timeout" in str(e) or "timeout" in str(e).lower():
+                                if retry_count < max_retries:
+                                    wait_time = 5 * retry_count  # Exponential backoff
+                                    print(f"  ⚠ Timeout on attempt {retry_count}, retrying in {wait_time}s...")
+                                    await asyncio.sleep(wait_time)
+                                    continue
+                            raise
+                    
+                    if not result or not result.success:
+                        error_msg = result.error_message if result else "Unknown error"
                         print(
-                            f"✗ Failed to crawl page {page_num}: {result.error_message}"
+                            f"✗ Failed to crawl page {page_num} after {max_retries} attempts: {error_msg}"
                         )
                         break
 
@@ -317,9 +336,9 @@ class TechCrunchScraper:
         crawler_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             wait_for_images=False,
-            page_timeout=60000,  # Increased to 60 seconds
+            page_timeout=120000,  # Increased to 120 seconds for Render/slow networks
             delay_before_return_html=1.5,
-            wait_until="load",  # Changed from "networkidle" to "load" for faster, more reliable completion
+            wait_until="domcontentloaded",  # Faster than "load", waits for DOM ready
         )
 
         # Process in batches
