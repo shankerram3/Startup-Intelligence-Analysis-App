@@ -227,6 +227,62 @@ export function CombinedQueryChatView() {
     }
   }, [messages, currentChatId]);
 
+  // Listen for changes from other tabs/windows to sync conversation state
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      // Only react to changes in current-conversation from other tabs
+      if (e.key === 'current-conversation' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          // Clean up any stale loading messages
+          const cleanedMessages = (parsed.messages || []).filter((m: ChatMessage) => 
+            !(m.role === 'assistant' && !m.content && m.isTyping)
+          ).map((m: ChatMessage) => ({
+            ...m,
+            animationShown: true, // Skip animation for synced messages
+            isTyping: false // Reset typing state
+          }));
+          
+          // Only update if the synced conversation is different from current
+          const currentMessagesStr = JSON.stringify(messages.map(m => ({ ...m, isTyping: false })));
+          const syncedMessagesStr = JSON.stringify(cleanedMessages);
+          
+          if (currentMessagesStr !== syncedMessagesStr && cleanedMessages.length > 0) {
+            setMessages(cleanedMessages);
+            setCurrentChatId(parsed.chatId || null);
+            // Scroll to bottom when syncing from another tab
+            setTimeout(() => scrollToBottom('auto'), 100);
+          }
+        } catch (error) {
+          console.error('Failed to sync conversation from other tab:', error);
+        }
+      }
+      
+      // Also sync chat history if it changes
+      if (e.key === 'chat-history' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          const history = parsed.map((h: any) => ({
+            ...h,
+            timestamp: new Date(h.timestamp),
+            lastUpdated: new Date(h.lastUpdated),
+            messages: h.messages || []
+          }));
+          setChatHistory(history);
+        } catch (error) {
+          console.error('Failed to sync chat history from other tab:', error);
+        }
+      }
+    };
+
+    // Listen for storage events (fires when localStorage changes in other tabs)
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [messages, scrollToBottom]);
+
   // Save conversation to history
   const saveToHistory = useCallback((msgs: ChatMessage[]) => {
     const userMessages = msgs.filter(m => m.role === 'user');
