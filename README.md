@@ -491,8 +491,13 @@ docker run -d \
 2. Add:
    - **Name:** `VITE_API_BASE_URL`
    - **Value:** `http://your-backend-ip:8000` or `https://your-backend-domain.com`
-   - **⚠️ IMPORTANT:** Must include protocol (`http://` or `https://`)
+   - **⚠️ IMPORTANT:** 
+     - Must include protocol (`http://` or `https://`)
+     - Use `http://` for IP addresses (SSL certificates don't work with IPs)
+     - Use `https://` only for domains with valid SSL certificates
 3. Save and **Redeploy** (environment variables only apply after redeployment)
+
+**Note:** If using an IP address, use `http://167.172.26.46:8000` not `https://167.172.26.46:8000` (SSL won't work with IPs)
 
 **Step 3: Verify**
 
