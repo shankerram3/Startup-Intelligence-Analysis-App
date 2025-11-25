@@ -754,6 +754,7 @@ async def start_pipeline(options: PipelineStartRequest):
 @app.get("/admin/pipeline/status", tags=["Admin"])
 async def pipeline_status():
     """Get current pipeline process status"""
+    global pipeline_proc
     try:
         if not pipeline_proc:
             return {"running": False}
@@ -781,7 +782,6 @@ async def pipeline_status():
         except (ProcessLookupError, ValueError) as e:
             # Process no longer exists
             logger.info("pipeline_process_not_found", error=str(e))
-            global pipeline_proc
             pipeline_proc = None
             return {"running": False}
             
