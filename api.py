@@ -2018,10 +2018,25 @@ if __name__ == "__main__":
     )
     logger.info("api_metrics", metrics_url=f"http://{host}:{port}/metrics")
 
+    # Determine if we're in production (disable reload)
+    is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod") or os.getenv("DISABLE_RELOAD", "false").lower() == "true"
+    
+    # Exclude log files and data directories from file watcher to prevent reloads when pipeline writes logs
+    reload_excludes = [
+        "*.log",
+        "pipeline.log",
+        "logs/*",
+        "data/*",
+        "__pycache__/*",
+        "*.pyc",
+        ".git/*",
+    ]
+    
     uvicorn.run(
         "api:app",
         host=host,
         port=port,
-        reload=True,  # Auto-reload on code changes (disable in production)
+        reload=not is_production,  # Auto-reload only in development
+        reload_excludes=reload_excludes if not is_production else None,  # Exclude log files from watcher
         log_level="info",
     )
