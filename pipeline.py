@@ -180,6 +180,15 @@ def run_pipeline(
 
             logger.info("scraping_articles_discovered", count=len(articles))
 
+            # Apply max_articles limit BEFORE extraction (to avoid unnecessary scraping)
+            if max_articles and len(articles) > max_articles:
+                logger.info(
+                    "scraping_limiting_articles",
+                    discovered=len(articles),
+                    limit=max_articles,
+                )
+                articles = articles[:max_articles]
+
             # Extract articles
             logger.info("scraping_extracting_articles", count=len(articles))
             asyncio.run(scraper.extract_articles(articles=articles, batch_size=10))

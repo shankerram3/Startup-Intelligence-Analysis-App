@@ -510,8 +510,36 @@ export function EnhancedDashboardView() {
       }
     }
     
-    // Count errors
-    const errorCount = (logs.match(/\b(error|failed|exception|traceback|Error)\b/gi) || []).length;
+    // Count actual errors (not warnings or log event names)
+    // Look for actual error patterns, excluding warnings and log event names
+    const errorPatterns = [
+      /\bERROR\b/g,  // Uppercase ERROR (actual errors)
+      /Traceback \(most recent call last\)/g,  // Python tracebacks
+      /Exception:/g,  // Exception messages
+      /Error:\s/g,  // "Error: " prefix (actual errors)
+      /failed to\b/gi,  // "failed to" (action failures)
+      /\bfailed\b.*\b(?:connect|load|import|install|start)\b/gi,  // Failed actions
+    ];
+    
+    // Exclude warnings and log event names
+    const excludePatterns = [
+      /"event":\s*"[^"]*(?:error|failed)[^"]*"/g,  // Log event names like "enrichment_failed"
+      /logger\.(warning|info)\([^)]*"(?:error|failed)"/g,  // Warning/info logs mentioning error
+      /⚠️.*(?:error|failed)/gi,  // Warning emoji messages
+    ];
+    
+    let errorCount = 0;
+    for (const pattern of errorPatterns) {
+      const matches = logs.match(pattern) || [];
+      errorCount += matches.length;
+    }
+    
+    // Subtract matches from exclude patterns (warnings, log event names)
+    for (const pattern of excludePatterns) {
+      const matches = logs.match(pattern) || [];
+      errorCount = Math.max(0, errorCount - matches.length);
+    }
+    
     if (errorCount > 0) {
       summary.errors = errorCount;
     }
