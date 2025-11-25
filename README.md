@@ -507,8 +507,13 @@ docker run -d \
 
 **Troubleshooting:**
 
-- **CORS errors**: Ensure backend `ALLOWED_ORIGINS` includes your Vercel domain
+- **Mixed Content errors**: HTTPS frontend (Vercel) cannot request HTTP backend. You need HTTPS on backend:
+  - **Quick solution**: Use Cloudflare Tunnel (free, no domain needed) - see [HTTPS_SETUP.md](./HTTPS_SETUP.md)
+  - **Production solution**: Set up Nginx/Caddy with SSL certificate
+  - **Alternative**: Deploy backend to a service with built-in HTTPS (Render, Railway, etc.)
+- **CORS errors**: Ensure backend `ALLOWED_ORIGINS` includes your Vercel domain (including preview deployments)
 - **Wrong URL**: Verify `VITE_API_BASE_URL` includes protocol (`http://` or `https://`)
+- **SSL errors with IP**: IP addresses can't have SSL. Use a domain with SSL or Cloudflare Tunnel
 - **Connection failed**: Check backend is accessible and CORS is configured
 
 ---
