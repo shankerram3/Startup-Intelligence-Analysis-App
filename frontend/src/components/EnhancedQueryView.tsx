@@ -31,7 +31,7 @@ const QUERY_TEMPLATES: QueryTemplate[] = [
 
 export function EnhancedQueryView() {
   const [question, setQuestion] = useState('Which AI startups raised funding recently?');
-  const [returnContext, setReturnContext] = useState(false);
+  const [returnContext, setReturnContext] = useState(true);
   const [useLlm, setUseLlm] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

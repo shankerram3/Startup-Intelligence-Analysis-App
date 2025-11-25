@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { CombinedQueryChatView } from './components/CombinedQueryChatView';
-import { SemanticSearchView } from './components/SemanticSearchView';
 import { Neo4jDashboard } from './components/Neo4jDashboard';
 import { EnhancedDashboardView } from './components/EnhancedDashboardView';
 import { LandingPage } from './components/LandingPage';
@@ -10,7 +9,7 @@ import { ThemeExtractionView } from './components/ThemeExtractionView';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { EvaluationDashboard } from './components/EvaluationDashboard';
 
-type TabKey = 'home' | 'query' | 'semantic' | 'pipeline' | 'auradb' | 'themes' | 'analytics' | 'evaluation' | 'docs';
+type TabKey = 'home' | 'query' | 'pipeline' | 'auradb' | 'themes' | 'analytics' | 'evaluation' | 'docs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -18,13 +17,13 @@ export default function App() {
   // Handle hash routing
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(hash)) {
+    if (hash && ['home', 'query', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(hash)) {
       setActiveTab(hash as TabKey);
     }
 
     const handleHashChange = () => {
       const newHash = window.location.hash.slice(1);
-      if (newHash && ['home', 'query', 'semantic', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(newHash)) {
+      if (newHash && ['home', 'query', 'pipeline', 'auradb', 'themes', 'analytics', 'evaluation', 'docs'].includes(newHash)) {
         setActiveTab(newHash as TabKey);
       }
     };
@@ -129,14 +128,6 @@ export default function App() {
             </button>
             <button
               data-nav-button
-              style={{ ...styles.navButton, ...(activeTab === 'semantic' ? styles.navButtonActive : {}) }}
-              onClick={() => { setActiveTab('semantic'); window.location.hash = 'semantic'; }}
-            >
-              <span style={styles.navIcon}>🎯</span>
-              <span>Semantic Search</span>
-            </button>
-            <button
-              data-nav-button
               style={{ ...styles.navButton, ...(activeTab === 'pipeline' ? styles.navButtonActive : {}) }}
               onClick={() => { setActiveTab('pipeline'); window.location.hash = 'pipeline'; }}
             >
@@ -200,7 +191,6 @@ export default function App() {
       }>
         {activeTab === 'home' && <LandingPage />}
         {activeTab === 'query' && <CombinedQueryChatView />}
-        {activeTab === 'semantic' && <SemanticSearchView />}
         {activeTab === 'pipeline' && <EnhancedDashboardView />}
         {activeTab === 'auradb' && <AuraDBAnalyticsDashboard />}
         {activeTab === 'themes' && <ThemeExtractionView />}

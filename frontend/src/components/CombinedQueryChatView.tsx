@@ -142,7 +142,7 @@ export function CombinedQueryChatView() {
   );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [returnContext, setReturnContext] = useState(false);
+  const [returnContext, setReturnContext] = useState(true);
   const [useLlm, setUseLlm] = useState(true);
   const [returnTraversal, setReturnTraversal] = useState(true);
   const [showTemplates, setShowTemplates] = useState(true);
