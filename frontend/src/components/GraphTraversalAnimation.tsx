@@ -4,11 +4,13 @@ import { TraversalData } from '../lib/api';
 interface GraphTraversalAnimationProps {
   traversalData: TraversalData | null;
   onComplete?: () => void;
+  skipAnimation?: boolean; // If true, show final state immediately without animation
 }
 
 export function GraphTraversalAnimation({ 
   traversalData, 
-  onComplete 
+  onComplete,
+  skipAnimation = false
 }: GraphTraversalAnimationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<any>(null);
@@ -169,8 +171,71 @@ export function GraphTraversalAnimation({
 
       networkRef.current = new vis.Network(containerRef.current, data, options);
 
-      // Start animation
-      startAnimation();
+      // Start animation or show final state
+      if (skipAnimation) {
+        showFinalState();
+      } else {
+        startAnimation();
+      }
+    }
+
+    function showFinalState() {
+      if (!traversalData || !networkRef.current) return;
+      
+      setIsAnimating(false);
+      
+      // Show all nodes and edges immediately
+      const nodes = networkRef.current.body.data.nodes;
+      const edges = networkRef.current.body.data.edges;
+      
+      // Show all nodes
+      traversalData.nodes.forEach(node => {
+        nodes.update({
+          id: node.id,
+          hidden: false,
+          color: {
+            background: '#10b981',
+            border: '#059669',
+            highlight: {
+              background: '#34d399',
+              border: '#10b981'
+            }
+          },
+          size: 20
+        });
+      });
+      
+      // Show all edges
+      traversalData.edges.forEach(edge => {
+        edges.update({
+          id: edge.id,
+          hidden: false,
+          color: {
+            color: '#64748b',
+            highlight: '#3b82f6',
+            opacity: 1
+          },
+          width: 2
+        });
+      });
+      
+      // Fit network to show all nodes
+      setTimeout(() => {
+        try {
+          networkRef.current.fit({
+            animation: {
+              duration: 500,
+              easingFunction: 'easeInOutQuad'
+            }
+          });
+        } catch (e) {
+          // Ignore fit errors
+        }
+      }, 100);
+      
+      if (onComplete) {
+        onComplete();
+      }
     }
 
     function startAnimation() {
@@ -350,7 +415,7 @@ export function GraphTraversalAnimation({
         networkRef.current = null;
       }
     };
-  }, [traversalData, onComplete]);
+  }, [traversalData, onComplete, skipAnimation]);
 
   if (!traversalData || traversalData.nodes.length === 0) {
     return null;

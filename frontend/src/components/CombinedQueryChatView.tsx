@@ -10,6 +10,7 @@ type ChatMessage = {
   content: string;
   meta?: any;
   isTyping?: boolean;
+  animationShown?: boolean; // Track if graph traversal animation has already been shown
 };
 
 type QueryTemplate = {
@@ -86,8 +87,13 @@ function loadCurrentConversation(): { messages: ChatMessage[], chatId: string | 
     const saved = localStorage.getItem('current-conversation');
     if (saved) {
       const parsed = JSON.parse(saved);
+      // Mark all messages as having shown their animations (since we're restoring)
+      const messages = (parsed.messages || []).map((m: ChatMessage) => ({
+        ...m,
+        animationShown: true // Skip animation for restored messages
+      }));
       return {
-        messages: parsed.messages || [],
+        messages,
         chatId: parsed.chatId || null
       };
     }
@@ -307,7 +313,12 @@ export function CombinedQueryChatView() {
   }
 
   function loadChat(historyItem: ChatHistory) {
-    setMessages(historyItem.messages);
+    // Mark all messages as having shown their animations (since we're loading from history)
+    const messagesWithAnimationsShown = historyItem.messages.map(m => ({
+      ...m,
+      animationShown: true
+    }));
+    setMessages(messagesWithAnimationsShown);
     setCurrentChatId(historyItem.id);
     setInput('');
     // Scroll to bottom when loading chat
@@ -616,7 +627,16 @@ function ChatMessageBubble({
       </div>
       {m.role === 'assistant' && m.meta?.traversal && (
         <GraphTraversalAnimation 
-          traversalData={m.meta.traversal} 
+          traversalData={m.meta.traversal}
+          skipAnimation={m.animationShown === true}
+          onComplete={() => {
+            // Mark animation as shown when it completes
+            if (!m.animationShown) {
+              setMessages(prev => prev.map(msg => 
+                msg.id === m.id ? { ...msg, animationShown: true } : msg
+              ));
+            }
+          }}
         />
       )}
       {m.role === 'assistant' && m.meta?.context && (
