@@ -414,14 +414,21 @@ def process_articles_directory(
     # Process each article
     all_extractions = []
 
-    # Try to load existing extractions if resuming
+    # Track if we actually process any new articles in this run
+    new_articles_processed = 0
+    
+    # Try to load existing extractions if resuming (but only use if we process new articles)
     all_extractions_file = output_path / "all_extractions.json"
+    existing_extractions = []
     if resume and all_extractions_file.exists():
         try:
             with open(all_extractions_file, "r", encoding="utf-8") as f:
-                all_extractions = json.load(f)
+                existing_extractions = json.load(f)
         except Exception as e:
             print(f"⚠️  Warning: Could not load existing extractions: {e}")
+    
+    # Start with empty list - only add new extractions
+    all_extractions = []
 
     for i, json_file in enumerate(json_files, 1):
         article_id = None
@@ -466,6 +473,7 @@ def process_articles_directory(
 
             # Add to collection
             all_extractions.append(extraction)
+            new_articles_processed += 1
 
             # Print summary
             print(f"  ✓ Extracted {len(extraction['entities'])} entities")
@@ -511,9 +519,27 @@ def process_articles_directory(
     checkpoint.save()
     checkpoint_stats = checkpoint.get_stats()
 
-    # Save all extractions
-    with open(all_extractions_file, "w", encoding="utf-8") as f:
-        json.dump(all_extractions, f, indent=2, ensure_ascii=False)
+    # Only merge with existing extractions if we processed new articles
+    # If no new articles were processed (all were skipped), return empty list
+    # This ensures we skip previously processed articles and don't reuse old extractions
+    if new_articles_processed > 0:
+        # Merge new extractions with existing ones (avoid duplicates)
+        if existing_extractions:
+            existing_ids = {ext.get("article_metadata", {}).get("article_id") for ext in existing_extractions}
+            for ext in all_extractions:
+                article_id = ext.get("article_metadata", {}).get("article_id")
+                if article_id and article_id not in existing_ids:
+                    existing_extractions.append(ext)
+                    existing_ids.add(article_id)
+            all_extractions = existing_extractions
+        
+        # Save all extractions (merged if applicable)
+        with open(all_extractions_file, "w", encoding="utf-8") as f:
+            json.dump(all_extractions, f, indent=2, ensure_ascii=False)
+    else:
+        # No new articles processed - return empty list to skip old extractions
+        print("⚠️  No new articles processed. All articles were already processed.")
+        all_extractions = []
 
     # Finish progress tracking
     progress_tracker.finish()
@@ -521,7 +547,8 @@ def process_articles_directory(
     print(f"\n{'='*80}")
     print(f"EXTRACTION COMPLETE")
     print(f"{'='*80}")
-    print(f"Total articles processed: {len(all_extractions)}")
+    print(f"New articles processed in this run: {new_articles_processed}")
+    print(f"Total extractions returned: {len(all_extractions)}")
     print(f"Output directory: {output_path}")
     if checkpoint_stats["processed_count"] > 0:
         print(
