@@ -1984,10 +1984,13 @@ if __name__ == "__main__":
     )
     logger.info("api_metrics", metrics_url=f"http://{host}:{port}/metrics")
 
+    # For Render: Use app object directly and ensure explicit 0.0.0.0 binding
+    # This helps Render's port scanner detect the open port
     uvicorn.run(
-        "api:app",
-        host=host,
+        app,  # Use app object directly for immediate binding
+        host="0.0.0.0",  # Explicitly bind to 0.0.0.0 (required for Render)
         port=port,
         reload=reload,
         log_level="info",
+        access_log=True,
     )
