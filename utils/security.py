@@ -111,20 +111,33 @@ class SecurityConfig:
 
     ENABLE_AUTH = ENABLE_AUTH  # Use the value determined above
     ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
-    # Default origins: localhost for dev
-    # For Vercel deployment, add your Vercel domain(s) to ALLOWED_ORIGINS env var
-    # Example: ALLOWED_ORIGINS=https://my-app.vercel.app,https://myapp.com,https://my-app-git-main.vercel.app
-    # Note: Include both production domain and preview domains (branch deployments)
+    
+    # CORS Configuration
+    # For production, set ALLOWED_ORIGINS with your main domain(s)
+    # Vercel preview deployments are handled automatically via pattern matching
+    # Example: ALLOWED_ORIGINS=https://my-app.vercel.app,https://myapp.com
+    # Note: Preview deployments (*.vercel.app) are allowed automatically if main domain is included
     default_origins = (
         "http://localhost:5173,http://localhost:5174,http://localhost:3000,"
         "http://127.0.0.1:5173,http://127.0.0.1:5174"
     )
     env_origins = os.getenv("ALLOWED_ORIGINS", default_origins)
-    ALLOWED_ORIGINS = [
+    
+    # Parse explicit origins
+    explicit_origins = [
         origin.strip()
         for origin in env_origins.split(",")
         if origin.strip()
     ]
+    
+    # Production: Auto-allow Vercel preview deployments if main Vercel domain is present
+    # This allows all *.vercel.app subdomains if any vercel.app domain is configured
+    ALLOWED_ORIGINS = explicit_origins.copy()
+    has_vercel_domain = any("vercel.app" in origin for origin in explicit_origins)
+    
+    # If a Vercel domain is configured, we'll use pattern matching in the CORS handler
+    # FastAPI's CORSMiddleware doesn't support wildcards, so we handle this in a custom middleware
+    _VERCEL_PREVIEW_PATTERN_ENABLED = has_vercel_domain
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default
     API_KEYS = (
         set(os.getenv("API_KEYS", "").split(",")) if os.getenv("API_KEYS") else set()

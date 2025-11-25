@@ -357,6 +357,59 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
 )
 
+# Custom CORS handler for Vercel preview deployments
+# This allows *.vercel.app subdomains if any vercel.app domain is in ALLOWED_ORIGINS
+@app.middleware("http")
+async def handle_vercel_preview_cors(request: Request, call_next):
+    """
+    Handle CORS for Vercel preview deployments (pattern matching)
+    
+    Production: If you configure your main Vercel domain (e.g., https://my-app.vercel.app),
+    all preview deployments (*.vercel.app) are automatically allowed.
+    """
+    origin = request.headers.get("origin")
+    
+    if origin and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+        # Check if origin is already explicitly allowed
+        if origin in SecurityConfig.ALLOWED_ORIGINS:
+            return await call_next(request)
+        
+        # Allow Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+        if origin.endswith(".vercel.app"):
+            # Check if we have any vercel.app domain configured
+            for allowed_origin in SecurityConfig.ALLOWED_ORIGINS:
+                if "vercel.app" in allowed_origin:
+                    # Extract base project name from configured domain
+                    # e.g., "my-app" from "https://my-app.vercel.app"
+                    base_name = allowed_origin.split("//")[1].split(".vercel.app")[0]
+                    # Extract base name from request origin
+                    request_base = origin.split("//")[1].split(".vercel.app")[0]
+                    # Remove hash suffix from preview deployments (everything after last dash)
+                    # e.g., "my-app-abc123" -> "my-app"
+                    if "-" in request_base:
+                        request_base = "-".join(request_base.split("-")[:-1])
+                    
+                    # If base names match, allow this preview deployment
+                    if base_name == request_base or request_base.startswith(base_name + "-"):
+                        response = await call_next(request)
+                        # Add CORS headers
+                        if request.method == "OPTIONS":
+                            return Response(
+                                status_code=200,
+                                headers={
+                                    "Access-Control-Allow-Origin": origin,
+                                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                                    "Access-Control-Allow-Credentials": "true",
+                                    "Access-Control-Max-Age": "600",
+                                },
+                            )
+                        response.headers["Access-Control-Allow-Origin"] = origin
+                        response.headers["Access-Control-Allow-Credentials"] = "true"
+                        return response
+    
+    return await call_next(request)
+
 
 
 # =============================================================================

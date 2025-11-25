@@ -498,8 +498,10 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=your-aura-password-here
 
 # Required - CORS (for Vercel frontend)
-# Replace with your actual Vercel domain(s)
-ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app
+# Production: Use your main Vercel domain (preview deployments are auto-allowed)
+# Example: ALLOWED_ORIGINS=https://your-app.vercel.app
+# Note: All preview deployments (*.vercel.app) are automatically allowed if main domain is included
+ALLOWED_ORIGINS=https://your-app.vercel.app
 
 # Optional - Redis Cache (recommended for production)
 CACHE_ENABLED=true
