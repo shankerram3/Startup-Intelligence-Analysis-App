@@ -1,0 +1,116 @@
+# Optimized requirements for API deployment (without Playwright)
+# This reduces memory usage significantly
+
+# ============================================================================
+# PHASE 1: Web Scraping (minimal - only what's needed for API)
+# ============================================================================
+# Core scraping framework (installs most dependencies automatically)
+crawl4ai==0.7.6
+
+# HTML parsing
+beautifulsoup4==4.12.3
+lxml>=5.3.0
+
+# Data validation
+pydantic>=2.10.0
+
+# Async file operations
+aiofiles>=24.1.0
+
+# NOTE: Playwright removed - not needed for API queries
+# Playwright is only used in pipeline.py for scraping, not in api.py
+
+# ============================================================================
+# PHASE 2: Entity Extraction (LLM-based)
+# ============================================================================
+# LangChain for LLM integration
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
+
+# OpenAI API
+openai>=1.0.0
+
+# ============================================================================
+# PHASE 3: Knowledge Graph Construction
+# ============================================================================
+# Neo4j Python driver
+neo4j>=5.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# ============================================================================
+# PHASE 4: Graph RAG Query & API
+# ============================================================================
+# Vector embeddings (now required)
+sentence-transformers>=2.0.0
+
+# Graph algorithms
+networkx>=3.0
+
+# API Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic-settings>=2.0.0
+
+# HTTP client for testing
+httpx>=0.25.0
+requests>=2.32.5  # HTTP library for API client examples
+
+# Additional utilities
+numpy>=1.24.0  # For similarity calculations
+pyvis>=0.3.2  # For graph visualization
+
+# ============================================================================
+# Graph Data Science (for Aura Graph Analytics)
+# ============================================================================
+# For advanced graph algorithms via Aura Graph Analytics
+graphdatascience>=1.17.0  # Neo4j Graph Data Science Client
+
+# ============================================================================
+# PHASE 5: Testing Infrastructure (optional for API)
+# ============================================================================
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+faker>=20.0.0  # For generating test data
+
+# ============================================================================
+# PHASE 6: Structured Logging & Observability
+# ============================================================================
+structlog>=23.2.0
+python-json-logger>=2.0.7
+colorama>=0.4.6  # For colored console output
+
+# ============================================================================
+# PHASE 7: Security & Authentication
+# ============================================================================
+python-jose[cryptography]>=3.3.0  # JWT token handling
+passlib[bcrypt]>=1.7.4  # Password hashing
+bcrypt>=4.0.1  # Explicit bcrypt version to avoid compatibility issues (4.0.1+ fixes __about__)
+slowapi>=0.1.9  # Rate limiting
+python-multipart>=0.0.6  # For form data handling
+
+# ============================================================================
+# PHASE 8: Caching & Performance
+# ============================================================================
+redis>=5.0.0
+hiredis>=2.2.0  # Faster Redis protocol parser
+
+# ============================================================================
+# PHASE 9: Monitoring & Metrics
+# ============================================================================
+prometheus-client>=0.19.0
+prometheus-fastapi-instrumentator>=6.1.0
+
+# ============================================================================
+# PHASE 10: Development Tools (optional for production)
+# ============================================================================
+black>=23.12.0  # Code formatting
+isort>=5.13.0  # Import sorting
+mypy>=1.7.0  # Type checking
+pylint>=3.0.0  # Linting
+pre-commit>=3.6.0  # Git hooks
+

@@ -6,7 +6,7 @@ services:
   - type: web
     name: graphrag-api
     runtime: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.api  # Use optimized Dockerfile without Playwright
     dockerContext: .
     plan: starter  # Options: starter, standard, pro, pro plus
     region: oregon  # Options: oregon, frankfurt, singapore, mumbai, sydney
