@@ -112,8 +112,9 @@ class SecurityConfig:
     ENABLE_AUTH = ENABLE_AUTH  # Use the value determined above
     ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
     # Default origins: localhost for dev
-    # For Vercel, add your specific Vercel domain to ALLOWED_ORIGINS env var
-    # Example: ALLOWED_ORIGINS=https://my-app.vercel.app,https://myapp.com
+    # For Vercel deployment, add your Vercel domain(s) to ALLOWED_ORIGINS env var
+    # Example: ALLOWED_ORIGINS=https://my-app.vercel.app,https://myapp.com,https://my-app-git-main.vercel.app
+    # Note: Include both production domain and preview domains (branch deployments)
     default_origins = (
         "http://localhost:5173,http://localhost:5174,http://localhost:3000,"
         "http://127.0.0.1:5173,http://127.0.0.1:5174"

@@ -11,10 +11,16 @@ build/
 venv/
 env/
 
-# Node
+# Node / Frontend
+# Exclude frontend build artifacts and dependencies
+# Frontend source code may be needed if BUILD_FRONTEND=true, but
+# for backend-only deployments (default), we don't need frontend in the image
+frontend/dist/
 frontend/node_modules/
 frontend/.env.local
 frontend/.env
+frontend/.vite/
+frontend/build/
 
 # Data (exclude from image, mount as volume)
 data/

@@ -1,54 +1,22 @@
+# Docker Compose for GraphRAG API with Neo4j AuraDB
+# Backend-only API - Neo4j is hosted on AuraDB cloud (external)
+
 services:
-  neo4j:
-    image: neo4j:5
-    container_name: neo4j-gds
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/${NEO4J_PASSWORD}}
-      NEO4J_PLUGINS: '["graph-data-science"]'
-      NEO4J_dbms_security_procedures_unrestricted: "gds.*"
-      NEO4J_dbms_security_procedures_allowlist: "gds.*"
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 512m
-    volumes:
-      - neo4j_data:/data
-      - neo4j_plugins:/plugins
-    healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: graphrag-redis
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   graphrag-api:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_FRONTEND: false
     container_name: graphrag-api
     ports:
       - "8000:8000"
     environment:
-      # Neo4j Configuration
-      - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
+      # Neo4j AuraDB Configuration (Required)
+      - NEO4J_URI=${NEO4J_URI}
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      # OpenAI Configuration
+      # OpenAI Configuration (Required)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       # API Configuration
       - API_HOST=0.0.0.0
@@ -59,11 +27,15 @@ services:
       - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE:-10485760}
-      # Cache Configuration
+      # Cache Configuration (Redis URL - supports cloud Redis services)
       - CACHE_ENABLED=${CACHE_ENABLED:-true}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
+      - REDIS_URL=${REDIS_URL}
+      # Individual Redis config (used if REDIS_URL not provided)
+      - REDIS_HOST=${REDIS_HOST:-}
+      - REDIS_PORT=${REDIS_PORT:-}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_USERNAME=${REDIS_USERNAME:-}
+      - REDIS_DB=${REDIS_DB:-0}
       - CACHE_DEFAULT_TTL=${CACHE_DEFAULT_TTL:-3600}
       # Logging Configuration
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -72,21 +44,10 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      # .env file is optional - if it exists, it will be used, but docker-compose env vars take precedence
-      # - ./.env:/app/.env:ro
-    depends_on:
-      neo4j:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-volumes:
-  neo4j_data:
-  neo4j_plugins:
-  redis_data:
+    restart: unless-stopped

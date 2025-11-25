@@ -1,20 +1,24 @@
 # Multi-stage Dockerfile for GraphRAG Application
-# Backend-only API (frontend hosted separately, e.g., on Vercel)
+# Backend-only API (frontend hosted separately on Vercel)
+# Frontend is NOT included in this Docker image
 
 # Build argument to optionally build frontend (default: false for backend-only)
+# Set BUILD_FRONTEND=true only if you need to include frontend in the image
 ARG BUILD_FRONTEND=false
 
 # Stage 1: Build frontend (only if BUILD_FRONTEND=true)
+# This stage is skipped entirely when BUILD_FRONTEND=false to save build time
 FROM node:20-alpine AS frontend-builder
 ARG BUILD_FRONTEND
 WORKDIR /app/frontend
 
-# Only build frontend if BUILD_FRONTEND is true
+# Only proceed if BUILD_FRONTEND is true
 COPY frontend/package*.json ./
 RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
       npm ci; \
     else \
-      echo "Skipping frontend build (backend-only mode)"; \
+      echo "Backend-only mode: Skipping frontend build (frontend served from Vercel)"; \
+      exit 0; \
     fi
 
 COPY frontend/ ./
@@ -23,6 +27,7 @@ RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
     fi
 
 # Stage 2: Python backend
+# This is the main stage - always built
 FROM python:3.11-slim
 ARG BUILD_FRONTEND
 
@@ -68,17 +73,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install chromium
 RUN playwright install-deps chromium
 
-# Copy application code
+# Copy application code (frontend folder excluded via .dockerignore)
 COPY . .
 
-# Copy built frontend from builder stage (only if it was built)
+# Frontend is served separately from Vercel, not from this Docker image
+# When BUILD_FRONTEND=false (default), no frontend files are copied
+# When BUILD_FRONTEND=true, you would need to add a COPY command here
 ARG BUILD_FRONTEND
-RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
-      echo "Copying frontend build..."; \
-    else \
-      echo "Backend-only mode - skipping frontend copy"; \
+RUN if [ "$BUILD_FRONTEND" != "true" ]; then \
+      echo "Backend-only mode: Frontend served from Vercel, not included in image"; \
     fi
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist 2>/dev/null || true
 
 # Don't create data directories in image - create at runtime to save memory
 # Data directories will be created by the application on startup

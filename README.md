@@ -29,9 +29,10 @@ A comprehensive knowledge graph and GraphRAG system that extracts entities and r
 
 ### 1. Prerequisites
 - Python 3.11+
-- Neo4j (Docker or Aura cloud)
+- Neo4j AuraDB (cloud database)
 - OpenAI API key
-- Node.js 18+ (for frontend)
+- Redis (cloud or local, optional but recommended)
+- Node.js 18+ (for frontend development only)
 
 ### 2. Install & Setup
 
@@ -42,16 +43,15 @@ pip install -r requirements.txt
 # Configure environment
 cat > .env << 'EOF'
 OPENAI_API_KEY=sk-your-openai-api-key
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # or bolt://localhost:7687
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # AuraDB URI
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
-API_HOST=0.0.0.0
-API_PORT=8000
-RAG_EMBEDDING_BACKEND=sentence-transformers
-SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
+NEO4J_PASSWORD=your-aura-password
+ALLOWED_ORIGINS=https://your-app.vercel.app  # For Vercel frontend
+REDIS_URL=redis://default:password@host:port  # Optional: Redis for caching
+CACHE_ENABLED=true
 EOF
 
-# Start Neo4j (if using Docker)
+# Start backend (AuraDB is external)
 docker-compose up -d
 ```
 
@@ -72,15 +72,20 @@ This automatically runs all phases:
 4. **Graph Construction** - Build Neo4j knowledge graph
 5. **Post-Processing** - Embeddings, deduplication, communities
 
-### 4. Start Services
+### 4. Start Backend API
 
 ```bash
-# Start everything
-./scripts/start_all.sh
+# Start backend (AuraDB is external)
+docker-compose up -d
 
-# Access from local machine: http://YOUR_VM_IP:5173
-# Access locally: http://localhost:5173
+# View logs
+docker-compose logs -f graphrag-api
+
+# Access API: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
+
+**Note:** Frontend is deployed separately to Vercel. See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for frontend setup.
 
 ---
 
@@ -184,44 +189,49 @@ curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d 
 ```bash
 # Required
 OPENAI_API_KEY=sk-your-key
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # Aura
-# NEO4J_URI=bolt://localhost:7687  # Local Docker
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # AuraDB URI
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
+NEO4J_PASSWORD=your-aura-password
 
-# Optional
+# Required - CORS (for Vercel frontend)
+ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app
+
+# Optional - API Configuration
 API_HOST=0.0.0.0
 API_PORT=8000
 RAG_EMBEDDING_BACKEND=sentence-transformers
 SENTENCE_TRANSFORMERS_MODEL=BAAI/bge-small-en-v1.5
 
-# Security (v2.0.0)
+# Optional - Security (v2.0.0)
 ENABLE_AUTH=false  # Set to true for production
 JWT_SECRET_KEY=your-secret-key
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+ENABLE_RATE_LIMITING=true
 MAX_REQUEST_SIZE=10485760  # 10MB
 
-# Caching (v2.0.0)
+# Optional - Redis Caching (v2.0.0)
 CACHE_ENABLED=true
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
+REDIS_URL=redis://default:password@host:port  # Cloud Redis URL (recommended)
+# Or use individual config:
+# REDIS_HOST=redis-host.com
+# REDIS_PORT=18335
+# REDIS_PASSWORD=your-password
+# REDIS_USERNAME=default
 CACHE_DEFAULT_TTL=3600  # 1 hour
 
-# Logging (v2.0.0)
+# Optional - Logging (v2.0.0)
 LOG_LEVEL=INFO
-JSON_LOGS=false  # Set to true for production
+JSON_LOGS=true  # Recommended for production
 ENABLE_FILE_LOGGING=false
 ```
 
-### Frontend (`frontend/.env.local`)
+### Frontend (Vercel Deployment)
 
+Frontend is deployed separately to Vercel. See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for setup.
+
+For local development:
 ```bash
-# Local development
+# frontend/.env.local
 VITE_API_BASE_URL=http://localhost:8000
-
-# Remote VM
-VITE_API_BASE_URL=http://YOUR_SERVER_PUBLIC_IP:8000
 ```
 
 ---
@@ -282,16 +292,16 @@ python -c "from neo4j import GraphDatabase; import os; from dotenv import load_d
 python -c "from neo4j import GraphDatabase; from utils.embedding_generator import EmbeddingGenerator; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); gen = EmbeddingGenerator(driver, 'sentence-transformers'); gen.generate_embeddings_for_all_entities(); driver.close()"
 ```
 
-### Neo4j Connection Failed
+### Neo4j AuraDB Connection Failed
 ```bash
-# Check Neo4j
-docker ps | grep neo4j
-
-# Start Neo4j
-docker-compose up -d
+# Verify AuraDB URI in .env file
+# Format: neo4j+s://xxxxx.databases.neo4j.io (must use neo4j+s:// for AuraDB)
 
 # Test connection
 python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); driver.verify_connectivity(); print('✓ Connected'); driver.close()"
+
+# Check container logs
+docker logs graphrag-api | grep -i neo4j
 ```
 
 ### Frontend Not Accessible
@@ -325,13 +335,14 @@ tmux kill-session -t graphrag
 
 ### Redis Connection Failed (v2.0.0)
 ```bash
-# Check Redis status
-docker-compose ps redis
+# Verify REDIS_URL in .env file
+# Format: redis://username:password@host:port
 
-# Restart Redis
-docker-compose restart redis
+# Test Redis connection
+redis-cli -u redis://default:password@host:port ping
 
 # Cache will automatically fallback if Redis unavailable
+# The app works fine without Redis, just without caching
 ```
 
 ### Rate Limiting Too Strict (v2.0.0)
@@ -348,20 +359,53 @@ export ENABLE_RATE_LIMITING=false
 
 ### Local Development
 ```bash
+# Start backend (connects to AuraDB)
 docker-compose up -d
+
+# Or run directly
 python api.py
+
+# Frontend: Deploy to Vercel or run locally
 cd frontend && npm run dev
 ```
 
-### Remote Server
+### Production Deployment (Backend-Only + Vercel)
+
+**This repository is configured for backend-only deployment by default.**
+
+- **Backend**: Docker container (connects to AuraDB and Redis cloud)
+- **Frontend**: Deployed separately to Vercel
+- **Database**: Neo4j AuraDB (cloud)
+- **Cache**: Redis (cloud, optional but recommended)
+
+#### Backend Deployment
 
 ```bash
-# On your server
-./scripts/start_all.sh
+# 1. Build backend-only Docker image
+./scripts/build-docker-amd.sh
 
-# Access from local browser
-http://YOUR_SERVER_PUBLIC_IP:5173
+# 2. Configure .env with:
+#    - AuraDB connection (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+#    - Redis URL (REDIS_URL) - optional but recommended
+#    - CORS origins (ALLOWED_ORIGINS) - your Vercel domain(s)
+
+# 3. Start backend
+docker-compose up -d
+
+# 4. Verify health
+curl http://localhost:8000/health
 ```
+
+See [DOCKER_START_GUIDE.md](./DOCKER_START_GUIDE.md) for detailed Docker setup.
+
+#### Frontend Deployment (Vercel)
+
+See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for detailed instructions.
+
+Quick setup:
+1. Deploy frontend to Vercel (set root directory to `frontend/`)
+2. Set `VITE_API_BASE_URL` environment variable in Vercel
+3. Configure backend `ALLOWED_ORIGINS` with your Vercel domain(s)
 
 ---
 

@@ -2,11 +2,21 @@
 
 This guide explains how to deploy the frontend to Vercel while keeping the backend API separate.
 
+**This repository is configured for backend-only deployment by default.** The frontend is served separately from Vercel, and the backend Docker image does not include frontend files.
+
 ## Architecture
 
-- **Backend API**: Deployed separately (Docker, Render, DigitalOcean, etc.)
-- **Frontend**: Deployed on Vercel
+- **Backend API**: Deployed separately (Docker, Render, DigitalOcean, etc.) - **backend-only, no frontend included**
+- **Frontend**: Deployed on Vercel (separate deployment)
 - **Communication**: Frontend calls backend API via CORS
+
+## Backend-Only Configuration
+
+The backend is configured for backend-only deployment:
+- `Dockerfile` excludes frontend by default (`BUILD_FRONTEND=false`)
+- `.dockerignore` excludes frontend build artifacts
+- CORS is configured via `ALLOWED_ORIGINS` environment variable
+- API endpoints only - no static file serving for frontend
 
 ## Prerequisites
 
@@ -72,11 +82,16 @@ vercel
 Make sure your backend API allows requests from your Vercel domain:
 
 ```bash
-# In your backend .env file, add:
-ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-custom-domain.com
+# In your backend .env file or deployment platform environment variables, add:
+ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app,https://your-custom-domain.com
 ```
 
-Or set it via environment variable in your backend deployment platform.
+**Important**: Include both your production Vercel domain AND preview deployment domains (format: `*-git-<branch>.vercel.app`) if you want branch previews to work.
+
+You can also include multiple domains separated by commas:
+```
+ALLOWED_ORIGINS=https://my-app.vercel.app,https://my-app-git-main.vercel.app,https://my-app-git-feature.vercel.app,https://myapp.com
+```
 
 ## Environment Variables
 

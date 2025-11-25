@@ -313,13 +313,15 @@ async def add_security_headers(request: Request, call_next):
     )
     
     # Content Security Policy - Restrict resource loading
+    # Note: connect-src allows https: connections, enabling Vercel frontend to connect
+    # Frontend is served separately from Vercel, this backend only serves API endpoints
     csp_policy = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # Allow inline for frontend
         "style-src 'self' 'unsafe-inline'; "  # Allow inline styles
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
-        "connect-src 'self' https:; "
+        "connect-src 'self' https:; "  # Allows Vercel frontend and other HTTPS APIs
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self';"
@@ -1956,10 +1958,21 @@ async def get_readme():
 
 # =============================================================================
 # BACKEND-ONLY API
-# Frontend is hosted separately (e.g., Vercel)
+# Frontend is hosted separately on Vercel - this backend serves API endpoints only
 # =============================================================================
+# 
+# This is a backend-only deployment. The frontend React app is deployed separately
+# to Vercel and communicates with this API via CORS-enabled HTTP requests.
+# 
+# Setup:
+# 1. Deploy this backend API (Docker/Render/DigitalOcean/etc.)
+# 2. Deploy frontend to Vercel (see VERCEL_DEPLOYMENT.md)
+# 3. Configure ALLOWED_ORIGINS env var with your Vercel domain(s)
+# 4. Set VITE_API_BASE_URL in Vercel to point to this backend API
+#
 
 # Mount lib folder for static libraries if needed (vis-network, etc.)
+# This is for any static assets the API might need, not frontend files
 lib_path = Path(__file__).parent / "lib"
 if lib_path.exists():
     app.mount("/lib", StaticFiles(directory=str(lib_path)), name="lib")
@@ -1970,11 +1983,12 @@ else:
 # Root endpoint - API info
 @app.get("/")
 async def root():
-    """API root endpoint"""
+    """API root endpoint - Backend-only API for Vercel-hosted frontend"""
     return {
         "name": "GraphRAG API",
         "version": "2.0.0",
         "description": "Backend API for TechCrunch Knowledge Graph Query System",
+        "deployment": "backend-only (frontend on Vercel)",
         "docs": "/docs",
         "health": "/health"
     }
