@@ -2027,8 +2027,29 @@ if __name__ == "__main__":
     # Check multiple indicators of production environment
     env_var = os.getenv("ENVIRONMENT", "").lower()
     disable_reload = os.getenv("DISABLE_RELOAD", "false").lower() == "true"
-    # Also check if we're in a container (common in production deployments)
-    is_container = os.path.exists("/.dockerenv") or os.getenv("CONTAINER", "").lower() == "true"
+    
+    # Check if we're in a container (common in production deployments)
+    # Multiple detection methods for different container environments
+    is_container = (
+        os.path.exists("/.dockerenv") or  # Docker
+        os.getenv("CONTAINER", "").lower() == "true" or  # Explicit flag
+        os.path.exists("/.containerenv") or  # Podman
+        os.getenv("KUBERNETES_SERVICE_HOST") is not None or  # Kubernetes
+        os.getenv("ECS_CONTAINER_METADATA_URI") is not None  # AWS ECS
+    )
+    
+    # Check cgroup for container indicators (safe check)
+    if not is_container and os.path.exists("/proc/1/cgroup"):
+        try:
+            with open("/proc/1/cgroup", "r") as f:
+                cgroup_content = f.read()
+                is_container = any(
+                    indicator in cgroup_content
+                    for indicator in ["docker", "kubepods", "containerd", "crio"]
+                )
+        except Exception:
+            pass  # Ignore errors reading cgroup
+    
     # DigitalOcean App Platform and most cloud platforms don't set ENVIRONMENT, so be more aggressive
     # If we're not explicitly in development, assume production
     is_explicit_dev = env_var in ("development", "dev", "local") or os.getenv("ENABLE_RELOAD", "false").lower() == "true"
