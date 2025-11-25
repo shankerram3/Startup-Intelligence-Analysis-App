@@ -745,7 +745,30 @@ docker logs -f cloudflare-tunnel
 
 Then update `VITE_API_BASE_URL` in Vercel to your tunnel URL.
 
-See [CLOUDFLARE_SETUP.md](./CLOUDFLARE_SETUP.md) for detailed setup instructions.
+**Quick Cloudflare Tunnel Setup:**
+
+```bash
+# Option 1: Quick temporary tunnel (easiest)
+cloudflared tunnel --url http://localhost:8000
+# Copy the URL it provides and use in Vercel
+
+# Option 2: Docker with token (persistent)
+docker run -d \
+  --name cloudflare-tunnel \
+  --restart unless-stopped \
+  --network host \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token YOUR_TOKEN
+
+# Find your tunnel URL in Cloudflare Dashboard → Zero Trust → Networks → Tunnels
+```
+
+**Option 2: Cloudflare DNS (if you have a domain)**
+1. Add domain to Cloudflare Dashboard
+2. Update nameservers at your registrar
+3. Add A record: `api.yourdomain.com` → `167.172.26.46` (with proxy enabled)
+4. Set SSL/TLS mode to "Full"
+5. Use `https://api.yourdomain.com` in Vercel
 
 **Alternative: Run container directly**
 
@@ -777,17 +800,61 @@ docker run -d \
 
 **Step 2: Set Environment Variable**
 
-1. Go to Vercel project → **Settings** → **Environment Variables**
-2. Add:
-   - **Name:** `VITE_API_BASE_URL`
-   - **Value:** `http://your-backend-ip:8000` or `https://your-backend-domain.com`
-   - **⚠️ IMPORTANT:** 
-     - Must include protocol (`http://` or `https://`)
-     - Use `http://` for IP addresses (SSL certificates don't work with IPs)
-     - Use `https://` only for domains with valid SSL certificates
-3. Save and **Redeploy** (environment variables only apply after redeployment)
+**Required Environment Variable:** `VITE_API_BASE_URL`
 
-**Note:** If using an IP address, use `http://167.172.26.46:8000` not `https://167.172.26.46:8000` (SSL won't work with IPs)
+1. Go to Vercel project → **Settings** → **Environment Variables**
+2. Click **Add New**
+3. Set:
+   - **Name:** `VITE_API_BASE_URL`
+   - **Value:** (choose one based on your setup below)
+   - **Environment:** Production, Preview, Development (or select as needed)
+4. Click **Save**
+5. **Redeploy** your app (environment variables only apply after redeployment)
+
+**Value Options:**
+
+**Option 1: Cloudflare Tunnel (Recommended - HTTPS)**
+```
+https://dangerous-symbols-civilization-pencil.trycloudflare.com
+```
+Or with custom domain:
+```
+https://api.yourdomain.com
+```
+✅ **Best for production** - No Mixed Content errors, secure HTTPS connection.
+
+**Option 2: Direct IP Address (HTTP only - Not Recommended)**
+```
+http://167.172.26.46:8000
+```
+⚠️ **Warning:** Will cause Mixed Content errors if Vercel uses HTTPS (default). Use Cloudflare Tunnel instead.
+
+**Option 3: Domain with SSL Certificate**
+```
+https://api.yourdomain.com
+```
+✅ **Good for production** - Requires SSL certificate setup on your server.
+
+**Important Notes:**
+- ✅ **Must include protocol:** Always include `http://` or `https://` at the beginning
+- ✅ **No trailing slash:** Don't add `/` at the end
+- ✅ **Redeploy required:** After setting/changing, you must redeploy your Vercel app
+- ⚠️ **HTTPS requirement:** If your Vercel app uses HTTPS (default), backend must also use HTTPS (use Cloudflare Tunnel)
+
+**Vercel Environment Variable Details:**
+
+- **Name:** `VITE_API_BASE_URL`
+- **Value Options:**
+  - Cloudflare Tunnel: `https://xxxxx.trycloudflare.com` (recommended)
+  - Domain with SSL: `https://api.yourdomain.com`
+  - Direct IP: `http://167.172.26.46:8000` (⚠️ causes Mixed Content errors with HTTPS)
+- **Important:** Must include protocol (`http://` or `https://`), no trailing slash
+- **Redeploy required:** Changes only apply after redeployment
+
+**Troubleshooting:**
+- **Mixed Content errors:** Backend needs HTTPS (use Cloudflare Tunnel)
+- **CORS errors:** Check `ALLOWED_ORIGINS` in backend `.env` includes your Vercel domain
+- **Connection failed:** Verify backend is running and accessible
 
 **Step 3: Verify**
 
@@ -798,7 +865,7 @@ docker run -d \
 **Troubleshooting:**
 
 - **Mixed Content errors**: HTTPS frontend (Vercel) cannot request HTTP backend. You need HTTPS on backend:
-  - **Quick solution**: Use Cloudflare Tunnel (free, no domain needed) - see [CLOUDFLARE_SETUP.md](./CLOUDFLARE_SETUP.md)
+  - **Quick solution**: Use Cloudflare Tunnel (free, no domain needed) - run `cloudflared tunnel --url http://localhost:8000` and use the provided URL
   - **With domain**: Add A record in Cloudflare DNS pointing to your IP (167.172.26.46) with proxy enabled
   - **Production solution**: Set up Nginx/Caddy with SSL certificate
   - **Alternative**: Deploy backend to a service with built-in HTTPS (Render, Railway, etc.)
