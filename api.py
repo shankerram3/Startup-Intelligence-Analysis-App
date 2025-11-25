@@ -2022,14 +2022,36 @@ if __name__ == "__main__":
     is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod") or os.getenv("DISABLE_RELOAD", "false").lower() == "true"
     
     # Exclude log files and data directories from file watcher to prevent reloads when pipeline writes logs
+    # This prevents Uvicorn from reloading when:
+    # - Pipeline writes to pipeline.log
+    # - Checkpoint files are updated (extraction_checkpoint_*.json, discovery_checkpoint_*.json)
+    # - Progress files are updated (extraction_progress.json)
+    # - Data files are written (all_extractions.json, enriched_companies.json, etc.)
+    # - Article JSON files are created/updated
     reload_excludes = [
         "*.log",
         "pipeline.log",
         "logs/*",
+        "logs/**/*",
         "data/*",
+        "data/**/*",
+        "data/articles/**/*",
+        "data/metadata/**/*",
+        "data/processing/**/*",
+        "data/raw_data/**/*",
+        "*checkpoint*.json",
+        "*progress*.json",
+        "*_extractions.json",
+        "*_companies.json",
+        "all_extractions.json",
+        "enriched_companies.json",
         "__pycache__/*",
+        "__pycache__/**/*",
         "*.pyc",
         ".git/*",
+        ".git/**/*",
+        "*.npy",  # NumPy array files
+        "*.jsonl",  # JSON Lines files
     ]
     
     uvicorn.run(
