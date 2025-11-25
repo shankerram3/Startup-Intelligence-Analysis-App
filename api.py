@@ -737,16 +737,32 @@ async def start_pipeline(options: PipelineStartRequest):
         
         # Open log file in append mode for the new run
         log_fh = open(pipeline_log_path, "ab")
-        pipeline_proc = subprocess.Popen(
-            args, stdout=log_fh, stderr=subprocess.STDOUT, cwd=os.getcwd(), env=env
-        )
-        return {
-            "status": "started",
-            "pid": pipeline_proc.pid,
-            "args": args,
-            "log": pipeline_log_path,
-            "debug_logs": options.enable_debug_logs,
-        }
+        try:
+            pipeline_proc = subprocess.Popen(
+                args, 
+                stdout=log_fh, 
+                stderr=subprocess.STDOUT, 
+                cwd=os.getcwd(), 
+                env=env,
+                start_new_session=True  # Start in new session to survive parent termination
+            )
+            logger.info(
+                "pipeline_started",
+                pid=pipeline_proc.pid,
+                args=args,
+                debug_logs=options.enable_debug_logs
+            )
+            return {
+                "status": "started",
+                "pid": pipeline_proc.pid,
+                "args": args,
+                "log": pipeline_log_path,
+                "debug_logs": options.enable_debug_logs,
+            }
+        except Exception as e:
+            log_fh.close()
+            logger.error("pipeline_start_failed", error=str(e), exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
 
@@ -780,10 +796,15 @@ async def pipeline_status():
             # Return safe default - assume not running if we can't check
             return {"running": False, "error": "Status check timeout"}
         except (ProcessLookupError, ValueError) as e:
-            # Process no longer exists
-            logger.info("pipeline_process_not_found", error=str(e))
+            # Process no longer exists - might have been killed by container/system
+            logger.warning("pipeline_process_not_found", error=str(e), pid=getattr(pipeline_proc, 'pid', None))
             pipeline_proc = None
-            return {"running": False}
+            return {"running": False, "error": "Process no longer exists (may have been killed)"}
+        except OSError as e:
+            # Process lookup failed - process was killed or container restarted
+            logger.warning("pipeline_process_os_error", error=str(e), pid=getattr(pipeline_proc, 'pid', None))
+            pipeline_proc = None
+            return {"running": False, "error": f"Process error: {str(e)}"}
             
     except Exception as e:
         logger.error("pipeline_status_error", error=str(e), exc_info=True)
