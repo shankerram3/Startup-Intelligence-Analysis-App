@@ -23,7 +23,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -352,30 +353,11 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
 )
 
-# Frontend is served separately - removed frontend serving from FastAPI
 
 
 # =============================================================================
 # HEALTH CHECK
 # =============================================================================
-
-
-@app.get("/", tags=["Health"])
-async def root():
-    """Health check endpoint"""
-    logger.info("root_endpoint_accessed")
-    return {
-        "status": "healthy",
-        "service": "GraphRAG API",
-        "version": "2.0.0",
-        "features": [
-            "structured_logging",
-            "authentication",
-            "rate_limiting",
-            "caching",
-            "metrics",
-        ],
-    }
 
 
 @app.get("/health", tags=["Health"])
@@ -1907,9 +1889,40 @@ async def get_readme():
 
 
 # =============================================================================
-# FRONTEND SERVING REMOVED
-# Frontend is now served separately - FastAPI only serves API endpoints
+# FRONTEND SERVING
+# Serve frontend static files and handle React Router
 # =============================================================================
+
+frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+if frontend_dist_path.exists():
+    # Mount static assets (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
+    
+    # Serve index.html for root and all non-API routes (for React Router)
+    # This must be the last route to catch all unmatched paths
+    @app.get("/")
+    async def serve_frontend_root():
+        """Serve frontend application at root"""
+        index_path = frontend_dist_path / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not found")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend application - catch-all for React Router"""
+        # Don't serve frontend for API routes
+        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "metrics", "admin/")):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        index_path = frontend_dist_path / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not found")
+else:
+    logger.warning("frontend_dist_not_found", path=str(frontend_dist_path))
 
 
 # =============================================================================
