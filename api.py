@@ -1894,6 +1894,15 @@ async def get_readme():
 # =============================================================================
 
 frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+lib_path = Path(__file__).parent / "lib"
+
+# Mount lib folder for static libraries (vis-network, etc.)
+if lib_path.exists():
+    app.mount("/lib", StaticFiles(directory=str(lib_path)), name="lib")
+    logger.info("lib_static_files_mounted", path=str(lib_path))
+else:
+    logger.warning("lib_folder_not_found", path=str(lib_path))
+
 if frontend_dist_path.exists():
     # Mount static assets (JS, CSS, images, etc.)
     app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
@@ -1912,8 +1921,8 @@ if frontend_dist_path.exists():
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         """Serve frontend application - catch-all for React Router"""
-        # Don't serve frontend for API routes
-        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "metrics", "admin/")):
+        # Don't serve frontend for API routes or lib files (already handled by mount)
+        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "metrics", "admin/", "lib/")):
             raise HTTPException(status_code=404, detail="Not found")
         
         index_path = frontend_dist_path / "index.html"
