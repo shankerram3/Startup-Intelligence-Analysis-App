@@ -26,35 +26,73 @@ class EmbeddingGenerator:
         self.embedding_model = embedding_model
         self.sentence_model_name = sentence_model_name
         self.embedding_function = None
+        self._model = None  # Lazy-loaded model instance
+        self._model_loaded = False
 
-        # Initialize embedding function based on model
-        self._initialize_embedding_function()
+        # Don't load model at initialization - lazy load on first use
+        # This prevents OOM on Render's 512 MiB free tier
 
-    def _initialize_embedding_function(self):
-        """Initialize embedding function based on model"""
-        # Force sentence-transformers for embeddings
+    def _get_model(self):
+        """Lazy-load the SentenceTransformer model only when needed"""
+        if self._model_loaded and self._model is not None:
+            return self._model
+        
+        # Load model on first use
         try:
             import os as _os
 
             from sentence_transformers import SentenceTransformer
 
-            model_name = self.sentence_model_name or _os.getenv(
-                "SENTENCE_TRANSFORMERS_MODEL", "all-MiniLM-L6-v2"
+            # Use smaller model by default to fit in Render's 512 MiB limit
+            # Options: 
+            # - "intfloat/multilingual-e5-small" (~40-60 MB, recommended)
+            # - "BAAI/bge-small-en-v1.5" (~55 MB)
+            # - "all-MiniLM-L6-v2" (~120-180 MB, too large for Render free tier)
+            default_model = _os.getenv(
+                "SENTENCE_TRANSFORMERS_MODEL", 
+                "intfloat/multilingual-e5-small"  # Smaller default for Render compatibility
             )
-            model = SentenceTransformer(model_name)
-
-            def st_embed(text: str) -> List[float]:
-                return model.encode(text).tolist()
-
-            self.embedding_function = st_embed
+            
+            model_name = self.sentence_model_name or default_model
+            
+            # Log model loading (helps debug OOM issues)
+            print(f"Loading SentenceTransformer model: {model_name}...")
+            self._model = SentenceTransformer(model_name)
+            self._model_loaded = True
+            print(f"✓ Model loaded: {model_name}")
+            
+            return self._model
         except ImportError:
             print(
                 "⚠️  sentence-transformers not installed. Install with: pip install sentence-transformers"
             )
-            self.embedding_function = None
+            self._model = None
+            self._model_loaded = True  # Mark as attempted to avoid retrying
+            return None
         except Exception as e:
-            print(f"⚠️  Error initializing sentence-transformers: {e}")
-            self.embedding_function = None
+            print(f"⚠️  Error loading sentence-transformers model: {e}")
+            self._model = None
+            self._model_loaded = True  # Mark as attempted to avoid retrying
+            return None
+
+    def _get_embedding_function(self):
+        """Get or create embedding function (lazy-loaded)"""
+        if self.embedding_function is not None:
+            return self.embedding_function
+        
+        # Only load if using sentence-transformers
+        if self.embedding_model != "sentence_transformers":
+            return None
+        
+        model = self._get_model()
+        if model is None:
+            return None
+        
+        def st_embed(text: str) -> List[float]:
+            return model.encode(text).tolist()
+        
+        self.embedding_function = st_embed
+        return self.embedding_function
 
     def generate_entity_embedding(self, entity: Dict) -> Optional[List[float]]:
         """
@@ -66,7 +104,9 @@ class EmbeddingGenerator:
         Returns:
             Embedding vector or None
         """
-        if not self.embedding_function:
+        # Lazy-load embedding function on first use
+        embedding_func = self._get_embedding_function()
+        if not embedding_func:
             return None
 
         # Combine name and description for embedding
@@ -175,7 +215,7 @@ class EmbeddingGenerator:
         text = ". ".join(text_parts)
 
         try:
-            embedding = self.embedding_function(text)
+            embedding = embedding_func(text)
             return embedding
         except Exception as e:
             print(f"⚠️  Error generating embedding: {e}")
@@ -193,7 +233,9 @@ class EmbeddingGenerator:
         Returns:
             Statistics dictionary
         """
-        if not self.embedding_function:
+        # Lazy-load embedding function on first use
+        embedding_func = self._get_embedding_function()
+        if not embedding_func:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:
@@ -316,11 +358,13 @@ class EmbeddingGenerator:
         Returns:
             List of similar entities with similarity scores
         """
-        if not self.embedding_function:
+        # Lazy-load embedding function
+        embedding_func = self._get_embedding_function()
+        if not embedding_func:
             return []
 
         # Generate query embedding
-        query_embedding = self.embedding_function(query_text)
+        query_embedding = embedding_func(query_text)
 
         if not query_embedding:
             return []
@@ -390,7 +434,9 @@ class EmbeddingGenerator:
         Returns:
             Statistics dictionary
         """
-        if not self.embedding_function:
+        # Lazy-load embedding function on first use
+        embedding_func = self._get_embedding_function()
+        if not embedding_func:
             return {"error": "Embedding function not initialized"}
 
         with self.driver.session() as session:

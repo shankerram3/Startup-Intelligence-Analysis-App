@@ -70,11 +70,9 @@ class HybridRAG:
             self.verbose = _os.getenv("RAG_VERBOSE", "0") == "1"
         except Exception:
             self.verbose = False
-        # Ensure vector index exists
-        if self.embedding.embedding_function is None:
-            raise RuntimeError(
-                "Embedding function is not initialized. Install and configure sentence-transformers."
-            )
+        # Don't check embedding function at startup - it will be lazy-loaded on first use
+        # This prevents OOM on Render's 512 MiB free tier
+        # The embedding function will be initialized when first needed
         t0 = perf_counter()
         vector_index.ensure_index(
             articles_dir,
