@@ -88,9 +88,11 @@ function loadCurrentConversation(): { messages: ChatMessage[], chatId: string | 
     if (saved) {
       const parsed = JSON.parse(saved);
       // Mark all messages as having shown their animations (since we're restoring)
+      // Also reset isTyping for restored messages (they've already been typed)
       const messages = (parsed.messages || []).map((m: ChatMessage) => ({
         ...m,
-        animationShown: true // Skip animation for restored messages
+        animationShown: true, // Skip animation for restored messages
+        isTyping: false // Reset typing state for restored messages
       }));
       return {
         messages,
@@ -113,8 +115,15 @@ function loadCurrentConversation(): { messages: ChatMessage[], chatId: string | 
 // Save current conversation to localStorage
 function saveCurrentConversation(messages: ChatMessage[], chatId: string | null) {
   try {
+    // Save all messages, including those in generating state
+    // We preserve isTyping state so we can detect incomplete messages on restore
     localStorage.setItem('current-conversation', JSON.stringify({
-      messages: messages.map(m => ({ ...m, isTyping: false })),
+      messages: messages.map(m => ({
+        ...m,
+        // Keep isTyping for messages that are actively generating
+        // This helps us detect incomplete messages when restoring
+        isTyping: m.isTyping === true ? true : false
+      })),
       chatId
     }));
   } catch (e) {
@@ -124,7 +133,13 @@ function saveCurrentConversation(messages: ChatMessage[], chatId: string | null)
 
 export function CombinedQueryChatView() {
   const initialConversation = loadCurrentConversation();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialConversation.messages);
+  // Clean up any stale loading messages (empty assistant messages) on mount
+  const cleanedMessages = initialConversation.messages.filter(m => 
+    !(m.role === 'assistant' && !m.content && m.isTyping)
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    cleanedMessages.length > 0 ? cleanedMessages : initialConversation.messages
+  );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [returnContext, setReturnContext] = useState(false);
@@ -199,11 +214,16 @@ export function CombinedQueryChatView() {
   }, [messages]);
 
   // Save current conversation to localStorage whenever messages or chatId changes
+  // This includes saving during generation state to preserve incomplete messages
   useEffect(() => {
     // Only save if there are user messages (not just the system message)
     const hasUserMessages = messages.some(m => m.role === 'user');
     if (hasUserMessages) {
-      saveCurrentConversation(messages, currentChatId);
+      // Use a small debounce to avoid excessive saves during rapid updates
+      const timeoutId = setTimeout(() => {
+        saveCurrentConversation(messages, currentChatId);
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [messages, currentChatId]);
 
