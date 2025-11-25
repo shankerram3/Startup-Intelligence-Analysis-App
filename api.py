@@ -2019,7 +2019,31 @@ if __name__ == "__main__":
     logger.info("api_metrics", metrics_url=f"http://{host}:{port}/metrics")
 
     # Determine if we're in production (disable reload)
-    is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod") or os.getenv("DISABLE_RELOAD", "false").lower() == "true"
+    # Check multiple indicators of production environment
+    env_var = os.getenv("ENVIRONMENT", "").lower()
+    disable_reload = os.getenv("DISABLE_RELOAD", "false").lower() == "true"
+    # Also check if we're in a container (common in production deployments)
+    is_container = os.path.exists("/.dockerenv") or os.getenv("CONTAINER", "").lower() == "true"
+    # DigitalOcean App Platform and most cloud platforms don't set ENVIRONMENT, so be more aggressive
+    # If we're not explicitly in development, assume production
+    is_explicit_dev = env_var in ("development", "dev", "local") or os.getenv("ENABLE_RELOAD", "false").lower() == "true"
+    
+    is_production = (
+        env_var in ("production", "prod") or 
+        disable_reload or 
+        (is_container and not is_explicit_dev)  # In container and not explicitly dev = production
+    )
+    
+    # Log the decision for debugging
+    logger.info(
+        "reload_configuration",
+        is_production=is_production,
+        env_var=env_var,
+        is_container=is_container,
+        is_explicit_dev=is_explicit_dev,
+        disable_reload=disable_reload,
+        reload_enabled=not is_production
+    )
     
     # Exclude log files and data directories from file watcher to prevent reloads when pipeline writes logs
     # This prevents Uvicorn from reloading when:
