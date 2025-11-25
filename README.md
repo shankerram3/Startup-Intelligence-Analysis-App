@@ -85,7 +85,7 @@ docker-compose logs -f graphrag-api
 # API Docs: http://localhost:8000/docs
 ```
 
-**Note:** Frontend is deployed separately to Vercel. See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for frontend setup.
+**Note:** Frontend is deployed separately to Vercel. See [Deployment](#-deployment) section for setup.
 
 ---
 
@@ -226,13 +226,15 @@ ENABLE_FILE_LOGGING=false
 
 ### Frontend (Vercel Deployment)
 
-Frontend is deployed separately to Vercel. See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for setup.
+Frontend is deployed separately to Vercel. For local development:
 
-For local development:
 ```bash
 # frontend/.env.local
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+**Required Vercel Environment Variable:**
+- `VITE_API_BASE_URL` - Backend API URL (must include protocol: `http://` or `https://`)
 
 ---
 
@@ -302,6 +304,43 @@ python -c "from neo4j import GraphDatabase; import os; from dotenv import load_d
 
 # Check container logs
 docker logs graphrag-api | grep -i neo4j
+```
+
+### Redis Connection Failed (v2.0.0)
+```bash
+# Verify REDIS_URL in .env file
+# Format: redis://username:password@host:port
+
+# Test Redis connection
+redis-cli -u redis://default:password@host:port ping
+
+# Cache will automatically fallback if Redis unavailable
+# The app works fine without Redis, just without caching
+```
+
+### Docker Container Issues
+```bash
+# Check container logs
+docker logs graphrag-api
+
+# Check if port is in use
+sudo lsof -i :8000
+
+# Restart container
+docker-compose restart graphrag-api
+
+# Rebuild and restart
+docker-compose up -d --build
+```
+
+### Vercel Frontend Issues
+```bash
+# Verify VITE_API_BASE_URL includes protocol
+# Wrong: 167.172.26.46:8000
+# Correct: http://167.172.26.46:8000
+
+# Check Vercel deployment logs
+# Verify backend ALLOWED_ORIGINS includes Vercel domain
 ```
 
 ### Frontend Not Accessible
@@ -378,34 +417,94 @@ cd frontend && npm run dev
 - **Database**: Neo4j AuraDB (cloud)
 - **Cache**: Redis (cloud, optional but recommended)
 
-#### Backend Deployment
+#### Backend Deployment (Docker)
+
+**Step 1: Create `.env` file**
 
 ```bash
-# 1. Build backend-only Docker image
+# Required - AuraDB Connection
+OPENAI_API_KEY=sk-your-openai-api-key
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io  # Your AuraDB URI
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-aura-password
+
+# Required - CORS (for Vercel frontend)
+ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app
+
+# Optional - Redis Cache
+CACHE_ENABLED=true
+REDIS_URL=redis://default:password@host:port
+
+# Optional - Security
+ENABLE_AUTH=false
+JWT_SECRET_KEY=your-secret-key
+ENABLE_RATE_LIMITING=true
+```
+
+**Step 2: Build and start backend**
+
+```bash
+# Build backend-only Docker image
 ./scripts/build-docker-amd.sh
 
-# 2. Configure .env with:
-#    - AuraDB connection (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
-#    - Redis URL (REDIS_URL) - optional but recommended
-#    - CORS origins (ALLOWED_ORIGINS) - your Vercel domain(s)
-
-# 3. Start backend
+# Start backend (AuraDB is external)
 docker-compose up -d
 
-# 4. Verify health
+# View logs
+docker-compose logs -f graphrag-api
+
+# Verify health
 curl http://localhost:8000/health
 ```
 
-See [DOCKER_START_GUIDE.md](./DOCKER_START_GUIDE.md) for detailed Docker setup.
+**Alternative: Run container directly**
+
+```bash
+docker run -d \
+  --name graphrag-api \
+  -p 8000:8000 \
+  -e OPENAI_API_KEY=sk-your-key \
+  -e NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io \
+  -e NEO4J_USER=neo4j \
+  -e NEO4J_PASSWORD=your-aura-password \
+  -e ALLOWED_ORIGINS=https://your-app.vercel.app \
+  -e REDIS_URL=redis://default:password@host:port \
+  -e CACHE_ENABLED=true \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  graphrag:latest
+```
 
 #### Frontend Deployment (Vercel)
 
-See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for detailed instructions.
+**Step 1: Deploy to Vercel**
 
-Quick setup:
-1. Deploy frontend to Vercel (set root directory to `frontend/`)
-2. Set `VITE_API_BASE_URL` environment variable in Vercel
-3. Configure backend `ALLOWED_ORIGINS` with your Vercel domain(s)
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Import your Git repository
+3. Set the **Root Directory** to `frontend`
+4. Vercel will auto-detect the framework (Vite)
+5. Click **Deploy**
+
+**Step 2: Set Environment Variable**
+
+1. Go to Vercel project → **Settings** → **Environment Variables**
+2. Add:
+   - **Name:** `VITE_API_BASE_URL`
+   - **Value:** `http://your-backend-ip:8000` or `https://your-backend-domain.com`
+   - **⚠️ IMPORTANT:** Must include protocol (`http://` or `https://`)
+3. Save and **Redeploy** (environment variables only apply after redeployment)
+
+**Step 3: Verify**
+
+- Check browser console for API calls
+- Verify requests go to your backend URL
+- Test a query to ensure connectivity
+
+**Troubleshooting:**
+
+- **CORS errors**: Ensure backend `ALLOWED_ORIGINS` includes your Vercel domain
+- **Wrong URL**: Verify `VITE_API_BASE_URL` includes protocol (`http://` or `https://`)
+- **Connection failed**: Check backend is accessible and CORS is configured
 
 ---
 
