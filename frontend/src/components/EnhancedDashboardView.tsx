@@ -156,6 +156,7 @@ export function EnhancedDashboardView() {
   const manuallyStoppedRef = useRef(false);
   const historyManuallyClearedRef = useRef(false);
   const [currentRunDuration, setCurrentRunDuration] = useState(savedState.currentDuration);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   // Save run history to localStorage
   function saveRunHistory(history: typeof runHistory) {
@@ -245,13 +246,15 @@ export function EnhancedDashboardView() {
         // Store summary for status display
         setLastRunSummary(summary);
         
+        // Store more logs for failed runs to help with debugging
+        const logLimit = runStatus === 'failed' ? 50000 : 10000; // 50k for failed, 10k for others
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: currentRunStartTimeRef.current,
           duration,
           status: runStatus,
           summary,
-          logs: l.substring(0, 10000) // Store last 10k chars
+          logs: l.substring(Math.max(0, l.length - logLimit)) // Store last N chars (prioritize end of logs where errors usually are)
         };
         
         console.log('📝 Saving run record:', runRecord);
@@ -482,13 +485,15 @@ export function EnhancedDashboardView() {
         const summary = extractRunSummary(logs);
         const estimatedStart = new Date(Date.now() - 300000); // Estimate 5 min ago
         const statusValue: 'completed' | 'failed' = status.returncode === 0 ? 'completed' : 'failed';
+        // Store more logs for failed runs
+        const logLimit = statusValue === 'failed' ? 50000 : 10000;
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: estimatedStart,
           duration: 300, // Estimated
           status: statusValue,
           summary,
-          logs: logs.substring(0, 10000)
+          logs: logs.substring(Math.max(0, logs.length - logLimit))
         };
         
         setRunHistory((prevHistory) => {
@@ -1178,6 +1183,53 @@ export function EnhancedDashboardView() {
                     {run.summary.errors && run.summary.errors > 0 && (
                       <div style={{...styles.historyDetailRow, color: '#dc2626'}}>
                         <strong>Errors:</strong> {run.summary.errors}
+                      </div>
+                    )}
+                    {run.logs && run.logs.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            border: '1px solid rgba(71, 85, 105, 0.5)',
+                            background: run.status === 'failed' ? 'rgba(220, 38, 38, 0.2)' : 'rgba(51, 65, 85, 0.4)',
+                            color: '#f1f5f9',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            width: '100%',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = run.status === 'failed' ? 'rgba(220, 38, 38, 0.3)' : 'rgba(51, 65, 85, 0.6)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = run.status === 'failed' ? 'rgba(220, 38, 38, 0.2)' : 'rgba(51, 65, 85, 0.4)';
+                          }}
+                        >
+                          {expandedRunId === run.id ? '▼ Hide Logs' : '▶ View Logs'}
+                          {run.status === 'failed' && ' (Important for debugging)'}
+                        </button>
+                        {expandedRunId === run.id && (
+                          <div style={{
+                            marginTop: 8,
+                            padding: 12,
+                            background: '#0f172a',
+                            borderRadius: 6,
+                            border: '1px solid rgba(51, 65, 85, 0.5)',
+                            maxHeight: '400px',
+                            overflowY: 'auto',
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            color: '#e2e8f0',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word'
+                          }}>
+                            {run.logs}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
