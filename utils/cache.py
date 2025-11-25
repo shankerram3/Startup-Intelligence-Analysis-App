@@ -26,10 +26,16 @@ load_dotenv()
 class CacheConfig:
     """Redis cache configuration"""
 
+    # Support Redis URL (e.g., redis://user:password@host:port/db)
+    REDIS_URL = os.getenv("REDIS_URL", None)
+    
+    # Individual config (used if REDIS_URL not provided)
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB = int(os.getenv("REDIS_DB", "0"))
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+    REDIS_USERNAME = os.getenv("REDIS_USERNAME", None)
+    
     CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
     DEFAULT_TTL = int(os.getenv("CACHE_DEFAULT_TTL", "3600"))  # 1 hour
 
@@ -56,19 +62,34 @@ class CacheManager:
 
         if self.enabled:
             try:
-                self._client = Redis(
-                    host=CacheConfig.REDIS_HOST,
-                    port=CacheConfig.REDIS_PORT,
-                    db=CacheConfig.REDIS_DB,
-                    password=CacheConfig.REDIS_PASSWORD,
-                    decode_responses=False,  # We'll handle encoding/decoding
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                )
+                # Use Redis URL if provided, otherwise use individual config
+                if CacheConfig.REDIS_URL:
+                    # Parse Redis URL: redis://[username]:[password]@host:port[/db]
+                    self._client = Redis.from_url(
+                        CacheConfig.REDIS_URL,
+                        decode_responses=False,
+                        socket_connect_timeout=5,
+                        socket_timeout=5,
+                    )
+                else:
+                    # Use individual config parameters
+                    self._client = Redis(
+                        host=CacheConfig.REDIS_HOST,
+                        port=CacheConfig.REDIS_PORT,
+                        db=CacheConfig.REDIS_DB,
+                        password=CacheConfig.REDIS_PASSWORD,
+                        username=CacheConfig.REDIS_USERNAME,
+                        decode_responses=False,  # We'll handle encoding/decoding
+                        socket_connect_timeout=5,
+                        socket_timeout=5,
+                    )
                 # Test connection
                 self._client.ping()
             except Exception as e:
-                print(f"⚠️ Redis connection failed: {e}. Caching disabled.")
+                # Only show warning if caching was explicitly enabled
+                # If CACHE_ENABLED is false, this code shouldn't run, but just in case
+                if CacheConfig.CACHE_ENABLED:
+                    print(f"⚠️ Redis connection failed: {e}. Caching disabled. (This is not an error - the app works without Redis)")
                 self.enabled = False
                 self._client = None
 
