@@ -740,10 +740,15 @@ async def start_pipeline(options: PipelineStartRequest):
 @app.get("/admin/pipeline/status", tags=["Admin"])
 async def pipeline_status():
     """Get current pipeline process status"""
-    if not pipeline_proc:
-        return {"running": False}
-    code = pipeline_proc.poll()
-    return {"running": code is None, "pid": pipeline_proc.pid, "returncode": code}
+    try:
+        if not pipeline_proc:
+            return {"running": False}
+        code = pipeline_proc.poll()
+        return {"running": code is None, "pid": pipeline_proc.pid, "returncode": code}
+    except Exception as e:
+        logger.error("pipeline_status_error", error=str(e), exc_info=True)
+        # Return safe default on error to prevent timeouts
+        return {"running": False, "error": str(e)}
 
 
 @app.post("/admin/pipeline/stop", tags=["Admin"])

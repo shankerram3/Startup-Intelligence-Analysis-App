@@ -248,13 +248,15 @@ export function EnhancedDashboardView() {
         
         // Store more logs for failed runs to help with debugging
         const logLimit = runStatus === 'failed' ? 50000 : 10000; // 50k for failed, 10k for others
+        // Ensure logs is always a string (even if empty)
+        const logsString = (l || '').toString();
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: currentRunStartTimeRef.current,
           duration,
           status: runStatus,
           summary,
-          logs: l.substring(Math.max(0, l.length - logLimit)) // Store last N chars (prioritize end of logs where errors usually are)
+          logs: logsString.length > 0 ? logsString.substring(Math.max(0, logsString.length - logLimit)) : '' // Store last N chars (prioritize end of logs where errors usually are)
         };
         
         console.log('📝 Saving run record:', runRecord);
@@ -487,13 +489,15 @@ export function EnhancedDashboardView() {
         const statusValue: 'completed' | 'failed' = status.returncode === 0 ? 'completed' : 'failed';
         // Store more logs for failed runs
         const logLimit = statusValue === 'failed' ? 50000 : 10000;
+        // Ensure logs is always a string (even if empty)
+        const logsString = (logs || '').toString();
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: estimatedStart,
           duration: 300, // Estimated
           status: statusValue,
           summary,
-          logs: logs.substring(Math.max(0, logs.length - logLimit))
+          logs: logsString.length > 0 ? logsString.substring(Math.max(0, logsString.length - logLimit)) : ''
         };
         
         setRunHistory((prevHistory) => {
@@ -1185,7 +1189,8 @@ export function EnhancedDashboardView() {
                         <strong>Errors:</strong> {run.summary.errors}
                       </div>
                     )}
-                    {run.logs && run.logs.length > 0 && (
+                    {/* Always show logs button for failed runs, or if logs exist */}
+                    {(run.status === 'failed' || (run.logs && run.logs.length > 0)) && (
                       <div style={{ marginTop: 8 }}>
                         <button
                           onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
@@ -1227,7 +1232,13 @@ export function EnhancedDashboardView() {
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-word'
                           }}>
-                            {run.logs}
+                            {run.logs && run.logs.length > 0 ? (
+                              run.logs
+                            ) : (
+                              <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                                No logs available for this run. This may indicate the pipeline was stopped before logs could be captured.
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
