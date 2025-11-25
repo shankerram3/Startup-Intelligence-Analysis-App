@@ -766,7 +766,9 @@ def main():
     EXTRACTIONS_FILE = "data/processing/all_extractions.json"
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+    if not NEO4J_PASSWORD:
+        raise ValueError("NEO4J_PASSWORD environment variable is required")
 
     build_graph_from_extractions(
         extractions_file=EXTRACTIONS_FILE,

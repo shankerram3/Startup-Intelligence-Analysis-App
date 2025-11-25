@@ -402,7 +402,9 @@ def main():
 
     neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+    if not neo4j_password:
+        raise ValueError("NEO4J_PASSWORD environment variable is required")
 
     # Allow --verbose to force progress output
     if args.verbose:
