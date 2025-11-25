@@ -12,12 +12,13 @@ function getApiBaseUrl(): string {
     return envUrl;
   }
   
-  // 3. Auto-detect from current hostname (for production deployments)
+  // 3. Auto-detect from current origin (for production deployments)
+  // Since FastAPI serves both frontend and API, use same origin
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    // If not localhost, use the same hostname with port 8000
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      return `http://${hostname}:8000`;
+    const origin = window.location.origin;
+    // If not localhost, use the same origin (no port needed - same server)
+    if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return origin; // Same origin - FastAPI serves both frontend and API
     }
   }
   
