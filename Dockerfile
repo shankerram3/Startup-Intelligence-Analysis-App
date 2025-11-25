@@ -72,6 +72,8 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 ENV API_HOST=0.0.0.0
 ENV API_PORT=8000
+# Render uses PORT env var, but we support both PORT and API_PORT
+ENV PORT=8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

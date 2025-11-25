@@ -15,8 +15,15 @@ function getApiBaseUrl(): string {
   // 3. Auto-detect from current hostname (for production deployments)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    // If not localhost, use the same hostname with port 8000
+    const protocol = window.location.protocol;
+    // If not localhost, use the same hostname and protocol (no port for HTTPS)
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // For production (HTTPS), use same hostname without port
+      // API and frontend are served from same origin in Docker/Render
+      if (protocol === 'https:' || hostname.includes('onrender.com') || hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
+        return `${protocol}//${hostname}`;
+      }
+      // For development, use port 8000
       return `http://${hostname}:8000`;
     }
   }

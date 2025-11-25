@@ -1,0 +1,81 @@
+# Render Platform Deployment Configuration
+# This file defines the services for the GraphRAG application on Render
+
+services:
+  # Backend API Service
+  - type: web
+    name: graphrag-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter  # Options: starter, standard, pro, pro plus
+    region: oregon  # Options: oregon, frankfurt, singapore, mumbai, sydney
+    healthCheckPath: /health
+    envVars:
+      # Required - Set these in Render Dashboard or via Environment Variables
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: NEO4J_URI
+        sync: false  # e.g., neo4j+s://xxxxx.databases.neo4j.io or bolt://neo4j-host:7687
+      - key: NEO4J_USER
+        sync: false  # Default: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      
+      # API Configuration
+      - key: API_HOST
+        value: 0.0.0.0
+      # PORT is automatically set by Render - don't override it
+      # API_PORT will fallback to PORT if not set (handled in api.py)
+      
+      # Redis Configuration (if using Render Redis service)
+      - key: CACHE_ENABLED
+        value: true
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: graphrag-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: graphrag-redis
+          property: port
+      - key: REDIS_DB
+        value: 0
+      
+      # Security Configuration
+      - key: ENABLE_AUTH
+        value: false  # Set to true for production with auth
+      - key: JWT_SECRET_KEY
+        generateValue: true  # Auto-generate secret key
+      - key: ALLOWED_ORIGINS
+        value: https://graphrag-api.onrender.com,https://graphrag.onrender.com  # Update with your actual URLs
+      - key: ENABLE_RATE_LIMITING
+        value: true
+      - key: MAX_REQUEST_SIZE
+        value: 10485760  # 10MB
+      
+      # Logging Configuration
+      - key: LOG_LEVEL
+        value: INFO
+      - key: JSON_LOGS
+        value: true
+      - key: ENABLE_FILE_LOGGING
+        value: false
+      
+      # Cache Configuration
+      - key: CACHE_DEFAULT_TTL
+        value: 3600  # 1 hour
+
+  # Redis Cache Service (Optional - enables caching)
+  - type: redis
+    name: graphrag-redis
+    plan: starter  # Options: starter, standard, pro
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Allow all by default, configure for security
+
+# Note: Frontend can be deployed separately as a static site
+# Or it can be built into the Docker image and served by the API
+# The current Dockerfile builds and includes the frontend in the backend service
+

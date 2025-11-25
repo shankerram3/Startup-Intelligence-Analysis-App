@@ -1,0 +1,55 @@
+# Files to ignore during Render deployment
+
+# Development files
+.env
+.env.local
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts (except dist which is needed)
+frontend/.vite/
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# Data directories (optional - exclude large data files)
+# data/raw_data/
+# data/articles/
+
+# Documentation that's not needed in production
+*.md
+!README.md
+
+# Scripts that aren't needed
+scripts/
+Makefile
+
+# Local development
+docker-compose.yml
+

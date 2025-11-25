@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -352,7 +353,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
 )
 
-# Frontend is served separately - removed frontend serving from FastAPI
+# Frontend static files will be mounted after all routes are defined
 
 
 # =============================================================================
@@ -1913,16 +1914,69 @@ async def get_readme():
 
 
 # =============================================================================
+# FRONTEND STATIC FILES SERVING (after all routes defined)
+# =============================================================================
+
+# Serve static frontend files if they exist (for Render/Docker deployment)
+frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+if frontend_dist_path.exists() and frontend_dist_path.is_dir():
+    # Serve static assets (JS, CSS, images, etc.) from frontend/dist/assets
+    assets_path = frontend_dist_path / "assets"
+    if assets_path.exists():
+        try:
+            app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+        except Exception:
+            pass  # Already mounted or path issue
+    
+    # Serve other static files (lib, etc.)
+    lib_path = frontend_dist_path / "lib"
+    if lib_path.exists():
+        try:
+            app.mount("/lib", StaticFiles(directory=str(lib_path)), name="lib")
+        except Exception:
+            pass  # Already mounted or path issue
+    
+    # Serve index.html for frontend routes (catch-all must be last)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str, request: Request):
+        """Serve frontend SPA - catch all non-API routes"""
+        # Check if it's a static file request
+        if full_path.startswith("assets/") or full_path.startswith("lib/"):
+            # These are handled by mounted static files above
+            raise HTTPException(status_code=404, detail="Static file not found")
+        
+        # Serve static files if they exist
+        file_path = frontend_dist_path / full_path
+        if file_path.exists() and file_path.is_file() and file_path.suffix in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf"]:
+            from fastapi.responses import FileResponse
+            return FileResponse(str(file_path))
+        
+        # For all other routes (SPA routing), serve index.html
+        index_path = frontend_dist_path / "index.html"
+        if index_path.exists():
+            from fastapi.responses import FileResponse
+            return FileResponse(str(index_path))
+        
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+# =============================================================================
 # MAIN - Run server
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv("API_PORT", 8000))
+    # Render uses PORT environment variable, fallback to API_PORT or 8000
+    port = int(os.getenv("PORT", os.getenv("API_PORT", 8000)))
     host = os.getenv("API_HOST", "0.0.0.0")
+    
+    # Disable reload in production (when PORT is set by Render or production env)
+    reload = os.getenv("ENVIRONMENT", "").lower() in ["development", "dev"]
+    if os.getenv("PORT") and not reload:
+        reload = False  # Render sets PORT, so don't reload
 
-    logger.info("api_starting", host=host, port=port)
+    logger.info("api_starting", host=host, port=port, reload=reload)
     logger.info(
         "api_documentation",
         docs_url=f"http://{host}:{port}/docs",
@@ -1934,6 +1988,6 @@ if __name__ == "__main__":
         "api:app",
         host=host,
         port=port,
-        reload=True,  # Auto-reload on code changes (disable in production)
+        reload=reload,
         log_level="info",
     )
