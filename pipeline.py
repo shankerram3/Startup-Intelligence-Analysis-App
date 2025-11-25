@@ -3,6 +3,7 @@ Complete Pipeline: TechCrunch Articles → Knowledge Graph → RAG
 Orchestrates the entire process from scraped articles to queryable graph
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -197,6 +198,38 @@ def run_pipeline(
                 "scraping_complete",
                 articles_extracted=scraper.stats["articles_extracted"],
             )
+
+            # Clear checkpoint entries for newly scraped articles so they can be reprocessed
+            # This ensures that when new articles are scraped, they will be processed
+            # even if they were processed in a previous run
+            if articles:
+                from utils.checkpoint import CheckpointManager
+                checkpoint_file = Path(output_dir) / "extraction_checkpoint.json"
+                checkpoint = CheckpointManager(checkpoint_file)
+                
+                # Get article IDs from scraped articles
+                scraped_article_ids = []
+                for article_meta in articles:
+                    # Generate article_id the same way the scraper does
+                    article_id = hashlib.md5(article_meta.url.encode()).hexdigest()[:12]
+                    scraped_article_ids.append(article_id)
+                
+                # Remove these article IDs from checkpoint so they can be reprocessed
+                cleared_count = 0
+                for article_id in scraped_article_ids:
+                    if article_id in checkpoint.processed_ids:
+                        checkpoint.processed_ids.remove(article_id)
+                        cleared_count += 1
+                    if article_id in checkpoint.failed_ids:
+                        checkpoint.failed_ids.remove(article_id)
+                
+                if cleared_count > 0:
+                    checkpoint.save()
+                    logger.info(
+                        "checkpoint_cleared_for_new_articles",
+                        count=cleared_count,
+                        reason="new_articles_scraped",
+                    )
 
         except Exception as e:
             logger.error("scraping_failed", error=str(e), exc_info=True)
