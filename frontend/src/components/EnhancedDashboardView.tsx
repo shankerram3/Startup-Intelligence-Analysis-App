@@ -63,7 +63,9 @@ export function EnhancedDashboardView() {
           logs: parsed.logs || '',
           progress: parsed.progress || null,
           lastRunSummary: parsed.lastRunSummary || null,
-          autoScroll: parsed.autoScroll !== undefined ? parsed.autoScroll : true
+          autoScroll: parsed.autoScroll !== undefined ? parsed.autoScroll : true,
+          runStartTime: parsed.runStartTime ? new Date(parsed.runStartTime) : null,
+          currentDuration: parsed.currentDuration || 0
         };
       }
     } catch (e) {
@@ -74,7 +76,9 @@ export function EnhancedDashboardView() {
       logs: '',
       progress: null,
       lastRunSummary: null,
-      autoScroll: true
+      autoScroll: true,
+      runStartTime: null,
+      currentDuration: 0
     };
   };
 
@@ -146,11 +150,12 @@ export function EnhancedDashboardView() {
     return [];
   });
   const previousStatusRunningRef = useRef(false);
-  const currentRunStartTimeRef = useRef<Date | null>(null);
+  // Restore run start time if pipeline was running when we left
+  const currentRunStartTimeRef = useRef<Date | null>(savedState.runStartTime);
   const logsManuallyClearedRef = useRef(false);
   const manuallyStoppedRef = useRef(false);
   const historyManuallyClearedRef = useRef(false);
-  const [currentRunDuration, setCurrentRunDuration] = useState(0);
+  const [currentRunDuration, setCurrentRunDuration] = useState(savedState.currentDuration);
 
   // Save run history to localStorage
   function saveRunHistory(history: typeof runHistory) {
@@ -169,7 +174,9 @@ export function EnhancedDashboardView() {
         logs,
         progress,
         lastRunSummary,
-        autoScroll
+        autoScroll,
+        runStartTime: currentRunStartTimeRef.current ? currentRunStartTimeRef.current.toISOString() : null,
+        currentDuration: currentRunDuration
       }));
     } catch (e) {
       console.error('Failed to save pipeline state:', e);
@@ -187,9 +194,14 @@ export function EnhancedDashboardView() {
       // Track when pipeline starts
       if (isRunning && !wasRunning) {
         console.log('🚀 Pipeline started - tracking run');
-        currentRunStartTimeRef.current = new Date();
+        // Only set start time if we don't already have one (preserves across tab switches)
+        if (!currentRunStartTimeRef.current) {
+          currentRunStartTimeRef.current = new Date();
+        }
         logsManuallyClearedRef.current = false; // Reset cleared flag when pipeline starts
         manuallyStoppedRef.current = false; // Reset manual stop flag when pipeline starts
+        // Save state immediately when pipeline starts
+        savePipelineState();
       }
       
       // Detect pipeline completion - check if status changed from running to stopped
@@ -254,6 +266,9 @@ export function EnhancedDashboardView() {
         
         // Clear current run data
         currentRunStartTimeRef.current = null;
+        setCurrentRunDuration(0);
+        // Save state after clearing
+        savePipelineState();
         // Clear logs and progress after a short delay to show completion message
         setTimeout(() => {
           setLogs('');
@@ -423,12 +438,21 @@ export function EnhancedDashboardView() {
   useEffect(() => {
     if (status.running && !currentRunStartTimeRef.current) {
       // Pipeline is running but we don't have a start time
-      // Try to estimate from logs or use a reasonable fallback
-      // For now, we'll track from when we first detect it running
-      const now = new Date();
-      currentRunStartTimeRef.current = now;
-      previousStatusRunningRef.current = true;
-      console.log('🔄 Detected running pipeline on mount - initializing tracking');
+      // Check if we have a saved start time from localStorage
+      if (savedState.runStartTime) {
+        currentRunStartTimeRef.current = savedState.runStartTime;
+        // Calculate current duration based on saved start time
+        const duration = Math.round((new Date().getTime() - savedState.runStartTime.getTime()) / 1000);
+        setCurrentRunDuration(duration);
+        console.log('🔄 Restored pipeline run start time from saved state', { duration });
+      } else {
+        // No saved start time, estimate from now
+        const now = new Date();
+        currentRunStartTimeRef.current = now;
+        setCurrentRunDuration(0);
+        previousStatusRunningRef.current = true;
+        console.log('🔄 Detected running pipeline on mount - initializing tracking');
+      }
     }
     
     // Check if pipeline just completed (has returncode, not running, but we have logs)
@@ -508,7 +532,7 @@ export function EnhancedDashboardView() {
       savePipelineState();
     }, 200);
     return () => clearTimeout(timeoutId);
-  }, [activeSection, logs, progress, lastRunSummary, autoScroll]);
+  }, [activeSection, logs, progress, lastRunSummary, autoScroll, currentRunDuration]);
 
   // Listen for changes from other tabs/windows to sync pipeline state
   useEffect(() => {
@@ -533,6 +557,19 @@ export function EnhancedDashboardView() {
           }
           if (parsed.autoScroll !== undefined && parsed.autoScroll !== autoScroll) {
             setAutoScroll(parsed.autoScroll);
+          }
+          // Sync run start time and duration if pipeline is running
+          if (parsed.runStartTime && status.running) {
+            const savedStartTime = new Date(parsed.runStartTime);
+            if (!currentRunStartTimeRef.current || 
+                currentRunStartTimeRef.current.getTime() !== savedStartTime.getTime()) {
+              currentRunStartTimeRef.current = savedStartTime;
+              const duration = Math.round((new Date().getTime() - savedStartTime.getTime()) / 1000);
+              setCurrentRunDuration(duration);
+            }
+          }
+          if (parsed.currentDuration !== undefined && status.running) {
+            setCurrentRunDuration(parsed.currentDuration);
           }
         } catch (error) {
           console.error('Failed to sync pipeline state from other tab:', error);
