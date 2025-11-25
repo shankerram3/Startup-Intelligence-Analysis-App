@@ -49,7 +49,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+# Install CPU-only PyTorch first to avoid CUDA dependencies (important for AMD)
 COPY requirements.txt .
+# Install CPU-only PyTorch to prevent CUDA dependencies on AMD architecture
+# This ensures sentence-transformers uses CPU-only PyTorch
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# Install other requirements (pip will use existing torch installation)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
@@ -72,6 +77,9 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 ENV API_HOST=0.0.0.0
 ENV API_PORT=8000
+# Prevent CUDA/GPU dependencies (important for AMD architecture)
+ENV CUDA_VISIBLE_DEVICES=""
+ENV TORCH_CUDA_ARCH_LIST=""
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
