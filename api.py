@@ -2006,8 +2006,13 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-
-    port = int(os.getenv("API_PORT", 8000))
+    
+    # Create data directories at runtime (not in Docker image to save memory)
+    for data_dir in ["data/articles", "data/metadata", "data/processing", "data/raw_data", "logs"]:
+        os.makedirs(data_dir, exist_ok=True)
+    
+    # Render uses PORT, fallback to API_PORT, then default to 8000
+    port = int(os.getenv("PORT") or os.getenv("API_PORT", "8000"))
     host = os.getenv("API_HOST", "0.0.0.0")
 
     logger.info("api_starting", host=host, port=port)

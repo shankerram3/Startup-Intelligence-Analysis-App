@@ -67,19 +67,22 @@ COPY . .
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Create directories for data
-RUN mkdir -p data/articles data/metadata data/processing data/raw_data
+# Don't create data directories in image - create at runtime to save memory
+# Data directories will be created by the application on startup
 
-# Expose API port
+# Expose API port (Render will override with $PORT)
 EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV API_HOST=0.0.0.0
 ENV API_PORT=8000
+# Render uses PORT env var - will be set by Render at runtime
 # Prevent CUDA/GPU dependencies (important for AMD architecture)
 ENV CUDA_VISIBLE_DEVICES=""
 ENV TORCH_CUDA_ARCH_LIST=""
+# Disable reload in production (Render, DigitalOcean, etc.)
+ENV DISABLE_RELOAD="true"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
