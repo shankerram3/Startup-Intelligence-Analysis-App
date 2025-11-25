@@ -417,7 +417,265 @@ cd frontend && npm run dev
 - **Database**: Neo4j AuraDB (cloud)
 - **Cache**: Redis (cloud, optional but recommended)
 
-#### Backend Deployment (Docker)
+#### AMD CPU Droplet Deployment (DigitalOcean / Similar)
+
+**Complete step-by-step guide for deploying backend on AMD CPU droplet:**
+
+**Prerequisites:**
+- Ubuntu 20.04+ or 22.04+ droplet
+- Root or sudo access
+- SSH access to the droplet
+- Neo4j AuraDB account (cloud database)
+- OpenAI API key
+- Redis cloud service (optional but recommended)
+
+**Step 1: Initial Server Setup**
+
+```bash
+# SSH into your droplet
+ssh root@your-droplet-ip
+
+# Update system packages
+apt update && apt upgrade -y
+
+# Install required packages
+apt install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    python3-pip \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+
+# Install Docker Compose (v2)
+apt install -y docker-compose-plugin
+
+# Verify Docker installation
+docker --version
+docker compose version
+
+# Add current user to docker group (if not root)
+# usermod -aG docker $USER
+# newgrp docker
+
+# Configure firewall (if UFW is enabled)
+ufw allow 22/tcp    # SSH
+ufw allow 8000/tcp  # Backend API
+ufw --force enable
+```
+
+**Step 2: Clone Repository**
+
+```bash
+# Navigate to app directory
+cd /app
+
+# Clone repository (or upload your code)
+git clone https://github.com/your-username/Startup-Intelligence-Analysis-App.git
+cd Startup-Intelligence-Analysis-App
+
+# Or if you already have the code, just navigate to it
+cd /app/Startup-Intelligence-Analysis-App
+```
+
+**Step 3: Create Environment File**
+
+```bash
+# Create .env file with all required variables
+cat > .env << 'EOF'
+# Required - Neo4j AuraDB Connection
+OPENAI_API_KEY=sk-your-openai-api-key-here
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-aura-password-here
+
+# Required - CORS (for Vercel frontend)
+# Replace with your actual Vercel domain(s)
+ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app
+
+# Optional - Redis Cache (recommended for production)
+CACHE_ENABLED=true
+REDIS_URL=redis://default:password@host:port
+
+# Optional - Security
+ENABLE_AUTH=false
+JWT_SECRET_KEY=your-secret-key-here
+ENABLE_RATE_LIMITING=true
+MAX_REQUEST_SIZE=10485760
+
+# Optional - Logging
+LOG_LEVEL=INFO
+JSON_LOGS=true
+ENABLE_FILE_LOGGING=false
+EOF
+
+# Verify .env file was created
+cat .env
+```
+
+**Step 4: Build Docker Image**
+
+```bash
+# Make build script executable
+chmod +x scripts/build-docker-amd.sh
+
+# Build backend-only Docker image for AMD architecture
+./scripts/build-docker-amd.sh
+
+# This will:
+# - Build image optimized for AMD/CPU-only (no CUDA)
+# - Tag as graphrag:latest and graphrag:amd64
+# - Skip frontend build (frontend served from Vercel)
+
+# Verify image was created
+docker images | grep graphrag
+```
+
+**Step 5: Start Backend Service**
+
+```bash
+# Start backend using docker-compose
+docker-compose up -d
+
+# View logs to verify startup
+docker-compose logs -f graphrag-api
+
+# Check container status
+docker ps | grep graphrag
+
+# Verify health endpoint
+curl http://localhost:8000/health
+
+# Should return JSON with status: "healthy"
+```
+
+**Step 6: Configure Firewall (if needed)**
+
+```bash
+# Check if firewall is active
+ufw status
+
+# If UFW is active, ensure port 8000 is open
+ufw allow 8000/tcp
+ufw reload
+
+# Test from outside (replace with your droplet IP)
+# curl http://YOUR_DROPLET_IP:8000/health
+```
+
+**Step 7: Set Up Cloudflare Tunnel (Recommended for HTTPS)**
+
+For HTTPS access (required if frontend is on Vercel with HTTPS):
+
+```bash
+# Option A: Using Docker with token (recommended)
+# Get token from Cloudflare Dashboard → Zero Trust → Networks → Tunnels
+
+# Make script executable
+chmod +x run-cloudflare-tunnel.sh
+
+# Run tunnel
+./run-cloudflare-tunnel.sh YOUR_CLOUDFLARE_TUNNEL_TOKEN
+
+# Or manually:
+docker run -d \
+  --name cloudflare-tunnel \
+  --restart unless-stopped \
+  --network host \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token YOUR_TOKEN
+
+# Check tunnel status
+docker logs -f cloudflare-tunnel
+
+# Find your tunnel URL in Cloudflare Dashboard
+# Then update VITE_API_BASE_URL in Vercel to this URL
+```
+
+**Step 8: Verify Deployment**
+
+```bash
+# Check all services are running
+docker ps
+
+# Test API endpoints
+curl http://localhost:8000/health
+curl http://localhost:8000/
+curl http://localhost:8000/docs
+
+# Check logs for errors
+docker-compose logs graphrag-api | tail -50
+
+# Monitor logs in real-time
+docker-compose logs -f graphrag-api
+```
+
+**Step 9: Update Vercel Frontend**
+
+1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+2. Set `VITE_API_BASE_URL` to:
+   - If using Cloudflare Tunnel: `https://your-tunnel-url.trycloudflare.com` or your custom domain
+   - If using IP directly: `http://YOUR_DROPLET_IP:8000` (⚠️ HTTPS frontend can't connect to HTTP backend)
+3. Redeploy Vercel app
+
+**Useful Commands:**
+
+```bash
+# View logs
+docker-compose logs -f graphrag-api
+
+# Restart backend
+docker-compose restart graphrag-api
+
+# Stop backend
+docker-compose down
+
+# Rebuild and restart
+docker-compose up -d --build
+
+# Check container resource usage
+docker stats graphrag-api
+
+# Access container shell
+docker exec -it graphrag-api /bin/bash
+
+# View environment variables in container
+docker exec graphrag-api env | grep -E 'NEO4J|OPENAI|REDIS'
+```
+
+**Troubleshooting:**
+
+```bash
+# Container won't start
+docker-compose logs graphrag-api
+docker ps -a | grep graphrag
+
+# Port already in use
+sudo lsof -i :8000
+# Kill process or change port in docker-compose.yml
+
+# Can't connect to AuraDB
+docker exec graphrag-api python -c "from neo4j import GraphDatabase; import os; from dotenv import load_dotenv; load_dotenv(); driver = GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USER'), os.getenv('NEO4J_PASSWORD'))); driver.verify_connectivity(); print('✓ Connected'); driver.close()"
+
+# Redis connection issues
+docker exec graphrag-api python -c "import redis; import os; from dotenv import load_dotenv; load_dotenv(); r = redis.from_url(os.getenv('REDIS_URL')); print('✓ Connected' if r.ping() else '✗ Failed')"
+
+# Rebuild from scratch
+docker-compose down
+docker rmi graphrag:latest
+./scripts/build-docker-amd.sh
+docker-compose up -d
+```
+
+#### Backend Deployment (Docker - General)
 
 **Step 1: Create `.env` file**
 
@@ -465,10 +723,8 @@ curl http://localhost:8000/health
 If you have a Cloudflare Tunnel token:
 
 ```bash
-# Add to .env: CLOUDFLARE_TUNNEL_TOKEN=your-token
-
-# Run tunnel
-./run-cloudflare-tunnel.sh
+# Using the helper script
+./run-cloudflare-tunnel.sh YOUR_TOKEN_HERE
 
 # Or manually:
 docker run -d \
@@ -476,8 +732,18 @@ docker run -d \
   --restart unless-stopped \
   --network host \
   cloudflare/cloudflared:latest \
-  tunnel --no-autoupdate run --token your-token-here
+  tunnel --no-autoupdate run --token YOUR_TOKEN_HERE
+
+# Check tunnel status
+docker logs -f cloudflare-tunnel
 ```
+
+**To find your tunnel URL:**
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → Zero Trust → Networks → Tunnels
+2. Click on your tunnel
+3. Go to "Public Hostnames" tab to see your HTTPS URL
+
+Then update `VITE_API_BASE_URL` in Vercel to your tunnel URL.
 
 See [CLOUDFLARE_SETUP.md](./CLOUDFLARE_SETUP.md) for detailed setup instructions.
 
