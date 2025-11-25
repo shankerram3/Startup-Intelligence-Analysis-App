@@ -11,6 +11,7 @@ Version 2.0.0 - Enhanced with:
 - Security improvements
 """
 
+import asyncio
 import io
 import os
 import subprocess
@@ -200,6 +201,7 @@ class PipelineStartRequest(BaseModel):
     skip_extraction: bool = Field(False, description="Skip entity extraction phase")
     skip_graph: bool = Field(False, description="Skip graph construction phase")
     no_resume: bool = Field(False, description="Do not resume from checkpoints")
+    enable_debug_logs: bool = Field(False, description="Enable DEBUG level logging for detailed troubleshooting")
 
 
 # =============================================================================
@@ -722,16 +724,28 @@ async def start_pipeline(options: PipelineStartRequest):
             with open(pipeline_log_path, "w") as f:
                 f.write("")
         
+        # Prepare environment variables for subprocess
+        # Inherit current environment and override LOG_LEVEL if debug is enabled
+        env = os.environ.copy()
+        if options.enable_debug_logs:
+            env["LOG_LEVEL"] = "DEBUG"
+            logger.info("pipeline_starting_with_debug", pid=None, args=args)
+        else:
+            # Ensure LOG_LEVEL is set (default to INFO if not set)
+            if "LOG_LEVEL" not in env:
+                env["LOG_LEVEL"] = "INFO"
+        
         # Open log file in append mode for the new run
         log_fh = open(pipeline_log_path, "ab")
         pipeline_proc = subprocess.Popen(
-            args, stdout=log_fh, stderr=subprocess.STDOUT, cwd=os.getcwd()
+            args, stdout=log_fh, stderr=subprocess.STDOUT, cwd=os.getcwd(), env=env
         )
         return {
             "status": "started",
             "pid": pipeline_proc.pid,
             "args": args,
             "log": pipeline_log_path,
+            "debug_logs": options.enable_debug_logs,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
@@ -743,8 +757,34 @@ async def pipeline_status():
     try:
         if not pipeline_proc:
             return {"running": False}
-        code = pipeline_proc.poll()
-        return {"running": code is None, "pid": pipeline_proc.pid, "returncode": code}
+        
+        # Use asyncio timeout to prevent hanging
+        try:
+            # Run poll() in executor to avoid blocking, with timeout
+            loop = asyncio.get_event_loop()
+            code = await asyncio.wait_for(
+                loop.run_in_executor(None, pipeline_proc.poll),
+                timeout=1.0  # 1 second max for poll()
+            )
+            # Get PID safely
+            try:
+                pid = pipeline_proc.pid
+            except (AttributeError, ProcessLookupError):
+                pid = None
+            
+            return {"running": code is None, "pid": pid, "returncode": code}
+        except asyncio.TimeoutError:
+            # Poll() took too long - process might be in bad state
+            logger.warning("pipeline_status_poll_timeout", pid=getattr(pipeline_proc, 'pid', None))
+            # Return safe default - assume not running if we can't check
+            return {"running": False, "error": "Status check timeout"}
+        except (ProcessLookupError, ValueError) as e:
+            # Process no longer exists
+            logger.info("pipeline_process_not_found", error=str(e))
+            global pipeline_proc
+            pipeline_proc = None
+            return {"running": False}
+            
     except Exception as e:
         logger.error("pipeline_status_error", error=str(e), exc_info=True)
         # Return safe default on error to prevent timeouts

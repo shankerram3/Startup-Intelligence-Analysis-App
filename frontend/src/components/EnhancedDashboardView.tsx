@@ -30,7 +30,8 @@ export function EnhancedDashboardView() {
           max_companies_per_article: parsed.max_companies_per_article,
           no_resume: parsed.no_resume || false,
           no_validation: parsed.no_validation || false,
-          no_cleanup: parsed.no_cleanup || false
+          no_cleanup: parsed.no_cleanup || false,
+          enable_debug_logs: parsed.enable_debug_logs || false
         };
       }
     } catch (e) {
@@ -48,7 +49,8 @@ export function EnhancedDashboardView() {
       max_companies_per_article: undefined,
       no_resume: false,
       no_validation: false,
-      no_cleanup: false
+      no_cleanup: false,
+      enable_debug_logs: false
     };
   };
 
@@ -186,8 +188,46 @@ export function EnhancedDashboardView() {
 
   async function refresh() {
     try {
-      const s = await fetchPipelineStatus();
-      const l = await fetchPipelineLogs(500);
+      // Fetch status and logs with error handling for each
+      let s: PipelineStatus;
+      let l: string = '';
+      
+      try {
+        s = await fetchPipelineStatus();
+      } catch (err: any) {
+        // Handle server errors (503/504) and timeouts gracefully
+        const isServerError = err?.isServerError || err?.status === 503 || err?.status === 504;
+        const isTimeout = err?.isTimeout;
+        const errorText = err?.message || String(err);
+        
+        if (isServerError || isTimeout || errorText.includes('503') || errorText.includes('504') || 
+            errorText.includes('no_healthy_upstream') || errorText.includes('temporarily unavailable')) {
+          console.warn('⚠️ Server temporarily unavailable, using cached status');
+          // Don't update status if server is down - keep last known status
+          return;
+        }
+        // For other errors, re-throw to be caught by outer handler
+        throw err;
+      }
+      
+      try {
+        l = await fetchPipelineLogs(500);
+      } catch (err: any) {
+        // Handle server errors (503/504) and timeouts gracefully for logs
+        const isServerError = err?.isServerError || err?.status === 503 || err?.status === 504;
+        const isTimeout = err?.isTimeout;
+        const errorText = err?.message || String(err);
+        
+        if (isServerError || isTimeout || errorText.includes('503') || errorText.includes('504') || 
+            errorText.includes('no_healthy_upstream') || errorText.includes('temporarily unavailable')) {
+          console.warn('⚠️ Server temporarily unavailable, keeping existing logs');
+          // Keep existing logs, don't update
+          l = logs; // Use current logs state
+        } else {
+          // For other errors, just use empty logs
+          l = '';
+        }
+      }
       
       const wasRunning = previousStatusRunningRef.current;
       const isRunning = s.running;
@@ -246,20 +286,80 @@ export function EnhancedDashboardView() {
         // Store summary for status display
         setLastRunSummary(summary);
         
+        // Fetch more logs for history (especially important for DEBUG logging)
+        // Always try to fetch logs directly from server, even if initial fetch failed
+        // Fetch more lines for failed runs to capture all DEBUG information
+        const historyLogLines = runStatus === 'failed' ? 5000 : 2000; // More lines for failed runs
+        let historyLogs = l; // Use current logs as fallback
+        
+        // Always attempt to fetch logs when saving to history, even if initial fetch failed
+        // This ensures we get logs even if there were temporary server errors
+        try {
+          // Fetch more comprehensive logs for history - use longer timeout for large fetches
+          const fullLogs = await fetchPipelineLogs(historyLogLines, 30000); // 30 second timeout
+          if (fullLogs && fullLogs.length > 0) {
+            historyLogs = fullLogs;
+            console.log(`✅ Fetched ${fullLogs.length} chars of logs for history`);
+          } else if (l && l.length > 0) {
+            // If fetch returned empty but we have logs from earlier, use those
+            historyLogs = l;
+            console.log('⚠️ Fetched logs were empty, using cached logs');
+          }
+        } catch (err) {
+          console.warn('Failed to fetch extended logs for history:', err);
+          // If we have logs from the initial fetch, use those
+          if (l && l.length > 0) {
+            historyLogs = l;
+            console.log('Using logs from initial fetch as fallback');
+          } else {
+            // Last resort: try a smaller fetch with shorter timeout
+            try {
+              const smallLogs = await fetchPipelineLogs(500, 5000);
+              if (smallLogs && smallLogs.length > 0) {
+                historyLogs = smallLogs;
+                console.log('✅ Got logs from fallback fetch');
+              }
+            } catch (fallbackErr) {
+              console.warn('Fallback log fetch also failed:', fallbackErr);
+            }
+          }
+        }
+        
         // Store more logs for failed runs to help with debugging
         const logLimit = runStatus === 'failed' ? 50000 : 10000; // 50k for failed, 10k for others
         // Ensure logs is always a string (even if empty)
-        const logsString = (l || '').toString();
+        const logsString = (historyLogs || '').toString().trim();
+        
+        // Log what we're saving for debugging
+        console.log(`💾 Saving logs to history: ${logsString.length} chars, status: ${runStatus}`);
+        
+        const savedLogs = logsString.length > 0 ? logsString.substring(Math.max(0, logsString.length - logLimit)) : '';
+        
         const runRecord = {
           id: `run-${Date.now()}`,
           timestamp: currentRunStartTimeRef.current,
           duration,
           status: runStatus,
           summary,
-          logs: logsString.length > 0 ? logsString.substring(Math.max(0, logsString.length - logLimit)) : '' // Store last N chars (prioritize end of logs where errors usually are)
+          logs: savedLogs
         };
         
-        console.log('📝 Saving run record:', runRecord);
+        console.log('📝 Saving run record:', {
+          id: runRecord.id,
+          status: runRecord.status,
+          duration: runRecord.duration,
+          logsLength: savedLogs.length,
+          summary: runRecord.summary
+        });
+        
+        // Warn if logs are empty but we expected them
+        if (savedLogs.length === 0 && runStatus !== 'stopped') {
+          console.warn('⚠️ Warning: Saving run to history with empty logs!', {
+            runStatus,
+            historyLogsLength: historyLogs?.length || 0,
+            initialLogsLength: l?.length || 0
+          });
+        }
         
         // Add to history (keep last 50 runs)
         setRunHistory((prevHistory) => {
@@ -909,6 +1009,7 @@ export function EnhancedDashboardView() {
           no_resume: false,
           no_validation: currentOpts?.no_validation || false,
           no_cleanup: currentOpts?.no_cleanup || false,
+          enable_debug_logs: currentOpts?.enable_debug_logs || false,
           max_companies_per_article: undefined
         };
         break;
@@ -925,7 +1026,8 @@ export function EnhancedDashboardView() {
           max_companies_per_article: undefined,
           no_resume: false,
           no_validation: currentOpts?.no_validation || false,
-          no_cleanup: currentOpts?.no_cleanup || false
+          no_cleanup: currentOpts?.no_cleanup || false,
+          enable_debug_logs: currentOpts?.enable_debug_logs || false
         };
         break;
       case 'enrichment-test':
@@ -941,7 +1043,8 @@ export function EnhancedDashboardView() {
           skip_post_processing: false,
           no_resume: false,
           no_validation: currentOpts?.no_validation || false,
-          no_cleanup: currentOpts?.no_cleanup || false
+          no_cleanup: currentOpts?.no_cleanup || false,
+          enable_debug_logs: currentOpts?.enable_debug_logs || false
         };
         break;
       default:
@@ -1189,8 +1292,8 @@ export function EnhancedDashboardView() {
                         <strong>Errors:</strong> {run.summary.errors}
                       </div>
                     )}
-                    {/* Always show logs button for failed runs, or if logs exist */}
-                    {(run.status === 'failed' || (run.logs && run.logs.length > 0)) && (
+                    {/* Always show logs button for failed runs, or if logs exist, or if we want to allow retry */}
+                    {((run.status === 'failed') || (run.logs && run.logs.length > 0) || run.status === 'stopped') && (
                       <div style={{ marginTop: 8 }}>
                         <button
                           onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
@@ -1236,7 +1339,15 @@ export function EnhancedDashboardView() {
                               run.logs
                             ) : (
                               <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
-                                No logs available for this run. This may indicate the pipeline was stopped before logs could be captured.
+                                No logs available for this run. This may indicate:
+                                <ul style={{ marginTop: 8, paddingLeft: 20, textAlign: 'left' }}>
+                                  <li>The pipeline was stopped before logs could be captured</li>
+                                  <li>The server was unavailable when saving logs (503/504 error)</li>
+                                  <li>Logs were cleared from the server</li>
+                                </ul>
+                                <div style={{ marginTop: 8, fontSize: 10, opacity: 0.7 }}>
+                                  Run ID: {run.id} | Status: {run.status} | Duration: {Math.round(run.duration)}s
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1596,6 +1707,15 @@ export function EnhancedDashboardView() {
                     <span>Skip graph cleanup (Phase 3)</span>
                   </label>
 
+                  <label style={styles.checkbox}>
+                    <input
+                      type="checkbox"
+                      checked={!!opts.enable_debug_logs}
+                      onChange={(e) => update('enable_debug_logs', e.target.checked)}
+                    />
+                    <span>Enable DEBUG level logging (shows detailed debugging information)</span>
+                  </label>
+
                   <div style={styles.infoBox}>
                     <strong>ℹ️ About checkpoints:</strong>
                     <p style={{ margin: '8px 0' }}>
@@ -1603,6 +1723,15 @@ export function EnhancedDashboardView() {
                       Disable to force a clean start.
                     </p>
                   </div>
+
+                  {opts.enable_debug_logs && (
+                    <div style={styles.warningBox}>
+                      <strong>🐛 Debug Logging Enabled:</strong>
+                      <p style={{ margin: '8px 0' }}>
+                        DEBUG level logs will be shown in the pipeline logs. This includes detailed information about processing steps, which can be helpful for troubleshooting but will produce more verbose output.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

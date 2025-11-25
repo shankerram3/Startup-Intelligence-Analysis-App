@@ -79,6 +79,18 @@ export type SemanticSearchResponse = {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    
+    // Check for server errors (503/504) - these are often temporary
+    if (res.status === 503 || res.status === 504) {
+      // Check if it's an HTML error page (like DigitalOcean App Platform errors)
+      if (text.includes('no_healthy_upstream') || text.includes('connection_timed_out') || text.includes('<!DOCTYPE html>')) {
+        const error = new Error(`Server temporarily unavailable (${res.status})`);
+        (error as any).status = res.status;
+        (error as any).isServerError = true;
+        throw error;
+      }
+    }
+    
     // Try to parse JSON error response (FastAPI format)
     try {
       const json = JSON.parse(text);
@@ -102,9 +114,25 @@ export async function postJson<TReq, TRes>(path: string, body: TReq): Promise<TR
   return handleResponse<TRes>(res);
 }
 
-export async function getJson<TRes>(path: string): Promise<TRes> {
-  const res = await fetch(`${API_BASE_URL}${path}`);
-  return handleResponse<TRes>(res);
+export async function getJson<TRes>(path: string, timeout: number = 10000): Promise<TRes> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return handleResponse<TRes>(res);
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      const error = new Error(`Request timeout after ${timeout}ms`);
+      (error as any).isTimeout = true;
+      throw error;
+    }
+    throw err;
+  }
 }
 
 // Neo4j/AuraDB admin
@@ -149,6 +177,7 @@ export type PipelineStartRequest = {
   no_resume?: boolean;
   no_validation?: boolean;
   no_cleanup?: boolean;
+  enable_debug_logs?: boolean;
 };
 
 export type PipelineStartResponse = {
@@ -176,8 +205,10 @@ export function fetchPipelineStatus() {
   return getJson<PipelineStatus>(`/admin/pipeline/status`);
 }
 
-export async function fetchPipelineLogs(tail = 200): Promise<string> {
-  const res = await getJson<{ log: string }>(`/admin/pipeline/logs?tail=${tail}`);
+export async function fetchPipelineLogs(tail = 200, timeout?: number): Promise<string> {
+  // Use longer timeout for large log fetches (5000 lines can take time)
+  const logTimeout = timeout || (tail > 2000 ? 30000 : 10000);
+  const res = await getJson<{ log: string }>(`/admin/pipeline/logs?tail=${tail}`, logTimeout);
   return res.log || '';
 }
 
