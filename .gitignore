@@ -60,3 +60,4 @@ coverage.xml
 htmlcov/
 *.cover
 .hypothesis/
+cloudflared-linux-amd64.deb

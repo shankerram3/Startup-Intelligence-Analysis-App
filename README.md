@@ -435,6 +435,9 @@ ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-app-git-main.vercel.app
 CACHE_ENABLED=true
 REDIS_URL=redis://default:password@host:port
 
+# Optional - Cloudflare Tunnel (for HTTPS)
+# CLOUDFLARE_TUNNEL_TOKEN=your-cloudflare-tunnel-token
+
 # Optional - Security
 ENABLE_AUTH=false
 JWT_SECRET_KEY=your-secret-key
@@ -456,6 +459,27 @@ docker-compose logs -f graphrag-api
 # Verify health
 curl http://localhost:8000/health
 ```
+
+**Optional: Start Cloudflare Tunnel for HTTPS**
+
+If you have a Cloudflare Tunnel token:
+
+```bash
+# Add to .env: CLOUDFLARE_TUNNEL_TOKEN=your-token
+
+# Run tunnel
+./run-cloudflare-tunnel.sh
+
+# Or manually:
+docker run -d \
+  --name cloudflare-tunnel \
+  --restart unless-stopped \
+  --network host \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token your-token-here
+```
+
+See [CLOUDFLARE_SETUP.md](./CLOUDFLARE_SETUP.md) for detailed setup instructions.
 
 **Alternative: Run container directly**
 
@@ -508,7 +532,8 @@ docker run -d \
 **Troubleshooting:**
 
 - **Mixed Content errors**: HTTPS frontend (Vercel) cannot request HTTP backend. You need HTTPS on backend:
-  - **Quick solution**: Use Cloudflare Tunnel (free, no domain needed) - see [HTTPS_SETUP.md](./HTTPS_SETUP.md)
+  - **Quick solution**: Use Cloudflare Tunnel (free, no domain needed) - see [CLOUDFLARE_SETUP.md](./CLOUDFLARE_SETUP.md)
+  - **With domain**: Add A record in Cloudflare DNS pointing to your IP (167.172.26.46) with proxy enabled
   - **Production solution**: Set up Nginx/Caddy with SSL certificate
   - **Alternative**: Deploy backend to a service with built-in HTTPS (Render, Railway, etc.)
 - **CORS errors**: Ensure backend `ALLOWED_ORIGINS` includes your Vercel domain (including preview deployments)

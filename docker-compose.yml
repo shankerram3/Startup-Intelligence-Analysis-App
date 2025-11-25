@@ -1,5 +1,6 @@
 # Docker Compose for GraphRAG API with Neo4j AuraDB
 # Backend-only API - Neo4j is hosted on AuraDB cloud (external)
+# Optional: Cloudflare Tunnel for HTTPS access
 
 services:
   graphrag-api:
