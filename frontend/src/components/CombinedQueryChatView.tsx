@@ -152,6 +152,7 @@ export function CombinedQueryChatView() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const lastMessageIdRef = useRef<string>('m0');
+  const isMountedRef = useRef(true);
 
   // Auto-scroll function
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -175,6 +176,14 @@ export function CombinedQueryChatView() {
       const isNearBottom = distanceFromBottom < 100;
       shouldAutoScrollRef.current = isNearBottom;
     }
+  }, []);
+
+  // Track component mount state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Auto-scroll when new messages are added
@@ -342,6 +351,26 @@ export function CombinedQueryChatView() {
         return_traversal: returnTraversal
       };
       const res = await postJson<QueryRequest, QueryResponse>('/query', body);
+      
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) {
+        // Component unmounted, save response to localStorage so it can be restored
+        const answer = (res.answer && String(res.answer).trim()) || 'No answer found.';
+        const assistantMsg: ChatMessage = {
+          id: generateUUID(),
+          role: 'assistant',
+          content: answer,
+          meta: { intent: res.intent, context: res.context, traversal: res.traversal },
+          isTyping: false
+        };
+        // Load current conversation, update it, and save
+        const currentConv = loadCurrentConversation();
+        const withoutLoading = currentConv.messages.filter(m => m.id !== loadingMsgId);
+        const updated = [...withoutLoading, assistantMsg];
+        saveCurrentConversation(updated, currentConv.chatId);
+        return;
+      }
+      
       const answer = (res.answer && String(res.answer).trim()) || 'No answer found.';
       
       // Replace loading message with actual response
@@ -360,6 +389,19 @@ export function CombinedQueryChatView() {
         return updated;
       });
     } catch (err: any) {
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) {
+        // Component unmounted, save error to localStorage
+        const currentConv = loadCurrentConversation();
+        const withoutLoading = currentConv.messages.filter(m => m.id !== loadingMsgId);
+        const updated: ChatMessage[] = [
+          ...withoutLoading,
+          { id: generateUUID(), role: 'assistant' as const, content: err?.message || 'Request failed' }
+        ];
+        saveCurrentConversation(updated, currentConv.chatId);
+        return;
+      }
+      
       // Replace loading message with error
       setMessages((prev) => {
         const withoutLoading = prev.filter(m => m.id !== loadingMsgId);
@@ -371,7 +413,9 @@ export function CombinedQueryChatView() {
         return updated;
       });
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
