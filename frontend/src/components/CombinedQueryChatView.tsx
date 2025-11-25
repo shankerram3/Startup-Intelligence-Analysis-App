@@ -300,9 +300,9 @@ export function CombinedQueryChatView() {
   }
 
   function startNewChat() {
-    const newMessages = [{
+    const newMessages: ChatMessage[] = [{
       id: 'm0',
-      role: 'system',
+      role: 'system' as const,
       content: 'Ask about companies, investors, people, or technologies. I will answer using the knowledge graph.'
     }];
     setMessages(newMessages);
@@ -442,7 +442,19 @@ export function CombinedQueryChatView() {
           onScroll={handleScroll}
         >
           {messages.map((m) => (
-            <ChatMessageBubble key={m.id} message={m} onContentChange={scrollToBottom} />
+            <ChatMessageBubble 
+              key={m.id} 
+              message={m} 
+              onContentChange={scrollToBottom}
+              onAnimationComplete={() => {
+                // Mark animation as shown when it completes
+                if (!m.animationShown) {
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === m.id ? { ...msg, animationShown: true } : msg
+                  ));
+                }
+              }}
+            />
           ))}
         </div>
 
@@ -539,10 +551,12 @@ export function CombinedQueryChatView() {
 
 function ChatMessageBubble({ 
   message: m, 
-  onContentChange 
+  onContentChange,
+  onAnimationComplete
 }: { 
   message: ChatMessage;
   onContentChange?: () => void;
+  onAnimationComplete?: () => void;
 }) {
   const shouldType = m.role === 'assistant' && m.content && (m.isTyping === true || m.isTyping === undefined);
   const { displayedText, isTyping } = useTypewriter(
@@ -629,14 +643,7 @@ function ChatMessageBubble({
         <GraphTraversalAnimation 
           traversalData={m.meta.traversal}
           skipAnimation={m.animationShown === true}
-          onComplete={() => {
-            // Mark animation as shown when it completes
-            if (!m.animationShown) {
-              setMessages(prev => prev.map(msg => 
-                msg.id === m.id ? { ...msg, animationShown: true } : msg
-              ));
-            }
-          }}
+          onComplete={onAnimationComplete}
         />
       )}
       {m.role === 'assistant' && m.meta?.context && (
