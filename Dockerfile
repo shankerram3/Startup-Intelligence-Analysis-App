@@ -1,23 +1,30 @@
 # Multi-stage Dockerfile for GraphRAG Application
-# Stage 1: Build frontend
-FROM node:20-alpine AS frontend-builder
+# Backend-only API (frontend hosted separately, e.g., on Vercel)
 
+# Build argument to optionally build frontend (default: false for backend-only)
+ARG BUILD_FRONTEND=false
+
+# Stage 1: Build frontend (only if BUILD_FRONTEND=true)
+FROM node:20-alpine AS frontend-builder
+ARG BUILD_FRONTEND
 WORKDIR /app/frontend
 
-# Copy frontend package files
+# Only build frontend if BUILD_FRONTEND is true
 COPY frontend/package*.json ./
+RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
+      npm ci; \
+    else \
+      echo "Skipping frontend build (backend-only mode)"; \
+    fi
 
-# Install frontend dependencies
-RUN npm ci
-
-# Copy frontend source
 COPY frontend/ ./
+RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
+      npm run build; \
+    fi
 
-# Build frontend for production
-RUN npm run build
-
-# Stage 2: Python backend with frontend
+# Stage 2: Python backend
 FROM python:3.11-slim
+ARG BUILD_FRONTEND
 
 # Set working directory
 WORKDIR /app
@@ -64,8 +71,14 @@ RUN playwright install-deps chromium
 # Copy application code
 COPY . .
 
-# Copy built frontend from builder stage
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+# Copy built frontend from builder stage (only if it was built)
+ARG BUILD_FRONTEND
+RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
+      echo "Copying frontend build..."; \
+    else \
+      echo "Backend-only mode - skipping frontend copy"; \
+    fi
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist 2>/dev/null || true
 
 # Don't create data directories in image - create at runtime to save memory
 # Data directories will be created by the application on startup

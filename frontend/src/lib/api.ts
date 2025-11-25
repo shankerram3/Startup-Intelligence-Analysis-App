@@ -1,28 +1,32 @@
 // Runtime-configurable API base URL
-// Priority: window.__API_BASE_URL__ > VITE_API_BASE_URL > auto-detect > localhost
+// Priority: window.__API_BASE_URL__ > VITE_API_BASE_URL > localhost (for dev)
+// For Vercel deployment, set VITE_API_BASE_URL environment variable
 function getApiBaseUrl(): string {
   // 1. Check for runtime config (injected via script tag in index.html)
   if (typeof window !== 'undefined' && (window as any).__API_BASE_URL__) {
     return (window as any).__API_BASE_URL__;
   }
   
-  // 2. Check for build-time env var (for development)
+  // 2. Check for build-time env var (REQUIRED for Vercel/production)
   const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (envUrl) {
     return envUrl;
   }
   
-  // 3. Auto-detect from current origin (for production deployments)
-  // Since FastAPI serves both frontend and API, use same origin
+  // 3. Default to localhost for local development
+  // In production (Vercel), VITE_API_BASE_URL must be set
   if (typeof window !== 'undefined') {
     const origin = window.location.origin;
-    // If not localhost, use the same origin (no port needed - same server)
-    if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      return origin; // Same origin - FastAPI serves both frontend and API
+    // If on localhost, use localhost backend
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return 'http://localhost:8000';
     }
+    // If in production but no env var set, warn and use localhost (will fail)
+    console.warn('VITE_API_BASE_URL not set. API calls will fail in production.');
+    return 'http://localhost:8000';
   }
   
-  // 4. Default to localhost
+  // 4. Fallback to localhost
   return 'http://localhost:8000';
 }
 

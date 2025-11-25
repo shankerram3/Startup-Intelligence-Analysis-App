@@ -1955,49 +1955,29 @@ async def get_readme():
 
 
 # =============================================================================
-# FRONTEND SERVING
-# Serve frontend static files and handle React Router
+# BACKEND-ONLY API
+# Frontend is hosted separately (e.g., Vercel)
 # =============================================================================
 
-frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+# Mount lib folder for static libraries if needed (vis-network, etc.)
 lib_path = Path(__file__).parent / "lib"
-
-# Mount lib folder for static libraries (vis-network, etc.)
 if lib_path.exists():
     app.mount("/lib", StaticFiles(directory=str(lib_path)), name="lib")
     logger.info("lib_static_files_mounted", path=str(lib_path))
 else:
-    logger.warning("lib_folder_not_found", path=str(lib_path))
+    logger.info("lib_folder_not_found", path=str(lib_path))
 
-if frontend_dist_path.exists():
-    # Mount static assets (JS, CSS, images, etc.)
-    app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
-    
-    # Serve index.html for root and all non-API routes (for React Router)
-    # This must be the last route to catch all unmatched paths
-    @app.get("/")
-    async def serve_frontend_root():
-        """Serve frontend application at root"""
-        index_path = frontend_dist_path / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
-        else:
-            raise HTTPException(status_code=404, detail="Frontend not found")
-    
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        """Serve frontend application - catch-all for React Router"""
-        # Don't serve frontend for API routes or lib files (already handled by mount)
-        if full_path.startswith(("api/", "docs", "redoc", "openapi.json", "health", "metrics", "admin/", "lib/")):
-            raise HTTPException(status_code=404, detail="Not found")
-        
-        index_path = frontend_dist_path / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
-        else:
-            raise HTTPException(status_code=404, detail="Frontend not found")
-else:
-    logger.warning("frontend_dist_not_found", path=str(frontend_dist_path))
+# Root endpoint - API info
+@app.get("/")
+async def root():
+    """API root endpoint"""
+    return {
+        "name": "GraphRAG API",
+        "version": "2.0.0",
+        "description": "Backend API for TechCrunch Knowledge Graph Query System",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 
 # =============================================================================
