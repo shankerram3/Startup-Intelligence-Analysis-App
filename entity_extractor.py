@@ -141,8 +141,18 @@ Output:
         # Extract entities and relationships
         entities, relationships = self._extract_entities_relationships(full_text)
 
+        # Ensure article_id is always in article_metadata for proper tracking
+        # Check both metadata and top level (in case load_article_data structure differs)
+        article_metadata = article_data.get("metadata", {}).copy()
+        article_id = (
+            article_metadata.get("article_id") 
+            or article_data.get("article_id")
+        )
+        if article_id and "article_id" not in article_metadata:
+            article_metadata["article_id"] = article_id
+
         return {
-            "article_metadata": article_data["metadata"],
+            "article_metadata": article_metadata,
             "entities": entities,
             "relationships": relationships,
             "extraction_timestamp": datetime.now().isoformat(),
@@ -436,7 +446,12 @@ def process_articles_directory(
         try:
             # Load article
             article_data = load_article_data(str(json_file))
-            article_id = article_data.get("metadata", {}).get("article_id")
+            # Extract article_id - check both metadata (transformed structure) and top level (raw structure)
+            # load_article_data moves article_id into metadata, but check both for robustness
+            article_id = (
+                article_data.get("metadata", {}).get("article_id") 
+                or article_data.get("article_id")
+            )
 
             # Validate article data
             if validate_data:
@@ -492,8 +507,11 @@ def process_articles_directory(
 
             progress_tracker.mark_processed()
 
-            # Save checkpoint periodically (every 25 articles) - Optimized for better performance
-            if i % 25 == 0:
+            # Save checkpoint periodically (every 10 articles) for better data protection
+            # Also save after the first article to handle small datasets
+            # This balances performance (less frequent I/O) with data loss protection
+            should_save_checkpoint = (i == 1) or (i % 10 == 0)
+            if should_save_checkpoint:
                 checkpoint.save()
                 # Save all extractions incrementally
                 with open(all_extractions_file, "w", encoding="utf-8") as f:
@@ -521,17 +539,54 @@ def process_articles_directory(
 
     # Merge new extractions with existing ones if we processed new articles
     if new_articles_processed > 0:
-        # Merge new extractions with existing ones (avoid duplicates)
+        # Merge new extractions with existing ones, replacing old extractions with new ones
+        # This ensures re-extracted articles get updated data instead of stale data
         if existing_extractions:
-            existing_ids = {ext.get("article_metadata", {}).get("article_id") for ext in existing_extractions}
+            # Create a map of article_id -> index in existing_extractions for efficient lookup
+            existing_by_id = {}
+            # Track indices of extractions without article_id for deduplication
+            existing_without_id_indices = []
+            for idx, ext in enumerate(existing_extractions):
+                article_id = ext.get("article_metadata", {}).get("article_id")
+                if article_id:
+                    existing_by_id[article_id] = idx
+                else:
+                    existing_without_id_indices.append(idx)
+            
+            # Collect new extractions without article_id to append at the end
+            new_extractions_without_id = []
+            
+            # Process new extractions: replace existing ones or append new ones
             for ext in all_extractions:
                 article_id = ext.get("article_metadata", {}).get("article_id")
-                if article_id and article_id not in existing_ids:
-                    existing_extractions.append(ext)
-                    existing_ids.add(article_id)
+                if article_id:
+                    # Extraction has article_id - replace existing or add new
+                    if article_id in existing_by_id:
+                        # Replace existing extraction with new one (updated data)
+                        existing_extractions[existing_by_id[article_id]] = ext
+                    else:
+                        # New article_id - append it
+                        existing_extractions.append(ext)
+                        existing_by_id[article_id] = len(existing_extractions) - 1
+                else:
+                    # Extraction without article_id - collect for batch processing
+                    new_extractions_without_id.append(ext)
+            
+            # Remove existing extractions without article_id to avoid duplicates
+            # Process in reverse order to maintain correct indices
+            for idx in reversed(existing_without_id_indices):
+                existing_extractions.pop(idx)
+            
+            # Append new extractions without article_id (deduplicated)
+            if new_extractions_without_id:
+                print(f"⚠️  Warning: Found {len(new_extractions_without_id)} extraction(s) without article_id")
+                existing_extractions.extend(new_extractions_without_id)
+            
             all_extractions = existing_extractions
+        # else: existing_extractions is empty, so all_extractions already contains the new extractions
         
-        # Save all extractions (merged if applicable)
+        # Save all extractions (merged if applicable, or just new extractions if no existing ones)
+        # This save must execute regardless of whether existing_extractions existed
         with open(all_extractions_file, "w", encoding="utf-8") as f:
             json.dump(all_extractions, f, indent=2, ensure_ascii=False)
     else:
@@ -541,6 +596,10 @@ def process_articles_directory(
             print(f"⚠️  No new articles processed. All articles were already processed.")
             print(f"   Returning {len(existing_extractions)} existing extractions for graph building.")
             all_extractions = existing_extractions
+            # Save existing extractions to ensure file persistence
+            # This prevents data loss if the file becomes corrupted or deleted
+            with open(all_extractions_file, "w", encoding="utf-8") as f:
+                json.dump(all_extractions, f, indent=2, ensure_ascii=False)
         else:
             # No existing extractions either - return empty list
             print("⚠️  No new articles processed and no existing extractions found.")

@@ -13,12 +13,14 @@ ARG BUILD_FRONTEND
 WORKDIR /app/frontend
 
 # Only proceed if BUILD_FRONTEND is true
+# Create dist directory first so COPY --from works even when BUILD_FRONTEND=false
+RUN mkdir -p dist
+
 COPY frontend/package*.json ./
 RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
       npm ci; \
     else \
       echo "Backend-only mode: Skipping frontend build (frontend served from Vercel)"; \
-      exit 0; \
     fi
 
 COPY frontend/ ./
@@ -29,7 +31,8 @@ RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
 # Stage 2: Python backend
 # This is the main stage - always built
 FROM python:3.11-slim
-ARG BUILD_FRONTEND
+# Re-declare BUILD_FRONTEND with default value (ARG values don't carry between stages)
+ARG BUILD_FRONTEND=false
 
 # Set working directory
 WORKDIR /app
@@ -66,8 +69,11 @@ COPY requirements.txt .
 # Install CPU-only PyTorch to prevent CUDA dependencies on AMD architecture
 # This ensures sentence-transformers uses CPU-only PyTorch
 RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-# Install other requirements (pip will use existing torch installation)
-RUN pip install --no-cache-dir -r requirements.txt
+# Install other requirements, ensuring torch packages are not upgraded/reinstalled
+# Use --extra-index-url to make CPU index available for torch dependencies
+# Use --upgrade-strategy only-if-needed to prevent upgrading already-installed torch
+# This prevents sentence-transformers from installing CUDA-enabled PyTorch
+RUN pip install --no-cache-dir --upgrade-strategy only-if-needed --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Install Playwright browsers
 RUN playwright install chromium
@@ -76,12 +82,16 @@ RUN playwright install-deps chromium
 # Copy application code (frontend folder excluded via .dockerignore)
 COPY . .
 
-# Frontend is served separately from Vercel, not from this Docker image
-# When BUILD_FRONTEND=false (default), no frontend files are copied
-# When BUILD_FRONTEND=true, you would need to add a COPY command here
-ARG BUILD_FRONTEND
+# Conditionally copy built frontend from builder stage if BUILD_FRONTEND=true
+# Frontend is served separately from Vercel when BUILD_FRONTEND=false (default)
+# Note: dist directory is created in frontend-builder stage even when BUILD_FRONTEND=false
+# to allow COPY to succeed, but it will be empty
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 RUN if [ "$BUILD_FRONTEND" != "true" ]; then \
       echo "Backend-only mode: Frontend served from Vercel, not included in image"; \
+      rm -rf ./frontend/dist || true; \
+    else \
+      echo "Frontend included in image (BUILD_FRONTEND=true)"; \
     fi
 
 # Don't create data directories in image - create at runtime to save memory

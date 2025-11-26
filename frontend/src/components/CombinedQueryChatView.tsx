@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { postJson, QueryRequest, QueryResponse } from '../lib/api';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -87,9 +87,15 @@ function loadCurrentConversation(): { messages: ChatMessage[], chatId: string | 
     const saved = localStorage.getItem('current-conversation');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Mark all messages as having shown their animations (since we're restoring)
+      // First filter out stale loading messages (empty assistant messages)
+      // Filter regardless of isTyping state to catch all stale messages, including those
+      // that may have been saved with isTyping: false due to race conditions or errors
+      const filteredMessages = (parsed.messages || []).filter((m: ChatMessage) => 
+        !(m.role === 'assistant' && (!m.content || m.content.trim() === ''))
+      );
+      // Mark all remaining messages as having shown their animations (since we're restoring)
       // Also reset isTyping for restored messages (they've already been typed)
-      const messages = (parsed.messages || []).map((m: ChatMessage) => ({
+      const messages = filteredMessages.map((m: ChatMessage) => ({
         ...m,
         animationShown: true, // Skip animation for restored messages
         isTyping: false // Reset typing state for restored messages
@@ -133,13 +139,9 @@ function saveCurrentConversation(messages: ChatMessage[], chatId: string | null)
 
 export function CombinedQueryChatView() {
   const initialConversation = loadCurrentConversation();
-  // Clean up any stale loading messages (empty assistant messages) on mount
-  const cleanedMessages = initialConversation.messages.filter(m => 
-    !(m.role === 'assistant' && !m.content && m.isTyping)
-  );
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    cleanedMessages.length > 0 ? cleanedMessages : initialConversation.messages
-  );
+  // Stale loading messages are already filtered in loadCurrentConversation()
+  // before isTyping is reset, so we can use the messages directly
+  const [messages, setMessages] = useState<ChatMessage[]>(initialConversation.messages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [returnContext, setReturnContext] = useState(true);
@@ -152,7 +154,7 @@ export function CombinedQueryChatView() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const lastMessageIdRef = useRef<string>('m0');
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false); // Start as false, set to true in mount effect
 
   // Auto-scroll function
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -167,6 +169,34 @@ export function CombinedQueryChatView() {
       });
     }
   }, []);
+
+  // Stable callback handler for animation completion
+  // Memoized to prevent unnecessary re-renders of ChatMessageBubble
+  const handleAnimationComplete = useCallback((messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId && !msg.animationShown 
+        ? { ...msg, animationShown: true } 
+        : msg
+    ));
+  }, []);
+
+  // Create stable callback map for each message to prevent effect re-runs
+  // Each message gets a stable callback reference that only changes if message IDs change
+  // Create a stable key from message IDs - only changes when messages array changes
+  const messageIdsString = useMemo(() => {
+    return messages.map(m => m.id).sort().join(',');
+  }, [messages]);
+  
+  const animationCompleteCallbacks = useMemo(() => {
+    const callbacks: Record<string, () => void> = {};
+    messages.forEach(m => {
+      // Create stable callback for each message ID
+      // These callbacks are stable as long as messageIdsString doesn't change
+      // Only depends on messageIdsString since callbacks only use message IDs, not message objects
+      callbacks[m.id] = () => handleAnimationComplete(m.id);
+    });
+    return callbacks;
+  }, [messageIdsString, handleAnimationComplete]);
 
   // Check if user scrolled up manually
   const handleScroll = useCallback(() => {
@@ -244,8 +274,10 @@ export function CombinedQueryChatView() {
         try {
           const parsed = JSON.parse(e.newValue);
           // Clean up any stale loading messages
+          // Filter ALL empty assistant messages regardless of isTyping state (consistent with loadCurrentConversation)
+          // This ensures stale messages with isTyping: false are also removed
           const cleanedMessages = (parsed.messages || []).filter((m: ChatMessage) => 
-            !(m.role === 'assistant' && !m.content && m.isTyping)
+            !(m.role === 'assistant' && (!m.content || m.content.trim() === ''))
           ).map((m: ChatMessage) => ({
             ...m,
             animationShown: true, // Skip animation for synced messages
@@ -364,8 +396,12 @@ export function CombinedQueryChatView() {
           isTyping: false
         };
         // Load current conversation, update it, and save
+        // Filter out any loading messages (empty assistant messages with isTyping: true)
+        // instead of filtering by ID, since localStorage messages may have different IDs
         const currentConv = loadCurrentConversation();
-        const withoutLoading = currentConv.messages.filter(m => m.id !== loadingMsgId);
+        const withoutLoading = currentConv.messages.filter(m => 
+          !(m.role === 'assistant' && !m.content && m.isTyping)
+        );
         const updated = [...withoutLoading, assistantMsg];
         saveCurrentConversation(updated, currentConv.chatId);
         return;
@@ -381,7 +417,7 @@ export function CombinedQueryChatView() {
         role: 'assistant',
         content: answer,
         meta: { intent: res.intent, context: res.context, traversal: res.traversal },
-        isTyping: true
+        isTyping: false
       };
         const updated = [...withoutLoading, assistantMsg];
         // Save after receiving response
@@ -392,8 +428,12 @@ export function CombinedQueryChatView() {
       // Check if component is still mounted before updating state
       if (!isMountedRef.current) {
         // Component unmounted, save error to localStorage
+        // Filter out any loading messages (empty assistant messages with isTyping: true)
+        // instead of filtering by ID, since localStorage messages may have different IDs
         const currentConv = loadCurrentConversation();
-        const withoutLoading = currentConv.messages.filter(m => m.id !== loadingMsgId);
+        const withoutLoading = currentConv.messages.filter(m => 
+          !(m.role === 'assistant' && !m.content && m.isTyping)
+        );
         const updated: ChatMessage[] = [
           ...withoutLoading,
           { id: generateUUID(), role: 'assistant' as const, content: err?.message || 'Request failed' }
@@ -414,7 +454,7 @@ export function CombinedQueryChatView() {
       });
     } finally {
       if (isMountedRef.current) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }
@@ -566,14 +606,7 @@ export function CombinedQueryChatView() {
               key={m.id} 
               message={m} 
               onContentChange={scrollToBottom}
-              onAnimationComplete={() => {
-                // Mark animation as shown when it completes
-                if (!m.animationShown) {
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === m.id ? { ...msg, animationShown: true } : msg
-                  ));
-                }
-              }}
+              onAnimationComplete={animationCompleteCallbacks[m.id]}
             />
           ))}
         </div>
@@ -689,11 +722,19 @@ function ChatMessageBubble({
   const prevDisplayedLengthRef = useRef(0);
   
   useEffect(() => {
+    // Detect when typing starts
     if (isTyping && !prevIsTypingRef.current && onContentChange) {
       requestAnimationFrame(() => {
         onContentChange();
       });
     }
+    
+    // Detect when typing completes (transitions from true to false)
+    if (!isTyping && prevIsTypingRef.current && onAnimationComplete) {
+      // Animation just finished - notify parent
+      onAnimationComplete();
+    }
+    
     prevIsTypingRef.current = isTyping;
 
     if (isTyping && onContentChange && displayedText.length > prevDisplayedLengthRef.current) {
@@ -711,7 +752,7 @@ function ChatMessageBubble({
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [displayedText, isTyping, onContentChange]);
+  }, [displayedText, isTyping, onContentChange, onAnimationComplete]);
 
   // Show loading indicator if message is empty and isTyping is true
   const isLoading = m.role === 'assistant' && !m.content && (m.isTyping === true || m.isTyping === undefined);

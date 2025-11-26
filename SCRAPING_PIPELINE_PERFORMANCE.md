@@ -85,10 +85,14 @@ browser_config = BrowserConfig(
 
 **Implementation**:
 ```python
-# In entity_extractor.py, change checkpoint frequency:
-if i % 25 == 0:  # Changed from 10
+# In entity_extractor.py, checkpoint frequency:
+# Save after first article and every 10 articles to balance performance and data protection
+should_save_checkpoint = (i == 1) or (i % 10 == 0)
+if should_save_checkpoint:
     checkpoint.save()
 ```
+
+**Note**: The checkpoint frequency was set to 10 articles (with a save after the first article) to balance performance with data loss protection. Saving every 25 articles was too infrequent and could result in losing up to 24 articles of progress if the pipeline crashes.
 
 ---
 

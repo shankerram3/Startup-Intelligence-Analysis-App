@@ -991,19 +991,43 @@ def create_rag_query(
     Create GraphRAG query instance with defaults from environment
 
     Args:
-        neo4j_uri: Neo4j URI (defaults to env NEO4J_URI)
+        neo4j_uri: Neo4j URI (defaults to env NEO4J_URI, required for AuraDB)
         neo4j_user: Neo4j user (defaults to env NEO4J_USER)
-        neo4j_password: Neo4j password (defaults to env NEO4J_PASSWORD)
-        openai_api_key: OpenAI key (defaults to env OPENAI_API_KEY)
+        neo4j_password: Neo4j password (defaults to env NEO4J_PASSWORD, required)
+        openai_api_key: OpenAI key (defaults to env OPENAI_API_KEY, required)
         embedding_model: Embedding model to use
 
     Returns:
         GraphRAGQuery instance
+
+    Raises:
+        ValueError: If required environment variables are not set
     """
-    neo4j_uri = neo4j_uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    # Get values from arguments or environment, no fallbacks for required vars
+    neo4j_uri = neo4j_uri or os.getenv("NEO4J_URI")
     neo4j_user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
     neo4j_password = neo4j_password or os.getenv("NEO4J_PASSWORD")
     openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+    
+    # Validate required configuration (no fallbacks for AuraDB setup)
+    if not neo4j_uri:
+        raise ValueError(
+            "NEO4J_URI environment variable is required. "
+            "For AuraDB, set NEO4J_URI in your .env file (e.g., neo4j+s://xxxxx.databases.neo4j.io). "
+            "See README.md for setup instructions."
+        )
+    if not neo4j_password:
+        raise ValueError(
+            "NEO4J_PASSWORD environment variable is required. "
+            "Set NEO4J_PASSWORD in your .env file with your AuraDB password. "
+            "See README.md for setup instructions."
+        )
+    if not openai_api_key:
+        raise ValueError(
+            "OPENAI_API_KEY environment variable is required. "
+            "Set OPENAI_API_KEY in your .env file. "
+            "See README.md for setup instructions."
+        )
 
     return GraphRAGQuery(
         neo4j_uri=neo4j_uri,

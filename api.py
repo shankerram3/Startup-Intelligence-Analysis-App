@@ -371,19 +371,18 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                 )
             
             # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+            # _VERCEL_PREVIEW_PATTERN_ENABLED already indicates if a vercel.app domain is configured
             if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
-                if has_vercel_domain:
-                    return Response(
-                        status_code=200,
-                        headers={
-                            "Access-Control-Allow-Origin": origin,
-                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
-                            "Access-Control-Allow-Credentials": "true",
-                            "Access-Control-Max-Age": "600",
-                        },
-                    )
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "600",
+                    },
+                )
             
             # If origin not allowed, return 403
             return Response(status_code=403, content="CORS not allowed")
@@ -399,12 +398,11 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                 return response
             
             # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+            # _VERCEL_PREVIEW_PATTERN_ENABLED already indicates if a vercel.app domain is configured
             if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
-                if has_vercel_domain:
-                    response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-                    return response
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                return response
         
         return response
 
@@ -526,9 +524,17 @@ def _parse_pipeline_logs_for_stats() -> Dict[str, Any]:
                         phase = log_entry.get("phase", "")
                         if phase == "1" and "name" in log_entry:
                             last_extraction_stats["phase"] = "extraction"
+                            # Capture articles_extracted count if present
+                            if "articles_extracted" in log_entry:
+                                last_extraction_stats["articles_extracted"] = log_entry.get("articles_extracted", 0)
                     
-                    elif event == "enrichment_complete" or "enrichment" in event.lower():
-                        companies = log_entry.get("companies_scraped") or log_entry.get("total_companies", 0)
+                    elif event == "enrichment_complete":
+                        # Use explicit None checking to avoid issues when value is 0
+                        companies_scraped = log_entry.get("companies_scraped")
+                        if companies_scraped is not None:
+                            companies = companies_scraped
+                        else:
+                            companies = log_entry.get("total_companies", 0)
                         last_enrichment_stats["companies"] = companies
                         stats["total_companies_enriched"] += companies
                         
@@ -544,7 +550,19 @@ def _parse_pipeline_logs_for_stats() -> Dict[str, Any]:
                     if match:
                         count = int(match.group(1))
                         stats["total_articles_extracted"] += count
-                        last_scraping_stats["articles_extracted"] = count
+                        # Check if this is in extraction phase context
+                        if "extraction" in line.lower() or "phase" in line.lower() or last_extraction_stats.get("phase") == "extraction":
+                            last_extraction_stats["articles_extracted"] = count
+                        else:
+                            # Default to scraping stats if no clear context
+                            last_scraping_stats["articles_extracted"] = count
+                
+                # Also check for "New articles processed" pattern from entity_extractor
+                if "new articles processed" in line.lower():
+                    match = re.search(r'new articles processed.*?:\s*(\d+)', line, re.IGNORECASE)
+                    if match:
+                        count = int(match.group(1))
+                        last_extraction_stats["articles_extracted"] = count
                 
                 if "entities extracted" in line.lower():
                     match = re.search(r'(\d+)\s+entities', line, re.IGNORECASE)
@@ -770,22 +788,14 @@ async def get_system_status():
 # =============================================================================
 
 
-@async_cached(ttl=1800, key_prefix="neo4j_overview")  # Cache for 30 minutes
-async def _get_neo4j_overview_data() -> Dict[str, Any]:
-    """Internal function to fetch Neo4j overview data (cached)"""
-    if not rag_instance:
-        raise HTTPException(status_code=503, detail="RAG instance not initialized")
-    
-    stats = rag_instance.query_templates.get_graph_statistics()
-
+def _run_neo4j_metadata_queries(driver) -> Dict[str, Any]:
+    """Helper function to run blocking Neo4j metadata queries (runs in thread pool)"""
     db_info: Dict[str, Any] = {"components": []}
     labels: List[str] = []
     rel_types: List[str] = []
-    top_connected: List[Dict[str, Any]] = []
-    top_important: List[Dict[str, Any]] = []
-
+    
     # Run best-effort metadata queries (Aura may restrict some procedures)
-    with rag_instance.driver.session() as session:
+    with driver.session() as session:
         try:
             comp = session.run(
                 "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition"
@@ -807,16 +817,39 @@ async def _get_neo4j_overview_data() -> Dict[str, Any]:
             rel_types = [r["relationshipType"] for r in rels]
         except Exception:
             rel_types = []
+    
+    return {"db_info": db_info, "labels": labels, "rel_types": rel_types}
 
-    # Top entities
+
+@async_cached(ttl=1800, key_prefix="neo4j_overview")  # Cache for 30 minutes
+async def _get_neo4j_overview_data() -> Dict[str, Any]:
+    """Internal function to fetch Neo4j overview data (cached)"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+    
+    # Run all blocking Neo4j operations in thread pool to avoid blocking event loop
+    # These operations are I/O bound and safe to run in threads
+    stats = await asyncio.to_thread(rag_instance.query_templates.get_graph_statistics)
+    
+    # Run metadata queries in thread pool
+    metadata_result = await asyncio.to_thread(_run_neo4j_metadata_queries, rag_instance.driver)
+    db_info = metadata_result["db_info"]
+    labels = metadata_result["labels"]
+    rel_types = metadata_result["rel_types"]
+    
+    # Top entities (also blocking, run in thread pool)
+    top_connected = []
+    top_important = []
     try:
-        top_connected = rag_instance.query_templates.get_most_connected_entities(
+        top_connected = await asyncio.to_thread(
+            rag_instance.query_templates.get_most_connected_entities,
             limit=10
         )
     except Exception:
         top_connected = []
     try:
-        top_important = rag_instance.query_templates.get_entity_importance_scores(
+        top_important = await asyncio.to_thread(
+            rag_instance.query_templates.get_entity_importance_scores,
             limit=10
         )
     except Exception:
@@ -890,52 +923,63 @@ async def start_pipeline(options: PipelineStartRequest):
     if pipeline_proc and pipeline_proc.poll() is None:
         raise HTTPException(status_code=409, detail="Pipeline is already running")
 
-        args = _build_pipeline_args(options)
-        
-        # Clear log file before starting new pipeline run
-        if os.path.exists(pipeline_log_path):
-            with open(pipeline_log_path, "w") as f:
-                f.write("")
-        
-        # Prepare environment variables for subprocess
-        # Inherit current environment and override LOG_LEVEL if debug is enabled
-        env = os.environ.copy()
-        if options.enable_debug_logs:
-            env["LOG_LEVEL"] = "DEBUG"
-            logger.info("pipeline_starting_with_debug", pid=None, args=args)
-        else:
-            # Ensure LOG_LEVEL is set (default to INFO if not set)
-            if "LOG_LEVEL" not in env:
-                env["LOG_LEVEL"] = "INFO"
-        
-        # Open log file in append mode for the new run
+    args = _build_pipeline_args(options)
+    
+    # Clear log file before starting new pipeline run
+    if os.path.exists(pipeline_log_path):
+        with open(pipeline_log_path, "w") as f:
+            f.write("")
+    
+    # Prepare environment variables for subprocess
+    # Inherit current environment and override LOG_LEVEL if debug is enabled
+    env = os.environ.copy()
+    if options.enable_debug_logs:
+        env["LOG_LEVEL"] = "DEBUG"
+        logger.info("pipeline_starting_with_debug", pid=None, args=args)
+    else:
+        # Ensure LOG_LEVEL is set (default to INFO if not set)
+        if "LOG_LEVEL" not in env:
+            env["LOG_LEVEL"] = "INFO"
+    
+    # Open log file in append mode for the new run
+    # Move open() inside try block to ensure file errors are caught and converted to HTTP 500
+    log_fh = None
+    try:
         log_fh = open(pipeline_log_path, "ab")
-        try:
-            pipeline_proc = subprocess.Popen(
-                args, 
-                stdout=log_fh, 
-                stderr=subprocess.STDOUT, 
-                cwd=os.getcwd(), 
-                env=env,
-                start_new_session=True  # Start in new session to survive parent termination
-            )
-            logger.info(
-                "pipeline_started",
-                pid=pipeline_proc.pid,
-                args=args,
-                debug_logs=options.enable_debug_logs
-            )
-            return {
-                "status": "started",
-                "pid": pipeline_proc.pid,
-                "args": args,
-                "log": pipeline_log_path,
-                "debug_logs": options.enable_debug_logs,
-            }
-        except Exception as e:
-            log_fh.close()
-            logger.error("pipeline_start_failed", error=str(e), exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
+        pipeline_proc = subprocess.Popen(
+            args, 
+            stdout=log_fh, 
+            stderr=subprocess.STDOUT, 
+            cwd=os.getcwd(), 
+            env=env,
+            start_new_session=True  # Start in new session to survive parent termination
+        )
+        # Close the file handle in parent process after Popen inherits it
+        # The subprocess will keep the file open until it exits
+        log_fh.close()
+        log_fh = None  # Mark as closed to avoid closing again in exception handler
+        logger.info(
+            "pipeline_started",
+            pid=pipeline_proc.pid,
+            args=args,
+            debug_logs=options.enable_debug_logs
+        )
+        return {
+            "status": "started",
+            "pid": pipeline_proc.pid,
+            "args": args,
+            "log": pipeline_log_path,
+            "debug_logs": options.enable_debug_logs,
+        }
+    except Exception as e:
+        # Close file handle if it was opened but Popen failed
+        if log_fh is not None:
+            try:
+                log_fh.close()
+            except Exception:
+                pass  # Ignore errors when closing failed file handle
+        logger.error("pipeline_start_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
 
 
 @app.get("/admin/pipeline/status", tags=["Admin"])

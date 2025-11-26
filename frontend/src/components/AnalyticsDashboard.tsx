@@ -748,22 +748,44 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
     );
   }
 
-  // Extract values safely
+  // Define chart constants before use to ensure they're always defined
+  const chartHeight = 80; // Percentage of chart height to use for data
+
+  // Extract values safely - convert all to valid numbers (0 for invalid)
   const values = data.map(([, d]) => {
     if (!d || typeof d !== 'object') return 0;
     const val = d[dataKey];
     return typeof val === 'number' && !isNaN(val) ? val : 0;
   });
   
-  const max = values.length > 0 ? Math.max(...values, 0) : 1;
-  const min = values.length > 0 ? Math.min(...values, 0) : 0;
-  const range = max - min || 1;
-  const chartHeight = 80; // Percentage of chart height to use for data
+  // Validate we have data points (defensive check - should never be empty after mapping)
+  // This handles edge cases where data might be malformed
+  if (values.length === 0) {
+    return (
+      <div style={{ 
+        height: 240, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: '#94a3b8',
+        fontSize: 14
+      }}>
+        No valid numeric data available
+      </div>
+    );
+  }
+  
+  // Calculate min/max from actual data values (no hardcoded 0 to force range)
+  // Values array is guaranteed to have at least one numeric value here
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1; // Prevent division by zero
 
   // Create path for area fill - ensure valid coordinates
+  // Use the original data length for positioning, but validate values
   const areaPath = data.map(([, d], i) => {
     const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
-    const normalizedValue = typeof value === 'number' ? value : 0;
+    const normalizedValue = (typeof value === 'number' && !isNaN(value)) ? value : 0;
     const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
     const y = 100 - ((normalizedValue - min) / range) * chartHeight;
     // Clamp y to valid range [20, 100] to avoid overflow

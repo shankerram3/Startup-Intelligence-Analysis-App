@@ -14,8 +14,13 @@ services:
       - "8000:8000"
     environment:
       # Neo4j AuraDB Configuration (Required)
+      # IMPORTANT: NEO4J_URI must be set in .env file (no default - AuraDB URI is user-specific)
+      # Example: NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
+      # If not set, the backend will fail to start with a clear error message
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_USER=${NEO4J_USER:-neo4j}
+      # IMPORTANT: NEO4J_PASSWORD must be set in .env file (no default)
+      # If not set, the backend will fail to start with a clear error message
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       # OpenAI Configuration (Required)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -32,10 +37,14 @@ services:
       - CACHE_ENABLED=${CACHE_ENABLED:-true}
       - REDIS_URL=${REDIS_URL}
       # Individual Redis config (used if REDIS_URL not provided)
-      - REDIS_HOST=${REDIS_HOST:-}
-      - REDIS_PORT=${REDIS_PORT:-}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_USERNAME=${REDIS_USERNAME:-}
+      # Use proper defaults to avoid overriding Python's defaults with empty strings
+      # Note: REDIS_PASSWORD and REDIS_USERNAME may be set to empty strings if not provided.
+      # Python code in utils/cache.py converts empty strings to None to avoid authentication issues.
+      - REDIS_HOST=${REDIS_HOST:-localhost}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      # These will be empty strings if not set - Python handles conversion to None
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_USERNAME=${REDIS_USERNAME}
       - REDIS_DB=${REDIS_DB:-0}
       - CACHE_DEFAULT_TTL=${CACHE_DEFAULT_TTL:-3600}
       # Logging Configuration

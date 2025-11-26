@@ -33,8 +33,9 @@ class CacheConfig:
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
-    REDIS_USERNAME = os.getenv("REDIS_USERNAME", None)
+    # Convert empty strings to None to avoid issues with docker-compose empty defaults
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None) or None
+    REDIS_USERNAME = os.getenv("REDIS_USERNAME", None) or None
     
     CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
     DEFAULT_TTL = int(os.getenv("CACHE_DEFAULT_TTL", "3600"))  # 1 hour
@@ -306,11 +307,11 @@ def cached(ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None)
     return decorator
 
 
-async def async_cached(
+def async_cached(
     ttl: int = CacheConfig.DEFAULT_TTL, key_prefix: Optional[str] = None
 ):
     """
-    Decorator to cache async function results
+    Decorator factory to cache async function results
 
     Args:
         ttl: Time to live in seconds

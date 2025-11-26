@@ -228,14 +228,19 @@ export function GraphTraversalAnimation({
               easingFunction: 'easeInOutQuad'
             }
           });
+          // Call onComplete after the fit animation completes (500ms duration + small buffer)
+          if (onComplete) {
+            setTimeout(() => {
+              onComplete();
+            }, 550); // 500ms animation + 50ms buffer
+          }
         } catch (e) {
-          // Ignore fit errors
+          // Ignore fit errors, but still call onComplete
+          if (onComplete) {
+            onComplete();
+          }
         }
       }, 100);
-      
-      if (onComplete) {
-        onComplete();
-      }
     }
 
     function startAnimation() {
