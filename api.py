@@ -256,24 +256,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-# Add middleware to handle OPTIONS requests (CORS preflight)
-@app.middleware("http")
-async def handle_options_requests(request: Request, call_next):
-    """Handle OPTIONS requests for CORS preflight"""
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Max-Age": "3600",
-            },
-        )
-    return await call_next(request)
-
-
 # Add request size limiting middleware
 @app.middleware("http")
 async def limit_upload_size(request: Request, call_next):
@@ -303,9 +285,6 @@ async def limit_upload_size(request: Request, call_next):
 app.add_middleware(PrometheusMiddleware)
 
 # Add Gzip compression for responses > 1KB (reduces response size by 70-90%)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-# Add Gzip compression for responses > 1KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
@@ -356,22 +335,29 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# Custom CORS handler for Vercel preview deployments
-# This allows *.vercel.app subdomains if any vercel.app domain is in ALLOWED_ORIGINS
-# Using BaseHTTPMiddleware to ensure it runs BEFORE CORSMiddleware
-class VercelPreviewCORSMiddleware(BaseHTTPMiddleware):
+# Custom CORS middleware that handles both explicit origins and Vercel preview deployments
+# This replaces CORSMiddleware to support wildcard matching for Vercel previews
+class CustomCORSMiddleware(BaseHTTPMiddleware):
     """
-    Handle CORS for Vercel preview deployments (pattern matching)
-    
-    Production: If you configure your main Vercel domain (e.g., https://my-app.vercel.app),
-    all preview deployments (*.vercel.app) are automatically allowed.
+    Custom CORS middleware that handles explicit origins and Vercel preview deployments
     """
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
         
-        # Handle OPTIONS preflight requests immediately
-        if request.method == "OPTIONS" and origin:
-            # Check if origin is already explicitly allowed
+        # Handle OPTIONS preflight requests
+        if request.method == "OPTIONS":
+            # If no origin header, allow the request (same-origin requests don't send origin)
+            if not origin:
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                        "Access-Control-Max-Age": "600",
+                    },
+                )
+            
+            # Check if origin is explicitly allowed
             if origin in SecurityConfig.ALLOWED_ORIGINS:
                 return Response(
                     status_code=200,
@@ -398,67 +384,6 @@ class VercelPreviewCORSMiddleware(BaseHTTPMiddleware):
                             "Access-Control-Max-Age": "600",
                         },
                     )
-        
-        # For non-OPTIONS requests, process normally and add CORS headers to response
-        response = await call_next(request)
-        
-        if origin:
-            # Check if origin is already explicitly allowed
-            if origin in SecurityConfig.ALLOWED_ORIGINS:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                return response
-            
-            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
-            if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
-                if has_vercel_domain:
-                    response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-                    return response
-        
-        return response
-
-
-# Custom CORS middleware that handles both explicit origins and Vercel preview deployments
-# This replaces CORSMiddleware to support wildcard matching for Vercel previews
-class CustomCORSMiddleware(BaseHTTPMiddleware):
-    """
-    Custom CORS middleware that handles explicit origins and Vercel preview deployments
-    """
-    async def dispatch(self, request: Request, call_next):
-        origin = request.headers.get("origin")
-        
-        # Handle OPTIONS preflight requests
-        if request.method == "OPTIONS":
-            if origin:
-                # Check if origin is explicitly allowed
-                if origin in SecurityConfig.ALLOWED_ORIGINS:
-                    return Response(
-                        status_code=200,
-                        headers={
-                            "Access-Control-Allow-Origin": origin,
-                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
-                            "Access-Control-Allow-Credentials": "true",
-                            "Access-Control-Max-Age": "600",
-                        },
-                    )
-                
-                # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
-                if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                    has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
-                    if has_vercel_domain:
-                        return Response(
-                            status_code=200,
-                            headers={
-                                "Access-Control-Allow-Origin": origin,
-                                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
-                                "Access-Control-Allow-Credentials": "true",
-                                "Access-Control-Max-Age": "600",
-                            },
-                        )
             
             # If origin not allowed, return 403
             return Response(status_code=403, content="CORS not allowed")
@@ -928,67 +853,6 @@ async def neo4j_overview() -> Dict[str, Any]:
             status_code=500, detail=f"Failed to fetch Neo4j overview: {e}"
         )
 
-    try:
-        stats = rag_instance.query_templates.get_graph_statistics()
-
-        db_info: Dict[str, Any] = {"components": []}
-        labels: List[str] = []
-        rel_types: List[str] = []
-        top_connected: List[Dict[str, Any]] = []
-        top_important: List[Dict[str, Any]] = []
-
-        # Run best-effort metadata queries (Aura may restrict some procedures)
-        with rag_instance.driver.session() as session:
-            try:
-                comp = session.run(
-                    "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition"
-                )
-                db_info["components"] = [dict(r) for r in comp]
-            except Exception:
-                db_info["components"] = []
-            try:
-                labs = session.run(
-                    "CALL db.labels() YIELD label RETURN label ORDER BY label"
-                )
-                labels = [r["label"] for r in labs]
-            except Exception:
-                labels = []
-            try:
-                rels = session.run(
-                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
-                )
-                rel_types = [r["relationshipType"] for r in rels]
-            except Exception:
-                rel_types = []
-
-        # Top entities
-        try:
-            top_connected = rag_instance.query_templates.get_most_connected_entities(
-                limit=10
-            )
-        except Exception:
-            top_connected = []
-        try:
-            top_important = rag_instance.query_templates.get_entity_importance_scores(
-                limit=10
-            )
-        except Exception:
-            top_important = []
-
-        return {
-            "status": "ok",
-            "db_info": db_info,
-            "labels": labels,
-            "relationship_types": rel_types,
-            "graph_stats": stats,
-            "top_connected_entities": top_connected,
-            "top_important_entities": top_important,
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch Neo4j overview: {e}"
-        )
-
 
 # =============================================================================
 # ADMIN / PIPELINE CONTROL ENDPOINTS
@@ -1026,8 +890,8 @@ async def start_pipeline(options: PipelineStartRequest):
     if pipeline_proc and pipeline_proc.poll() is None:
         raise HTTPException(status_code=409, detail="Pipeline is already running")
 
-    args = _build_pipeline_args(options)
-    try:
+        args = _build_pipeline_args(options)
+        
         # Clear log file before starting new pipeline run
         if os.path.exists(pipeline_log_path):
             with open(pipeline_log_path, "w") as f:
@@ -1072,8 +936,6 @@ async def start_pipeline(options: PipelineStartRequest):
             log_fh.close()
             logger.error("pipeline_start_failed", error=str(e), exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start pipeline: {e}")
 
 
 @app.get("/admin/pipeline/status", tags=["Admin"])
@@ -1176,21 +1038,6 @@ async def clear_pipeline_logs():
 # =============================================================================
 # MAIN QUERY ENDPOINTS
 # =============================================================================
-
-
-@app.options("/query", tags=["Query"])
-async def query_options():
-    """Handle OPTIONS preflight requests for /query endpoint"""
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        },
-    )
 
 
 @app.post("/query", response_model=QueryResponse, tags=["Query"])

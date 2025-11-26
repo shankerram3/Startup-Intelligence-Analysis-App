@@ -519,9 +519,7 @@ def process_articles_directory(
     checkpoint.save()
     checkpoint_stats = checkpoint.get_stats()
 
-    # Only merge with existing extractions if we processed new articles
-    # If no new articles were processed (all were skipped), return empty list
-    # This ensures we skip previously processed articles and don't reuse old extractions
+    # Merge new extractions with existing ones if we processed new articles
     if new_articles_processed > 0:
         # Merge new extractions with existing ones (avoid duplicates)
         if existing_extractions:
@@ -537,9 +535,16 @@ def process_articles_directory(
         with open(all_extractions_file, "w", encoding="utf-8") as f:
             json.dump(all_extractions, f, indent=2, ensure_ascii=False)
     else:
-        # No new articles processed - return empty list to skip old extractions
-        print("⚠️  No new articles processed. All articles were already processed.")
-        all_extractions = []
+        # No new articles processed - return existing extractions to allow graph building
+        # This ensures the pipeline can continue even when all articles are already processed
+        if existing_extractions:
+            print(f"⚠️  No new articles processed. All articles were already processed.")
+            print(f"   Returning {len(existing_extractions)} existing extractions for graph building.")
+            all_extractions = existing_extractions
+        else:
+            # No existing extractions either - return empty list
+            print("⚠️  No new articles processed and no existing extractions found.")
+            all_extractions = []
 
     # Finish progress tracking
     progress_tracker.finish()
