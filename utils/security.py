@@ -131,12 +131,15 @@ class SecurityConfig:
     ]
     
     # Production: Auto-allow Vercel preview deployments if main Vercel domain is present
-    # This allows all *.vercel.app subdomains if any vercel.app domain is configured
+    # Since FastAPI's CORSMiddleware doesn't support wildcards, we need to explicitly
+    # add common Vercel preview patterns or use a custom middleware
     ALLOWED_ORIGINS = explicit_origins.copy()
     has_vercel_domain = any("vercel.app" in origin for origin in explicit_origins)
     
-    # If a Vercel domain is configured, we'll use pattern matching in the CORS handler
-    # FastAPI's CORSMiddleware doesn't support wildcards, so we handle this in a custom middleware
+    # If a Vercel domain is configured, enable pattern matching in custom middleware
+    # Note: We can't add all possible vercel.app subdomains to ALLOWED_ORIGINS
+    # because Vercel generates unique preview URLs for each deployment
+    # So we use a custom middleware to handle this dynamically
     _VERCEL_PREVIEW_PATTERN_ENABLED = has_vercel_domain
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default
     API_KEYS = (

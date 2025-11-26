@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -348,68 +349,135 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# Add CORS middleware with security restrictions
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=SecurityConfig.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Accept"],
-)
-
 # Custom CORS handler for Vercel preview deployments
 # This allows *.vercel.app subdomains if any vercel.app domain is in ALLOWED_ORIGINS
-@app.middleware("http")
-async def handle_vercel_preview_cors(request: Request, call_next):
+# Using BaseHTTPMiddleware to ensure it runs BEFORE CORSMiddleware
+class VercelPreviewCORSMiddleware(BaseHTTPMiddleware):
     """
     Handle CORS for Vercel preview deployments (pattern matching)
     
     Production: If you configure your main Vercel domain (e.g., https://my-app.vercel.app),
     all preview deployments (*.vercel.app) are automatically allowed.
     """
-    origin = request.headers.get("origin")
-    
-    if origin and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-        # Check if origin is already explicitly allowed
-        if origin in SecurityConfig.ALLOWED_ORIGINS:
-            return await call_next(request)
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
         
-        # Allow Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
-        if origin.endswith(".vercel.app"):
-            # Check if we have any vercel.app domain configured
-            for allowed_origin in SecurityConfig.ALLOWED_ORIGINS:
-                if "vercel.app" in allowed_origin:
-                    # Extract base project name from configured domain
-                    # e.g., "my-app" from "https://my-app.vercel.app"
-                    base_name = allowed_origin.split("//")[1].split(".vercel.app")[0]
-                    # Extract base name from request origin
-                    request_base = origin.split("//")[1].split(".vercel.app")[0]
-                    # Remove hash suffix from preview deployments (everything after last dash)
-                    # e.g., "my-app-abc123" -> "my-app"
-                    if "-" in request_base:
-                        request_base = "-".join(request_base.split("-")[:-1])
-                    
-                    # If base names match, allow this preview deployment
-                    if base_name == request_base or request_base.startswith(base_name + "-"):
-                        response = await call_next(request)
-                        # Add CORS headers
-                        if request.method == "OPTIONS":
-                            return Response(
-                                status_code=200,
-                                headers={
-                                    "Access-Control-Allow-Origin": origin,
-                                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
-                                    "Access-Control-Allow-Credentials": "true",
-                                    "Access-Control-Max-Age": "600",
-                                },
-                            )
-                        response.headers["Access-Control-Allow-Origin"] = origin
-                        response.headers["Access-Control-Allow-Credentials"] = "true"
-                        return response
-    
-    return await call_next(request)
+        # Handle OPTIONS preflight requests immediately
+        if request.method == "OPTIONS" and origin:
+            # Check if origin is already explicitly allowed
+            if origin in SecurityConfig.ALLOWED_ORIGINS:
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "600",
+                    },
+                )
+            
+            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+            if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
+                if has_vercel_domain:
+                    return Response(
+                        status_code=200,
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Max-Age": "600",
+                        },
+                    )
+        
+        # For non-OPTIONS requests, process normally and add CORS headers to response
+        response = await call_next(request)
+        
+        if origin:
+            # Check if origin is already explicitly allowed
+            if origin in SecurityConfig.ALLOWED_ORIGINS:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                return response
+            
+            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+            if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
+                if has_vercel_domain:
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                    return response
+        
+        return response
 
+
+# Custom CORS middleware that handles both explicit origins and Vercel preview deployments
+# This replaces CORSMiddleware to support wildcard matching for Vercel previews
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    """
+    Custom CORS middleware that handles explicit origins and Vercel preview deployments
+    """
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        
+        # Handle OPTIONS preflight requests
+        if request.method == "OPTIONS":
+            if origin:
+                # Check if origin is explicitly allowed
+                if origin in SecurityConfig.ALLOWED_ORIGINS:
+                    return Response(
+                        status_code=200,
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Max-Age": "600",
+                        },
+                    )
+                
+                # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+                if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+                    has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
+                    if has_vercel_domain:
+                        return Response(
+                            status_code=200,
+                            headers={
+                                "Access-Control-Allow-Origin": origin,
+                                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                                "Access-Control-Allow-Credentials": "true",
+                                "Access-Control-Max-Age": "600",
+                            },
+                        )
+            
+            # If origin not allowed, return 403
+            return Response(status_code=403, content="CORS not allowed")
+        
+        # For non-OPTIONS requests, process normally and add CORS headers to response
+        response = await call_next(request)
+        
+        if origin:
+            # Check if origin is explicitly allowed
+            if origin in SecurityConfig.ALLOWED_ORIGINS:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                return response
+            
+            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
+            if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+                has_vercel_domain = any("vercel.app" in allowed_origin for allowed_origin in SecurityConfig.ALLOWED_ORIGINS)
+                if has_vercel_domain:
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                    return response
+        
+        return response
+
+# Add custom CORS middleware (replaces CORSMiddleware to support Vercel previews)
+app.add_middleware(CustomCORSMiddleware)
 
 
 # =============================================================================
