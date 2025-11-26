@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response, FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -34,7 +35,7 @@ from slowapi.util import get_remote_address
 
 from query_templates import QueryTemplates
 from rag_query import GraphRAGQuery, create_rag_query
-from utils.cache import EntityCache, QueryCache, get_cache
+from utils.cache import EntityCache, QueryCache, async_cached, get_cache
 
 # Import new utility modules
 from utils.logging_config import get_logger, setup_logging
@@ -301,6 +302,12 @@ async def limit_upload_size(request: Request, call_next):
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware)
 
+# Add Gzip compression for responses > 1KB (reduces response size by 70-90%)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add Gzip compression for responses > 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 # Add security headers middleware
 @app.middleware("http")
@@ -531,6 +538,108 @@ async def metrics():
     return Response(content=get_metrics(), media_type=get_metrics_content_type())
 
 
+def _parse_pipeline_logs_for_stats() -> Dict[str, Any]:
+    """Parse pipeline logs to extract statistics"""
+    import json
+    import re
+    from datetime import datetime
+    
+    stats = {
+        "total_runs": 0,
+        "total_articles_scraped": 0,
+        "total_articles_extracted": 0,
+        "total_entities_extracted": 0,
+        "total_relationships_created": 0,
+        "total_companies_enriched": 0,
+        "runs_by_phase": {},
+        "last_run": None,
+    }
+    
+    if not os.path.exists(pipeline_log_path):
+        return stats
+    
+    try:
+        with open(pipeline_log_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        
+        # Parse JSON log lines
+        lines = content.splitlines()
+        pipeline_starts = 0
+        last_scraping_stats = {}
+        last_extraction_stats = {}
+        last_enrichment_stats = {}
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            try:
+                # Try to parse as JSON log
+                if line.startswith("{") or '"event"' in line:
+                    log_entry = json.loads(line)
+                    event = log_entry.get("event", "")
+                    
+                    if event == "pipeline_starting":
+                        pipeline_starts += 1
+                        stats["total_runs"] = pipeline_starts
+                        stats["last_run"] = {
+                            "timestamp": log_entry.get("timestamp"),
+                            "phase": "starting"
+                        }
+                    
+                    elif event == "scraping_articles_discovered":
+                        count = log_entry.get("count", 0)
+                        last_scraping_stats["articles_discovered"] = count
+                    
+                    elif event == "scraping_complete":
+                        articles_extracted = log_entry.get("articles_extracted", 0)
+                        stats["total_articles_scraped"] += articles_extracted
+                        last_scraping_stats["articles_extracted"] = articles_extracted
+                    
+                    elif event == "extraction_complete" or event == "pipeline_phase_starting":
+                        phase = log_entry.get("phase", "")
+                        if phase == "1" and "name" in log_entry:
+                            last_extraction_stats["phase"] = "extraction"
+                    
+                    elif event == "enrichment_complete" or "enrichment" in event.lower():
+                        companies = log_entry.get("companies_scraped") or log_entry.get("total_companies", 0)
+                        last_enrichment_stats["companies"] = companies
+                        stats["total_companies_enriched"] += companies
+                        
+            except (json.JSONDecodeError, KeyError):
+                # Not JSON, try regex patterns for plain text logs
+                if "articles discovered" in line.lower() or "articles_discovered" in line.lower():
+                    match = re.search(r'count[":\s]+(\d+)', line, re.IGNORECASE)
+                    if match:
+                        last_scraping_stats["articles_discovered"] = int(match.group(1))
+                
+                if "articles extracted" in line.lower() or "articles_extracted" in line.lower():
+                    match = re.search(r'articles_extracted[":\s]+(\d+)', line, re.IGNORECASE)
+                    if match:
+                        count = int(match.group(1))
+                        stats["total_articles_extracted"] += count
+                        last_scraping_stats["articles_extracted"] = count
+                
+                if "entities extracted" in line.lower():
+                    match = re.search(r'(\d+)\s+entities', line, re.IGNORECASE)
+                    if match:
+                        stats["total_entities_extracted"] += int(match.group(1))
+        
+        # Update last run with collected stats
+        if stats["last_run"]:
+            stats["last_run"].update({
+                "articles_scraped": last_scraping_stats.get("articles_extracted", 0),
+                "articles_extracted": last_extraction_stats.get("articles_extracted", 0),
+                "companies_enriched": last_enrichment_stats.get("companies", 0),
+            })
+        
+    except Exception as e:
+        logger.warning("pipeline_stats_parse_failed", error=str(e))
+    
+    return stats
+
+
 @app.get("/analytics/dashboard", tags=["Analytics"])
 async def get_analytics_dashboard(
     hours: int = Query(24, ge=1, le=168, description="Time period in hours (max 7 days)"),
@@ -543,10 +652,16 @@ async def get_analytics_dashboard(
     - Time series data for the specified period
     - Endpoint breakdown
     - OpenAI model and operation breakdown
+    - Pipeline statistics (scraping, extraction, etc.)
     - Summary statistics
     """
     try:
         summary = get_analytics_summary(hours=hours, group_by=group_by)
+        
+        # Add pipeline statistics
+        pipeline_stats = _parse_pipeline_logs_for_stats()
+        summary["pipeline_stats"] = pipeline_stats
+        
         return summary
     except Exception as e:
         logger.error("analytics_dashboard_failed", error=str(e), exc_info=True)
@@ -730,6 +845,69 @@ async def get_system_status():
 # =============================================================================
 
 
+@async_cached(ttl=1800, key_prefix="neo4j_overview")  # Cache for 30 minutes
+async def _get_neo4j_overview_data() -> Dict[str, Any]:
+    """Internal function to fetch Neo4j overview data (cached)"""
+    if not rag_instance:
+        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+    
+    stats = rag_instance.query_templates.get_graph_statistics()
+
+    db_info: Dict[str, Any] = {"components": []}
+    labels: List[str] = []
+    rel_types: List[str] = []
+    top_connected: List[Dict[str, Any]] = []
+    top_important: List[Dict[str, Any]] = []
+
+    # Run best-effort metadata queries (Aura may restrict some procedures)
+    with rag_instance.driver.session() as session:
+        try:
+            comp = session.run(
+                "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition"
+            )
+            db_info["components"] = [dict(r) for r in comp]
+        except Exception:
+            db_info["components"] = []
+        try:
+            labs = session.run(
+                "CALL db.labels() YIELD label RETURN label ORDER BY label"
+            )
+            labels = [r["label"] for r in labs]
+        except Exception:
+            labels = []
+        try:
+            rels = session.run(
+                "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
+            )
+            rel_types = [r["relationshipType"] for r in rels]
+        except Exception:
+            rel_types = []
+
+    # Top entities
+    try:
+        top_connected = rag_instance.query_templates.get_most_connected_entities(
+            limit=10
+        )
+    except Exception:
+        top_connected = []
+    try:
+        top_important = rag_instance.query_templates.get_entity_importance_scores(
+            limit=10
+        )
+    except Exception:
+        top_important = []
+
+    return {
+        "status": "ok",
+        "db_info": db_info,
+        "labels": labels,
+        "relationship_types": rel_types,
+        "graph_stats": stats,
+        "top_connected_entities": top_connected,
+        "top_important_entities": top_important,
+    }
+
+
 @app.get("/admin/neo4j/overview", tags=["Admin", "Neo4j"])
 async def neo4j_overview() -> Dict[str, Any]:
     """
@@ -738,9 +916,17 @@ async def neo4j_overview() -> Dict[str, Any]:
     - labels, relationship types
     - node/relationship counts, community count
     - top entities by connectivity and importance
+    
+    Results are cached for 30 minutes to improve performance.
     """
-    if not rag_instance:
-        raise HTTPException(status_code=503, detail="RAG instance not initialized")
+    try:
+        return await _get_neo4j_overview_data()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch Neo4j overview: {e}"
+        )
 
     try:
         stats = rag_instance.query_templates.get_graph_statistics()

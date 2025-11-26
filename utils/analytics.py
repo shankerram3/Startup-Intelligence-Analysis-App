@@ -125,6 +125,40 @@ def track_query_execution(
         _trim_store()
 
 
+def track_pipeline_event(
+    phase: str,
+    event_type: str = "phase_complete",
+    duration: float = 0.0,
+    success: bool = True,
+    articles_scraped: int = 0,
+    articles_extracted: int = 0,
+    entities_extracted: int = 0,
+    relationships_created: int = 0,
+    companies_enriched: int = 0,
+    nodes_created: int = 0,
+    **kwargs
+):
+    """Track a pipeline event (scraping, extraction, etc.)"""
+    with _analytics_lock:
+        record = {
+            "type": "pipeline_event",
+            "timestamp": datetime.utcnow().isoformat(),
+            "phase": phase,  # scraping, extraction, enrichment, graph_building, etc.
+            "event_type": event_type,  # phase_complete, phase_start, phase_error
+            "duration_ms": duration * 1000,
+            "success": success,
+            "articles_scraped": articles_scraped,
+            "articles_extracted": articles_extracted,
+            "entities_extracted": entities_extracted,
+            "relationships_created": relationships_created,
+            "companies_enriched": companies_enriched,
+            "nodes_created": nodes_created,
+            **kwargs
+        }
+        _analytics_store.append(record)
+        _trim_store()
+
+
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimate cost in USD based on model and token usage"""
     # Pricing as of 2024 (per 1M tokens)
@@ -171,6 +205,11 @@ def get_analytics_summary(
             "openai_calls": 0,
             "neo4j_queries": 0,
             "query_executions": 0,
+            "pipeline_events": 0,
+            "articles_scraped": 0,
+            "articles_extracted": 0,
+            "entities_extracted": 0,
+            "relationships_created": 0,
             "openai_tokens": 0,
             "openai_cost": 0.0,
             "api_errors": 0,
@@ -214,6 +253,13 @@ def get_analytics_summary(
                 
             elif record["type"] == "query_execution":
                 group["query_executions"] += 1
+                
+            elif record["type"] == "pipeline_event":
+                group["pipeline_events"] += 1
+                group["articles_scraped"] += record.get("articles_scraped", 0)
+                group["articles_extracted"] += record.get("articles_extracted", 0)
+                group["entities_extracted"] += record.get("entities_extracted", 0)
+                group["relationships_created"] += record.get("relationships_created", 0)
         
         # Calculate averages
         if api_durations:
@@ -278,6 +324,11 @@ def get_analytics_summary(
                 "total_openai_calls": sum(g["openai_calls"] for g in time_groups.values()),
                 "total_neo4j_queries": sum(g["neo4j_queries"] for g in time_groups.values()),
                 "total_query_executions": sum(g["query_executions"] for g in time_groups.values()),
+                "total_pipeline_events": sum(g["pipeline_events"] for g in time_groups.values()),
+                "total_articles_scraped": sum(g["articles_scraped"] for g in time_groups.values()),
+                "total_articles_extracted": sum(g["articles_extracted"] for g in time_groups.values()),
+                "total_entities_extracted": sum(g["entities_extracted"] for g in time_groups.values()),
+                "total_relationships_created": sum(g["relationships_created"] for g in time_groups.values()),
                 "total_openai_tokens": sum(g["openai_tokens"] for g in time_groups.values()),
                 "total_openai_cost": sum(g["openai_cost"] for g in time_groups.values()),
                 "total_api_errors": sum(g["api_errors"] for g in time_groups.values()),

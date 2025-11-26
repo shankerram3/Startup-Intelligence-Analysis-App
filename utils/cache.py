@@ -70,6 +70,8 @@ class CacheManager:
                         decode_responses=False,
                         socket_connect_timeout=5,
                         socket_timeout=5,
+                        max_connections=50,  # Connection pool size
+                        retry_on_timeout=True,
                     )
                 else:
                     # Use individual config parameters
@@ -82,6 +84,8 @@ class CacheManager:
                         decode_responses=False,  # We'll handle encoding/decoding
                         socket_connect_timeout=5,
                         socket_timeout=5,
+                        max_connections=50,  # Connection pool size
+                        retry_on_timeout=True,
                     )
                 # Test connection
                 self._client.ping()

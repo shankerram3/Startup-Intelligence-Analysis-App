@@ -443,6 +443,11 @@ export type AnalyticsTimeSeries = Record<string, {
   openai_calls: number;
   neo4j_queries: number;
   query_executions: number;
+  pipeline_events?: number;
+  articles_scraped?: number;
+  articles_extracted?: number;
+  entities_extracted?: number;
+  relationships_created?: number;
   openai_tokens: number;
   openai_cost: number;
   api_errors: number;
@@ -473,10 +478,31 @@ export type AnalyticsDashboardResponse = {
     total_openai_calls: number;
     total_neo4j_queries: number;
     total_query_executions: number;
+    total_pipeline_events?: number;
+    total_articles_scraped?: number;
+    total_articles_extracted?: number;
+    total_entities_extracted?: number;
+    total_relationships_created?: number;
     total_openai_tokens: number;
     total_openai_cost: number;
     total_api_errors: number;
     total_openai_errors: number;
+  };
+  pipeline_stats?: {
+    total_runs: number;
+    total_articles_scraped: number;
+    total_articles_extracted: number;
+    total_entities_extracted: number;
+    total_relationships_created: number;
+    total_companies_enriched: number;
+    runs_by_phase: Record<string, number>;
+    last_run: {
+      timestamp?: string;
+      phase?: string;
+      articles_scraped?: number;
+      articles_extracted?: number;
+      companies_enriched?: number;
+    } | null;
   };
 };
 

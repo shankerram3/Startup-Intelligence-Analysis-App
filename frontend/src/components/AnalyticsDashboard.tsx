@@ -88,7 +88,10 @@ export function AnalyticsDashboard() {
   if (!data) return null;
 
   const summary = data.summary;
-  const timeSeriesEntries = Object.entries(data.time_series).slice(-20); // Last 20 data points
+  // Ensure time_series exists and is an object, handle empty case
+  const timeSeriesEntries = data.time_series && typeof data.time_series === 'object' 
+    ? Object.entries(data.time_series).slice(-20) // Last 20 data points
+    : [];
 
   return (
     <div style={{ display: 'grid', gap: 24, minHeight: 0 }}>
@@ -300,45 +303,215 @@ export function AnalyticsDashboard() {
           icon="🗄️"
           trend={summary.total_neo4j_queries > 0 ? 'up' : 'neutral'}
         />
+        {summary.total_articles_scraped !== undefined && (
+          <MetricCard
+            title="Articles Scraped"
+            value={summary.total_articles_scraped.toLocaleString()}
+            subtitle="Total scraped"
+            color="#f97316"
+            icon="📰"
+            trend={summary.total_articles_scraped > 0 ? 'up' : 'neutral'}
+          />
+        )}
+        {summary.total_articles_extracted !== undefined && (
+          <MetricCard
+            title="Articles Extracted"
+            value={summary.total_articles_extracted.toLocaleString()}
+            subtitle="Entities extracted"
+            color="#ec4899"
+            icon="🔍"
+            trend={summary.total_articles_extracted > 0 ? 'up' : 'neutral'}
+          />
+        )}
+        {summary.total_entities_extracted !== undefined && (
+          <MetricCard
+            title="Entities Extracted"
+            value={summary.total_entities_extracted.toLocaleString()}
+            subtitle="Total entities"
+            color="#a855f7"
+            icon="🏷️"
+            trend={summary.total_entities_extracted > 0 ? 'up' : 'neutral'}
+          />
+        )}
       </div>
 
       {/* Time Series Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
-        <ChartCard title="API Calls Over Time" icon="📈">
-          <EnhancedLineChart
-            data={timeSeriesEntries}
-            dataKey="api_calls"
-            color="#3b82f6"
-            gradientColor="rgba(59, 130, 246, 0.2)"
-          />
-        </ChartCard>
-        <ChartCard title="OpenAI Calls Over Time" icon="🤖">
-          <EnhancedLineChart
-            data={timeSeriesEntries}
-            dataKey="openai_calls"
-            color="#10b981"
-            gradientColor="rgba(16, 185, 129, 0.2)"
-          />
-        </ChartCard>
-        <ChartCard title="OpenAI Cost Over Time" icon="💰">
-          <EnhancedLineChart
-            data={timeSeriesEntries}
-            dataKey="openai_cost"
-            color="#ef4444"
-            gradientColor="rgba(239, 68, 68, 0.2)"
-            formatValue={(v) => `$${v.toFixed(2)}`}
-          />
-        </ChartCard>
-        <ChartCard title="OpenAI Tokens Over Time" icon="🔢">
-          <EnhancedLineChart
-            data={timeSeriesEntries}
-            dataKey="openai_tokens"
-            color="#f59e0b"
-            gradientColor="rgba(245, 158, 11, 0.2)"
-            formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
-          />
-        </ChartCard>
-      </div>
+      {timeSeriesEntries.length > 0 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
+          <ChartCard title="API Calls Over Time" icon="📈">
+            <EnhancedLineChart
+              data={timeSeriesEntries}
+              dataKey="api_calls"
+              color="#3b82f6"
+              gradientColor="rgba(59, 130, 246, 0.2)"
+            />
+          </ChartCard>
+          <ChartCard title="OpenAI Calls Over Time" icon="🤖">
+            <EnhancedLineChart
+              data={timeSeriesEntries}
+              dataKey="openai_calls"
+              color="#10b981"
+              gradientColor="rgba(16, 185, 129, 0.2)"
+            />
+          </ChartCard>
+          <ChartCard title="OpenAI Cost Over Time" icon="💰">
+            <EnhancedLineChart
+              data={timeSeriesEntries}
+              dataKey="openai_cost"
+              color="#ef4444"
+              gradientColor="rgba(239, 68, 68, 0.2)"
+              formatValue={(v) => `$${v.toFixed(2)}`}
+            />
+          </ChartCard>
+          <ChartCard title="OpenAI Tokens Over Time" icon="🔢">
+            <EnhancedLineChart
+              data={timeSeriesEntries}
+              dataKey="openai_tokens"
+              color="#f59e0b"
+              gradientColor="rgba(245, 158, 11, 0.2)"
+              formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
+            />
+          </ChartCard>
+          {timeSeriesEntries.some(([, d]) => d.articles_scraped) && (
+            <ChartCard title="Articles Scraped Over Time" icon="📰">
+              <EnhancedLineChart
+                data={timeSeriesEntries}
+                dataKey="articles_scraped"
+                color="#f97316"
+                gradientColor="rgba(249, 115, 22, 0.2)"
+              />
+            </ChartCard>
+          )}
+          {timeSeriesEntries.some(([, d]) => d.articles_extracted) && (
+            <ChartCard title="Articles Extracted Over Time" icon="🔍">
+              <EnhancedLineChart
+                data={timeSeriesEntries}
+                dataKey="articles_extracted"
+                color="#ec4899"
+                gradientColor="rgba(236, 72, 153, 0.2)"
+              />
+            </ChartCard>
+          )}
+          {timeSeriesEntries.some(([, d]) => d.entities_extracted) && (
+            <ChartCard title="Entities Extracted Over Time" icon="🏷️">
+              <EnhancedLineChart
+                data={timeSeriesEntries}
+                dataKey="entities_extracted"
+                color="#a855f7"
+                gradientColor="rgba(168, 85, 247, 0.2)"
+              />
+            </ChartCard>
+          )}
+        </div>
+      ) : (
+        <div style={{
+          padding: 40,
+          background: 'rgba(30, 41, 59, 0.6)',
+          borderRadius: 16,
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          textAlign: 'center',
+          color: '#94a3b8'
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>No time series data available</div>
+          <div style={{ fontSize: 14 }}>Data will appear here once API calls are made</div>
+        </div>
+      )}
+
+      {/* Pipeline Statistics */}
+      {data.pipeline_stats && (
+        <div style={{
+          padding: 24,
+          background: 'rgba(30, 41, 59, 0.6)',
+          borderRadius: 16,
+          border: '1px solid rgba(249, 115, 22, 0.2)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <span style={{ fontSize: 20 }}>⚙️</span>
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#f1f5f9' }}>
+              Pipeline Statistics
+            </h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+            <div style={{ padding: 16, background: 'rgba(15, 23, 42, 0.4)', borderRadius: 12 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Total Runs</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#f97316' }}>
+                {data.pipeline_stats.total_runs}
+              </div>
+            </div>
+            <div style={{ padding: 16, background: 'rgba(15, 23, 42, 0.4)', borderRadius: 12 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Articles Scraped</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#f97316' }}>
+                {data.pipeline_stats.total_articles_scraped.toLocaleString()}
+              </div>
+            </div>
+            <div style={{ padding: 16, background: 'rgba(15, 23, 42, 0.4)', borderRadius: 12 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Articles Extracted</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#ec4899' }}>
+                {data.pipeline_stats.total_articles_extracted.toLocaleString()}
+              </div>
+            </div>
+            <div style={{ padding: 16, background: 'rgba(15, 23, 42, 0.4)', borderRadius: 12 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Entities Extracted</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#a855f7' }}>
+                {data.pipeline_stats.total_entities_extracted.toLocaleString()}
+              </div>
+            </div>
+            <div style={{ padding: 16, background: 'rgba(15, 23, 42, 0.4)', borderRadius: 12 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Companies Enriched</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#ec4899' }}>
+                {data.pipeline_stats.total_companies_enriched.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          {data.pipeline_stats.last_run && (
+            <div style={{ 
+              marginTop: 20, 
+              padding: 16, 
+              background: 'rgba(15, 23, 42, 0.6)', 
+              borderRadius: 12,
+              border: '1px solid rgba(249, 115, 22, 0.3)'
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9', marginBottom: 12 }}>Last Run</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, fontSize: 13 }}>
+                {data.pipeline_stats.last_run.articles_scraped !== undefined && (
+                  <div>
+                    <div style={{ color: '#94a3b8' }}>Articles Scraped</div>
+                    <div style={{ color: '#f97316', fontWeight: 600 }}>
+                      {data.pipeline_stats.last_run.articles_scraped}
+                    </div>
+                  </div>
+                )}
+                {data.pipeline_stats.last_run.articles_extracted !== undefined && (
+                  <div>
+                    <div style={{ color: '#94a3b8' }}>Articles Extracted</div>
+                    <div style={{ color: '#ec4899', fontWeight: 600 }}>
+                      {data.pipeline_stats.last_run.articles_extracted}
+                    </div>
+                  </div>
+                )}
+                {data.pipeline_stats.last_run.companies_enriched !== undefined && (
+                  <div>
+                    <div style={{ color: '#94a3b8' }}>Companies Enriched</div>
+                    <div style={{ color: '#ec4899', fontWeight: 600 }}>
+                      {data.pipeline_stats.last_run.companies_enriched}
+                    </div>
+                  </div>
+                )}
+                {data.pipeline_stats.last_run.timestamp && (
+                  <div>
+                    <div style={{ color: '#94a3b8' }}>Timestamp</div>
+                    <div style={{ color: '#cbd5e1', fontSize: 12 }}>
+                      {new Date(data.pipeline_stats.last_run.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Breakdowns */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
@@ -534,17 +707,68 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
   gradientColor: string;
   formatValue?: (v: number) => string;
 }) {
-  const values = data.map(([, d]) => d[dataKey] || 0);
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values);
-  const range = max - min || 1;
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ 
+        height: 240, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: '#94a3b8',
+        fontSize: 14
+      }}>
+        No data available
+      </div>
+    );
+  }
 
-  // Create path for area fill
+  // Handle single data point
+  if (data.length === 1) {
+    const d = data[0][1];
+    const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
+    return (
+      <div style={{ height: 240, position: 'relative' }}>
+        <div style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 8
+        }}>
+          <div style={{ fontSize: 32, fontWeight: 700, color }}>
+            {formatValue ? formatValue(value) : value.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            Single data point
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract values safely
+  const values = data.map(([, d]) => {
+    if (!d || typeof d !== 'object') return 0;
+    const val = d[dataKey];
+    return typeof val === 'number' && !isNaN(val) ? val : 0;
+  });
+  
+  const max = values.length > 0 ? Math.max(...values, 0) : 1;
+  const min = values.length > 0 ? Math.min(...values, 0) : 0;
+  const range = max - min || 1;
+  const chartHeight = 80; // Percentage of chart height to use for data
+
+  // Create path for area fill - ensure valid coordinates
   const areaPath = data.map(([, d], i) => {
-    const value = d[dataKey] || 0;
-    const x = (i / (data.length - 1 || 1)) * 100;
-    const y = 100 - ((value - min) / range) * 80;
-    return `${i === 0 ? 'M' : 'L'} ${x}% ${y}%`;
+    const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
+    const normalizedValue = typeof value === 'number' ? value : 0;
+    const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
+    const y = 100 - ((normalizedValue - min) / range) * chartHeight;
+    // Clamp y to valid range [20, 100] to avoid overflow
+    const clampedY = Math.max(20, Math.min(100, y));
+    return `${i === 0 ? 'M' : 'L'} ${x}% ${clampedY}%`;
   }).join(' ') + ` L 100% 100% L 0% 100% Z`;
 
   return (
@@ -566,10 +790,12 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
         {/* Line */}
         <polyline
           points={data.map(([, d], i) => {
-            const value = d[dataKey] || 0;
-            const x = (i / (data.length - 1 || 1)) * 100;
-            const y = 100 - ((value - min) / range) * 80;
-            return `${x}%,${y}%`;
+            const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
+            const normalizedValue = typeof value === 'number' ? value : 0;
+            const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
+            const y = 100 - ((normalizedValue - min) / range) * chartHeight;
+            const clampedY = Math.max(20, Math.min(100, y));
+            return `${x}%,${clampedY}%`;
           }).join(' ')}
           fill="none"
           stroke={color}
@@ -580,14 +806,16 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
         
         {/* Data points */}
         {data.map(([, d], i) => {
-          const value = d[dataKey] || 0;
-          const x = (i / (data.length - 1 || 1)) * 100;
-          const y = 100 - ((value - min) / range) * 80;
+          const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
+          const normalizedValue = typeof value === 'number' ? value : 0;
+          const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
+          const y = 100 - ((normalizedValue - min) / range) * chartHeight;
+          const clampedY = Math.max(20, Math.min(100, y));
           return (
             <g key={i}>
               <circle
                 cx={`${x}%`}
-                cy={`${y}%`}
+                cy={`${clampedY}%`}
                 r="5"
                 fill={color}
                 stroke="#0f172a"
@@ -595,7 +823,7 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
               />
               <circle
                 cx={`${x}%`}
-                cy={`${y}%`}
+                cy={`${clampedY}%`}
                 r="8"
                 fill={color}
                 opacity="0.2"

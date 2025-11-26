@@ -14,6 +14,15 @@ from neo4j import GraphDatabase
 # Import structured logging
 from utils.logging_config import get_logger, setup_logging
 
+# Import analytics tracking
+try:
+    from utils.analytics import track_pipeline_event
+    ANALYTICS_AVAILABLE = True
+except ImportError:
+    ANALYTICS_AVAILABLE = False
+    def track_pipeline_event(*args, **kwargs):
+        pass  # No-op if analytics not available
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -161,10 +170,10 @@ def run_pipeline(
             else:
                 category_url = scrape_category  # Assume it's a full URL
 
-            # Initialize scraper
+            # Initialize scraper with optimized settings
             scraper = TechCrunchScraper(
                 output_dir=articles_dir,
-                rate_limit_delay=3.0,
+                rate_limit_delay=1.0,  # Optimized: Reduced from 3.0s to 1.0s for faster scraping
                 max_pages=scrape_max_pages,
             )
 
@@ -189,14 +198,24 @@ def run_pipeline(
                 )
                 articles = articles[:max_articles]
 
-            # Extract articles
+            # Extract articles with optimized batch size
             logger.info("scraping_extracting_articles", count=len(articles))
-            asyncio.run(scraper.extract_articles(articles=articles, batch_size=10))
+            asyncio.run(scraper.extract_articles(articles=articles, batch_size=20))  # Optimized: Increased from 10 to 20 for faster processing
 
+            articles_extracted_count = scraper.stats["articles_extracted"]
             logger.info(
                 "scraping_complete",
-                articles_extracted=scraper.stats["articles_extracted"],
+                articles_extracted=articles_extracted_count,
             )
+            # Track pipeline event for analytics
+            if ANALYTICS_AVAILABLE:
+                track_pipeline_event(
+                    phase="scraping",
+                    event_type="phase_complete",
+                    success=True,
+                    articles_scraped=articles_extracted_count,
+                    articles_extracted=articles_extracted_count,
+                )
 
         except Exception as e:
             logger.error("scraping_failed", error=str(e), exc_info=True)
@@ -307,7 +326,7 @@ def run_pipeline(
             intelligence_dir = output_path / "company_intelligence"
             scraper = CompanyIntelligenceScraper(
                 output_dir=str(intelligence_dir),
-                rate_limit_delay=0.5,  # Minimal delay as requested
+                rate_limit_delay=0.3,  # Optimized: Reduced from 0.5s for faster company scraping
                 timeout=30000,
                 headless=True,
             )

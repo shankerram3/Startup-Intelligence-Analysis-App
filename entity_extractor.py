@@ -492,8 +492,8 @@ def process_articles_directory(
 
             progress_tracker.mark_processed()
 
-            # Save checkpoint periodically (every 10 articles)
-            if i % 10 == 0:
+            # Save checkpoint periodically (every 25 articles) - Optimized for better performance
+            if i % 25 == 0:
                 checkpoint.save()
                 # Save all extractions incrementally
                 with open(all_extractions_file, "w", encoding="utf-8") as f:
