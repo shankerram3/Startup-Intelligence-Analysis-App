@@ -32,6 +32,41 @@ function getApiBaseUrl(): string {
 
 export const API_BASE_URL: string = getApiBaseUrl();
 
+// Runtime-configurable API key
+// Priority: window.__API_KEY__ > VITE_API_KEY > none (optional)
+// For Vercel deployment, set VITE_API_KEY environment variable
+function getApiKey(): string | undefined {
+  // 1. Check for runtime config (injected via script tag in index.html)
+  if (typeof window !== 'undefined' && (window as any).__API_KEY__) {
+    return (window as any).__API_KEY__;
+  }
+  
+  // 2. Check for build-time env var (for Vercel/production)
+  const envKey = (import.meta as any).env?.VITE_API_KEY;
+  if (envKey) {
+    return envKey;
+  }
+  
+  // 3. No API key (optional - only needed if backend requires it)
+  return undefined;
+}
+
+export const API_KEY: string | undefined = getApiKey();
+
+// Helper function to get default headers with API key
+function getDefaultHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Add API key if configured
+  if (API_KEY) {
+    headers['X-API-Key'] = API_KEY;
+  }
+  
+  return headers;
+}
+
 export type QueryRequest = {
   question: string;
   return_context?: boolean;
@@ -112,7 +147,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function postJson<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getDefaultHeaders(),
     body: JSON.stringify(body)
   });
   return handleResponse<TRes>(res);
@@ -124,7 +159,8 @@ export async function getJson<TRes>(path: string, timeout: number = 10000): Prom
   
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, {
-      signal: controller.signal
+      signal: controller.signal,
+      headers: getDefaultHeaders()
     });
     clearTimeout(timeoutId);
     return handleResponse<TRes>(res);
@@ -159,7 +195,9 @@ export async function fetchNeo4jOverview(): Promise<Neo4jOverview> {
 }
 
 export async function getText(path: string): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}${path}`);
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: getDefaultHeaders()
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(text || `HTTP ${res.status}`);

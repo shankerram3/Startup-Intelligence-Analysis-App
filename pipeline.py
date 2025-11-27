@@ -215,7 +215,7 @@ def run_pipeline(
                     success=True,
                     articles_scraped=articles_extracted_count,
                     articles_extracted=articles_extracted_count,
-                )
+            )
 
         except Exception as e:
             logger.error("scraping_failed", error=str(e), exc_info=True)

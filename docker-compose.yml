@@ -51,6 +51,9 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - JSON_LOGS=${JSON_LOGS:-true}
       - ENABLE_FILE_LOGGING=${ENABLE_FILE_LOGGING:-false}
+      # Cloudflare Tunnel Configuration (Optional)
+      # Set CLOUDFLARE_TUNNEL_TOKEN in .env file to enable tunnel inside container
+      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

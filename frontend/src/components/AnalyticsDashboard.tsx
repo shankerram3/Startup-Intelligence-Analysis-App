@@ -337,41 +337,41 @@ export function AnalyticsDashboard() {
 
       {/* Time Series Charts */}
       {timeSeriesEntries.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
-          <ChartCard title="API Calls Over Time" icon="📈">
-            <EnhancedLineChart
-              data={timeSeriesEntries}
-              dataKey="api_calls"
-              color="#3b82f6"
-              gradientColor="rgba(59, 130, 246, 0.2)"
-            />
-          </ChartCard>
-          <ChartCard title="OpenAI Calls Over Time" icon="🤖">
-            <EnhancedLineChart
-              data={timeSeriesEntries}
-              dataKey="openai_calls"
-              color="#10b981"
-              gradientColor="rgba(16, 185, 129, 0.2)"
-            />
-          </ChartCard>
-          <ChartCard title="OpenAI Cost Over Time" icon="💰">
-            <EnhancedLineChart
-              data={timeSeriesEntries}
-              dataKey="openai_cost"
-              color="#ef4444"
-              gradientColor="rgba(239, 68, 68, 0.2)"
-              formatValue={(v) => `$${v.toFixed(2)}`}
-            />
-          </ChartCard>
-          <ChartCard title="OpenAI Tokens Over Time" icon="🔢">
-            <EnhancedLineChart
-              data={timeSeriesEntries}
-              dataKey="openai_tokens"
-              color="#f59e0b"
-              gradientColor="rgba(245, 158, 11, 0.2)"
-              formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
-            />
-          </ChartCard>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
+        <ChartCard title="API Calls Over Time" icon="📈">
+          <EnhancedLineChart
+            data={timeSeriesEntries}
+            dataKey="api_calls"
+            color="#3b82f6"
+            gradientColor="rgba(59, 130, 246, 0.2)"
+          />
+        </ChartCard>
+        <ChartCard title="OpenAI Calls Over Time" icon="🤖">
+          <EnhancedLineChart
+            data={timeSeriesEntries}
+            dataKey="openai_calls"
+            color="#10b981"
+            gradientColor="rgba(16, 185, 129, 0.2)"
+          />
+        </ChartCard>
+        <ChartCard title="OpenAI Cost Over Time" icon="💰">
+          <EnhancedLineChart
+            data={timeSeriesEntries}
+            dataKey="openai_cost"
+            color="#ef4444"
+            gradientColor="rgba(239, 68, 68, 0.2)"
+            formatValue={(v) => `$${v.toFixed(2)}`}
+          />
+        </ChartCard>
+        <ChartCard title="OpenAI Tokens Over Time" icon="🔢">
+          <EnhancedLineChart
+            data={timeSeriesEntries}
+            dataKey="openai_tokens"
+            color="#f59e0b"
+            gradientColor="rgba(245, 158, 11, 0.2)"
+            formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
+          />
+        </ChartCard>
           {timeSeriesEntries.some(([, d]) => d.articles_scraped) && (
             <ChartCard title="Articles Scraped Over Time" icon="📰">
               <EnhancedLineChart
@@ -402,7 +402,7 @@ export function AnalyticsDashboard() {
               />
             </ChartCard>
           )}
-        </div>
+      </div>
       ) : (
         <div style={{
           padding: 40,

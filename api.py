@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response, FileResponse
@@ -57,6 +57,7 @@ from utils.monitoring import (
 from utils.security import (
     SecurityConfig,
     optional_auth,
+    require_api_key,
     sanitize_error_message,
     verify_token,
 )
@@ -1299,6 +1300,235 @@ async def multi_hop_reasoning(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Multi-hop query failed: {str(e)}")
+
+
+# =============================================================================
+# ARTICLE ENDPOINTS (for Flutter app)
+# =============================================================================
+
+
+@app.get("/api/articles", tags=["Articles"], dependencies=[Depends(require_api_key)])
+async def get_articles(
+    page: int = Query(0, ge=0, description="Page number (0-indexed)"),
+    limit: int = Query(20, ge=1, le=100, description="Number of articles per page"),
+):
+    """
+    Get paginated list of articles, sorted by published date (newest first)
+    """
+    try:
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        articles_dir = Path("data/articles/articles")
+        if not articles_dir.exists():
+            return {"articles": [], "total": 0, "page": page, "limit": limit}
+
+        # Find all article JSON files
+        article_files = []
+        for json_file in articles_dir.rglob("tc_*.json"):
+            # Skip metadata files
+            if "metadata" in json_file.parts:
+                continue
+            article_files.append(json_file)
+
+        # Load and parse articles
+        articles = []
+        for article_file in article_files:
+            try:
+                with open(article_file, "r", encoding="utf-8") as f:
+                    article_data = json.load(f)
+                    # Ensure it has required fields
+                    if "article_id" in article_data and "url" in article_data:
+                        articles.append(article_data)
+            except Exception as e:
+                logger.debug(f"Failed to load article {article_file}: {e}")
+                continue
+
+        # Sort by published_date (newest first)
+        def get_date(article):
+            date_str = article.get("published_date", "")
+            if not date_str:
+                return datetime.min
+            try:
+                return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            except:
+                return datetime.min
+
+        articles.sort(key=get_date, reverse=True)
+
+        # Paginate
+        total = len(articles)
+        start = page * limit
+        end = start + limit
+        paginated_articles = articles[start:end]
+
+        return {
+            "articles": paginated_articles,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "has_more": end < total,
+        }
+    except Exception as e:
+        logger.error("get_articles_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get articles: {sanitize_error_message(str(e))}",
+        )
+
+
+@app.get("/api/articles/{article_id}/exists", tags=["Articles"])
+async def check_article_exists(article_id: str):
+    """
+    Check if an article exists in the graph database
+    """
+    try:
+        if not rag_instance:
+            raise HTTPException(
+                status_code=503, detail="RAG instance not initialized"
+            )
+
+        # Check if article exists in Neo4j
+        from neo4j import GraphDatabase
+        import os
+
+        driver = GraphDatabase.driver(
+            os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+            auth=(
+                os.getenv("NEO4J_USER", "neo4j"),
+                os.getenv("NEO4J_PASSWORD", ""),
+            ),
+        )
+
+        try:
+            with driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (a:Article {id: $article_id})
+                    OPTIONAL MATCH (e)
+                    WHERE e.article_count IS NOT NULL 
+                      AND $article_id IN e.source_articles
+                    RETURN count(e) as entity_count
+                """,
+                    article_id=article_id,
+                )
+                record = result.single()
+                entity_count = record["entity_count"] if record else 0
+                exists = entity_count > 0
+        finally:
+            driver.close()
+
+        return {"exists": exists, "article_id": article_id}
+    except Exception as e:
+        logger.error("check_article_exists_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check article existence: {sanitize_error_message(str(e))}",
+        )
+
+
+class AddArticleRequest(BaseModel):
+    """Request model for adding article"""
+
+    url: str = Field(..., description="Article URL to scrape and add")
+
+
+@app.post("/api/articles/add", tags=["Articles"])
+async def add_article_to_graph(
+    request: AddArticleRequest,
+    user: Optional[Dict] = Depends(optional_auth),
+):
+    """
+    Add an article to the graph by URL.
+    If the article is not cached, it will be scraped and processed.
+    """
+    try:
+        import hashlib
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        # Generate article ID from URL
+        article_id = hashlib.md5(request.url.encode()).hexdigest()[:12]
+
+        # Check if article already exists in cache
+        articles_dir = Path("data/articles/articles")
+        article_file = None
+
+        # Search for existing article file
+        if articles_dir.exists():
+            for json_file in articles_dir.rglob(f"tc_{article_id}.json"):
+                if "metadata" not in json_file.parts:
+                    article_file = json_file
+                    break
+
+        # If article doesn't exist, we need to scrape it
+        # For now, return a message that scraping needs to be done via pipeline
+        if article_file is None:
+            return {
+                "status": "pending",
+                "message": "Article not found in cache. Please use the pipeline to scrape and process it.",
+                "article_id": article_id,
+                "url": request.url,
+            }
+
+        # Article exists in cache, check if it's in graph
+        with open(article_file, "r", encoding="utf-8") as f:
+            article_data = json.load(f)
+
+        # Check if already in graph
+        from neo4j import GraphDatabase
+        import os
+
+        driver = GraphDatabase.driver(
+            os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+            auth=(
+                os.getenv("NEO4J_USER", "neo4j"),
+                os.getenv("NEO4J_PASSWORD", ""),
+            ),
+        )
+
+        try:
+            with driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (a:Article {id: $article_id})
+                    OPTIONAL MATCH (e)
+                    WHERE e.article_count IS NOT NULL 
+                      AND $article_id IN e.source_articles
+                    RETURN count(e) as entity_count
+                """,
+                    article_id=article_id,
+                )
+                record = result.single()
+                entity_count = record["entity_count"] if record else 0
+                in_graph = entity_count > 0
+        finally:
+            driver.close()
+
+        if in_graph:
+            return {
+                "status": "exists",
+                "message": "Article already exists in graph",
+                "article_id": article_id,
+            }
+
+        # Article is cached but not in graph - trigger processing
+        # This would require running the entity extraction and graph building pipeline
+        # For now, return a message
+        return {
+            "status": "cached_not_processed",
+            "message": "Article found in cache but not processed. Please run the pipeline to process it.",
+            "article_id": article_id,
+        }
+
+    except Exception as e:
+        logger.error("add_article_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to add article: {sanitize_error_message(str(e))}",
+        )
 
 
 # =============================================================================

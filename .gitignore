@@ -61,3 +61,5 @@ htmlcov/
 *.cover
 .hypothesis/
 cloudflared-linux-amd64.deb
+flutter_app/
+flutter_app/

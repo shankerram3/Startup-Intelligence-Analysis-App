@@ -45,6 +45,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Install cloudflared for Cloudflare Tunnel
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared \
+    && chmod +x /usr/local/bin/cloudflared
+
 # Install Playwright dependencies (for company intelligence scraper)
 RUN apt-get update && apt-get install -y \
     libnss3 \
@@ -82,6 +86,9 @@ RUN playwright install-deps chromium
 # Copy application code (frontend folder excluded via .dockerignore)
 COPY . .
 
+# Make startup script executable
+RUN chmod +x /app/scripts/start-api-with-tunnel.sh
+
 # Conditionally copy built frontend from builder stage if BUILD_FRONTEND=true
 # Frontend is served separately from Vercel when BUILD_FRONTEND=false (default)
 # Note: dist directory is created in frontend-builder stage even when BUILD_FRONTEND=false
@@ -115,6 +122,6 @@ ENV DISABLE_RELOAD="true"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the API server
-CMD ["python", "api.py"]
+# Run the API server with optional Cloudflare Tunnel
+CMD ["/app/scripts/start-api-with-tunnel.sh"]
 

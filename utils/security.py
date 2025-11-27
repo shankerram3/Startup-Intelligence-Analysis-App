@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
@@ -371,6 +371,156 @@ async def verify_api_key(api_key: str) -> bool:
         return True
 
     return api_key in SecurityConfig.API_KEYS
+
+
+async def require_api_key(
+    request: Request,
+) -> str:
+    """
+    Dependency to require API key authentication
+    
+    Checks for API key in:
+    1. X-API-Key header (preferred)
+    2. Authorization header as Bearer token
+    3. api_key query parameter (less secure, for testing)
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        The validated API key
+        
+    Raises:
+        HTTPException: If API key is missing or invalid
+        
+    Usage:
+        @app.get("/protected")
+        async def protected_route(api_key: str = Depends(require_api_key)):
+            return {"message": "Access granted"}
+    """
+    # Check if API keys are configured
+    if not SecurityConfig.API_KEYS:
+        # If no API keys configured, allow all (development mode)
+        # But warn in logs
+        import warnings
+        warnings.warn(
+            "API_KEYS not configured. All requests are allowed. "
+            "Set API_KEYS in .env for production security.",
+            UserWarning,
+            stacklevel=2
+        )
+        return "dev-mode-no-key-required"
+    
+    # Try to get API key from various sources
+    api_key = None
+    
+    # 1. Check X-API-Key header (preferred)
+    api_key = request.headers.get(API_KEY_HEADER) or request.headers.get("X-API-Key")
+    
+    # 2. Check Authorization header (Bearer token format)
+    if not api_key:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header.replace("Bearer ", "").strip()
+        elif auth_header.startswith("ApiKey "):
+            api_key = auth_header.replace("ApiKey ", "").strip()
+    
+    # 3. Check query parameter (less secure, for testing only)
+    if not api_key:
+        api_key = request.query_params.get("api_key")
+    
+    # Validate API key
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Provide it via X-API-Key header, Authorization header (Bearer token), or api_key query parameter.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    # Verify the API key
+    if not await verify_api_key(api_key):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API key. Access denied.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    return api_key
+
+
+async def require_api_key(
+    request: Request,
+) -> str:
+    """
+    Dependency to require API key authentication
+    
+    Checks for API key in:
+    1. X-API-Key header (preferred)
+    2. Authorization header as Bearer token
+    3. api_key query parameter (less secure, for testing)
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        The validated API key
+        
+    Raises:
+        HTTPException: If API key is missing or invalid
+        
+    Usage:
+        @app.get("/protected")
+        async def protected_route(api_key: str = Depends(require_api_key)):
+            return {"message": "Access granted"}
+    """
+    # Check if API keys are configured
+    if not SecurityConfig.API_KEYS:
+        # If no API keys configured, allow all (development mode)
+        # But warn in logs
+        import warnings
+        warnings.warn(
+            "API_KEYS not configured. All requests are allowed. "
+            "Set API_KEYS in .env for production security.",
+            UserWarning,
+            stacklevel=2
+        )
+        return "dev-mode-no-key-required"
+    
+    # Try to get API key from various sources
+    api_key = None
+    
+    # 1. Check X-API-Key header (preferred)
+    api_key = request.headers.get(API_KEY_HEADER) or request.headers.get("X-API-Key")
+    
+    # 2. Check Authorization header (Bearer token format)
+    if not api_key:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header.replace("Bearer ", "").strip()
+        elif auth_header.startswith("ApiKey "):
+            api_key = auth_header.replace("ApiKey ", "").strip()
+    
+    # 3. Check query parameter (less secure, for testing only)
+    if not api_key:
+        api_key = request.query_params.get("api_key")
+    
+    # Validate API key
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Provide it via X-API-Key header, Authorization header (Bearer token), or api_key query parameter.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    # Verify the API key
+    if not await verify_api_key(api_key):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API key. Access denied.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    return api_key
 
 
 async def optional_auth(

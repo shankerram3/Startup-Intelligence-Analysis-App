@@ -208,6 +208,13 @@ JWT_SECRET_KEY=your-secret-key
 ENABLE_RATE_LIMITING=true
 MAX_REQUEST_SIZE=10485760  # 10MB
 
+# Optional - API Key Authentication
+API_KEYS=your-api-key-1,your-api-key-2  # Comma-separated list
+API_KEY_HEADER=X-API-Key  # Default header name
+
+# Optional - Cloudflare Tunnel (for HTTPS)
+CLOUDFLARE_TUNNEL_TOKEN=your-cloudflare-tunnel-token
+
 # Optional - Redis Caching (v2.0.0)
 CACHE_ENABLED=true
 REDIS_URL=redis://default:password@host:port  # Cloud Redis URL (recommended)
@@ -233,8 +240,9 @@ Frontend is deployed separately to Vercel. For local development:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-**Required Vercel Environment Variable:**
+**Required Vercel Environment Variables:**
 - `VITE_API_BASE_URL` - Backend API URL (must include protocol: `http://` or `https://`)
+- `VITE_API_KEY` - API key for authentication (optional, but recommended if backend requires it)
 
 ---
 
@@ -391,6 +399,96 @@ export ENABLE_RATE_LIMITING=false
 
 # Or adjust in .env
 ```
+
+---
+
+## 🔐 API Authentication
+
+### Quick Setup
+
+1. **Generate API Key:**
+   ```bash
+   ./scripts/generate-api-key.sh
+   # Or: openssl rand -hex 32
+   ```
+
+2. **Backend Configuration:**
+   Add to `.env`:
+   ```bash
+   API_KEYS=your-generated-key-here
+   ```
+   For multiple apps (comma-separated):
+   ```bash
+   API_KEYS=flutter-app-key,web-app-key,admin-key
+   ```
+
+3. **Restart Backend:**
+   ```bash
+   docker-compose restart graphrag-api
+   ```
+
+4. **Frontend Configuration (Vercel):**
+   - Go to Vercel Dashboard → Project → Settings → Environment Variables
+   - Add `VITE_API_KEY` = `your-generated-key-here`
+   - Redeploy your app
+
+5. **Frontend Configuration (Local):**
+   Create `frontend/.env.local`:
+   ```bash
+   VITE_API_KEY=your-generated-key-here
+   ```
+
+### Authentication Methods
+
+The API accepts keys in three ways:
+
+1. **X-API-Key Header** (Recommended)
+   ```bash
+   curl -H "X-API-Key: your-key" https://api.example.com/api/articles
+   ```
+
+2. **Authorization Header**
+   ```bash
+   curl -H "Authorization: Bearer your-key" https://api.example.com/api/articles
+   ```
+
+3. **Query Parameter** (Less secure, for testing)
+   ```bash
+   curl "https://api.example.com/api/articles?api_key=your-key"
+   ```
+
+### Protecting Endpoints
+
+To protect any endpoint, add the dependency:
+
+```python
+from utils.security import require_api_key
+
+@app.get("/api/your-endpoint", dependencies=[Depends(require_api_key)])
+async def your_endpoint():
+    return {"message": "Protected"}
+```
+
+### Flutter App Usage
+
+```dart
+final response = await http.get(
+  Uri.parse('https://api.example.com/api/articles'),
+  headers: {'X-API-Key': 'your-api-key-here'},
+);
+```
+
+### Testing
+
+```bash
+# Test without key (should fail)
+curl https://api.example.com/api/articles
+
+# Test with key (should work)
+curl -H "X-API-Key: your-key" https://api.example.com/api/articles
+```
+
+**Note:** If `API_KEYS` is not set, the API allows all requests (development mode). Always set `API_KEYS` in production!
 
 ---
 
@@ -575,32 +673,42 @@ ufw reload
 
 **Step 7: Set Up Cloudflare Tunnel (Recommended for HTTPS)**
 
-For HTTPS access (required if frontend is on Vercel with HTTPS):
+The Cloudflare Tunnel is now **integrated inside the Docker container**. Simply add the token to `.env`:
 
 ```bash
-# Option A: Using Docker with token (recommended)
-# Get token from Cloudflare Dashboard → Zero Trust → Networks → Tunnels
-
-# Make script executable
-chmod +x run-cloudflare-tunnel.sh
-
-# Run tunnel
-./run-cloudflare-tunnel.sh YOUR_CLOUDFLARE_TUNNEL_TOKEN
-
-# Or manually:
-docker run -d \
-  --name cloudflare-tunnel \
-  --restart unless-stopped \
-  --network host \
-  cloudflare/cloudflared:latest \
-  tunnel --no-autoupdate run --token YOUR_TOKEN
-
-# Check tunnel status
-docker logs -f cloudflare-tunnel
-
-# Find your tunnel URL in Cloudflare Dashboard
-# Then update VITE_API_BASE_URL in Vercel to this URL
+# Add to .env file
+CLOUDFLARE_TUNNEL_TOKEN=your-cloudflare-tunnel-token
 ```
+
+The tunnel will start automatically when the container starts. No separate container needed!
+
+**Getting a Tunnel Token:**
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → Zero Trust → Networks → Tunnels
+2. Create a new tunnel or use existing one
+3. Copy the token
+4. Add to `.env` file
+
+**Verify Tunnel is Running:**
+
+```bash
+# Check tunnel process
+docker exec graphrag-api pgrep -f cloudflared
+
+# View tunnel logs
+docker logs graphrag-api | grep -i tunnel
+```
+
+**Configure Tunnel Route in Cloudflare Dashboard:**
+
+1. Go to Zero Trust → Networks → Tunnels
+2. Click on your tunnel → Configure
+3. Add Public Hostname:
+   - **Subdomain:** `api` (or your choice)
+   - **Domain:** `trycloudflare.com` (or your custom domain)
+   - **Type:** `HTTP`
+   - **URL:** `http://localhost:8000`
+4. Save and use the generated URL in Vercel
 
 **Step 8: Verify Deployment**
 
@@ -626,7 +734,8 @@ docker-compose logs -f graphrag-api
 2. Set `VITE_API_BASE_URL` to:
    - If using Cloudflare Tunnel: `https://your-tunnel-url.trycloudflare.com` or your custom domain
    - If using IP directly: `http://YOUR_DROPLET_IP:8000` (⚠️ HTTPS frontend can't connect to HTTP backend)
-3. Redeploy Vercel app
+3. Set `VITE_API_KEY` (if using API authentication): `your-api-key-here`
+4. Redeploy Vercel app
 
 **Useful Commands:**
 
@@ -720,50 +829,32 @@ docker-compose logs -f graphrag-api
 curl http://localhost:8000/health
 ```
 
-**Optional: Start Cloudflare Tunnel for HTTPS**
+**Cloudflare Tunnel (Integrated in Container)**
 
-If you have a Cloudflare Tunnel token:
+The Cloudflare Tunnel is now integrated inside the Docker container. Simply add the token to `.env`:
 
 ```bash
-# Using the helper script
-./run-cloudflare-tunnel.sh YOUR_TOKEN_HERE
-
-# Or manually:
-docker run -d \
-  --name cloudflare-tunnel \
-  --restart unless-stopped \
-  --network host \
-  cloudflare/cloudflared:latest \
-  tunnel --no-autoupdate run --token YOUR_TOKEN_HERE
-
-# Check tunnel status
-docker logs -f cloudflare-tunnel
+# Add to .env file
+CLOUDFLARE_TUNNEL_TOKEN=your-cloudflare-tunnel-token
 ```
 
-**To find your tunnel URL:**
+The tunnel starts automatically when the container starts. No separate container needed!
+
+**Getting a Tunnel Token:**
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → Zero Trust → Networks → Tunnels
-2. Click on your tunnel
-3. Go to "Public Hostnames" tab to see your HTTPS URL
+2. Create a new tunnel or use existing one
+3. Copy the token
+4. Add to `.env` file
 
-Then update `VITE_API_BASE_URL` in Vercel to your tunnel URL.
-
-**Quick Cloudflare Tunnel Setup:**
-
-```bash
-# Option 1: Quick temporary tunnel (easiest)
-cloudflared tunnel --url http://localhost:8000
-# Copy the URL it provides and use in Vercel
-
-# Option 2: Docker with token (persistent)
-docker run -d \
-  --name cloudflare-tunnel \
-  --restart unless-stopped \
-  --network host \
-  cloudflare/cloudflared:latest \
-  tunnel --no-autoupdate run --token YOUR_TOKEN
-
-# Find your tunnel URL in Cloudflare Dashboard → Zero Trust → Networks → Tunnels
-```
+**Configure Tunnel Route:**
+1. Go to Zero Trust → Networks → Tunnels
+2. Click on your tunnel → Configure
+3. Add Public Hostname:
+   - **Subdomain:** `api` (or your choice)
+   - **Domain:** `trycloudflare.com` (or your custom domain)
+   - **Type:** `HTTP`
+   - **URL:** `http://localhost:8000`
+4. Save and use the generated URL in Vercel
 
 **Option 2: Cloudflare DNS (if you have a domain)**
 1. Add domain to Cloudflare Dashboard
@@ -961,7 +1052,51 @@ https://api.yourdomain.com
 - ✅ IP-based rate limiting
 - ✅ Sanitized error messages
 - ✅ 10MB request size limit (configurable)
+- ✅ API key authentication (simple app-to-app)
 - ✅ Security scanning in CI/CD
+
+---
+
+## 🔄 Zero-Downtime Redeployment
+
+The redeploy script (`scripts/redeploy.sh`) provides zero-downtime deployments:
+
+**Features:**
+- ✅ Keeps old container running during rebuild
+- ✅ Tests new container before switching
+- ✅ Automatic rollback if health check fails
+- ✅ Preserves Cloudflare Tunnel token from `.env`
+- ✅ Optionally pushes to Docker Hub after successful deployment
+
+**Usage:**
+
+```bash
+./scripts/redeploy.sh
+```
+
+**Docker Hub Push (Optional):**
+
+The redeploy script can automatically push images to Docker Hub. Set these environment variables:
+
+```bash
+export DOCKER_USERNAME=your-username
+export DOCKER_IMAGE_NAME=graphrag
+export DOCKER_TAG=latest
+export PUSH_IMAGE=true
+```
+
+Or push manually:
+```bash
+./scripts/push-to-dockerhub.sh
+```
+
+**Cloudflare Tunnel Preservation:**
+
+The redeploy script automatically preserves your Cloudflare Tunnel:
+- Token is stored in `.env` (not in container)
+- Token is loaded into new container automatically
+- Tunnel starts automatically via startup script
+- No manual intervention needed
 
 ---
 
