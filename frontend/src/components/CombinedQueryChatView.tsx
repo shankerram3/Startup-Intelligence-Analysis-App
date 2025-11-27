@@ -393,7 +393,7 @@ export function CombinedQueryChatView() {
           role: 'assistant',
           content: answer,
           meta: { intent: res.intent, context: res.context, traversal: res.traversal },
-          isTyping: false
+          isTyping: true  // Enable typewriter animation - will be set to false when animation completes
         };
         // Load current conversation, update it, and save
         // Filter out any loading messages (empty assistant messages with isTyping: true)
@@ -417,7 +417,7 @@ export function CombinedQueryChatView() {
         role: 'assistant',
         content: answer,
         meta: { intent: res.intent, context: res.context, traversal: res.traversal },
-        isTyping: false
+        isTyping: true  // Enable typewriter animation - will be set to false when animation completes
       };
         const updated = [...withoutLoading, assistantMsg];
         // Save after receiving response

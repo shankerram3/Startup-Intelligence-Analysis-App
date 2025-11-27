@@ -813,7 +813,7 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
         <polyline
           points={data.map(([, d], i) => {
             const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
-            const normalizedValue = typeof value === 'number' ? value : 0;
+            const normalizedValue = (typeof value === 'number' && !isNaN(value)) ? value : 0;
             const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
             const y = 100 - ((normalizedValue - min) / range) * chartHeight;
             const clampedY = Math.max(20, Math.min(100, y));
@@ -829,7 +829,7 @@ function EnhancedLineChart({ data, dataKey, color, gradientColor, formatValue }:
         {/* Data points */}
         {data.map(([, d], i) => {
           const value = (d && typeof d === 'object' ? d[dataKey] : 0) || 0;
-          const normalizedValue = typeof value === 'number' ? value : 0;
+          const normalizedValue = (typeof value === 'number' && !isNaN(value)) ? value : 0;
           const x = data.length > 1 ? (i / (data.length - 1)) * 100 : 50;
           const y = 100 - ((normalizedValue - min) / range) * chartHeight;
           const clampedY = Math.max(20, Math.min(100, y));

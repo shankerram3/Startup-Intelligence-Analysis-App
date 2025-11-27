@@ -136,10 +136,72 @@ class SecurityConfig:
     ALLOWED_ORIGINS = explicit_origins.copy()
     has_vercel_domain = any("vercel.app" in origin for origin in explicit_origins)
     
+    # Extract project name prefixes from configured Vercel domains for secure preview matching
+    # Vercel URLs can have various formats:
+    # - Production: {project-name}.vercel.app or {project-name}-{hash}.vercel.app
+    # - Preview: {project-name}-git-{branch}-{hash}-{user}-projects.vercel.app
+    # - Preview: {project-name}-{hash}-{user}-projects.vercel.app
+    # We extract the actual project name (before any hash/branch indicators) for matching
+    _VERCEL_PROJECT_PREFIXES = []
+    if has_vercel_domain:
+        for origin in explicit_origins:
+            if "vercel.app" in origin:
+                try:
+                    domain = origin.replace("https://", "").replace("http://", "").split("/")[0]
+                    if domain.endswith(".vercel.app"):
+                        base_name = domain.replace(".vercel.app", "")
+                        
+                        # Extract the actual project name by removing Vercel-specific suffixes
+                        # Vercel preview URLs have patterns like:
+                        # - {project-name}-{hash}-{user}-projects.vercel.app
+                        # - {project-name}-git-{branch}-{hash}-{user}-projects.vercel.app
+                        # We need to extract just the {project-name} part
+                        
+                        project_name = base_name
+                        
+                        # Remove -{username}-projects suffix first
+                        if "-projects" in project_name:
+                            # Remove everything from "-projects" onwards
+                            project_name = project_name.rsplit("-projects", 1)[0]
+                            
+                            # Remove username (last segment) - typically 5-20 chars alphanumeric
+                            parts = project_name.split("-")
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                # Username typically looks like: alphanumeric, 5-20 chars
+                                if len(last) >= 5 and len(last) <= 20 and last.replace("-", "").replace("_", "").isalnum():
+                                    parts.pop()  # Remove username
+                                project_name = "-".join(parts)
+                            
+                            # Remove hash (last segment) - typically 6-12 chars alphanumeric
+                            parts = project_name.split("-")
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                # Hash typically looks like: short alphanumeric, 6-12 chars (e.g., "t43709h2p", "a9c8d3")
+                                if len(last) >= 6 and len(last) <= 12 and last.isalnum():
+                                    parts.pop()  # Remove hash
+                                project_name = "-".join(parts)
+                        
+                        # Remove -git-{branch} or -git pattern if present (handles -git-{branch}-{hash})
+                        if "-git-" in project_name:
+                            project_name = project_name.split("-git-")[0]
+                        elif project_name.endswith("-git"):
+                            project_name = project_name[:-4]  # Remove trailing "-git"
+                        
+                        # Store the extracted project name (should be just the base project name)
+                        if len(project_name) > 3:
+                            _VERCEL_PROJECT_PREFIXES.append(project_name)
+                        else:
+                            # Fallback: use base name if extraction failed
+                            _VERCEL_PROJECT_PREFIXES.append(base_name)
+                except Exception:
+                    pass  # Skip invalid domains
+    
     # If a Vercel domain is configured, enable pattern matching in custom middleware
     # Note: We can't add all possible vercel.app subdomains to ALLOWED_ORIGINS
     # because Vercel generates unique preview URLs for each deployment
     # So we use a custom middleware to handle this dynamically
+    # Only previews starting with configured project name prefixes will be allowed
     _VERCEL_PREVIEW_PATTERN_ENABLED = has_vercel_domain
     MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB default
     API_KEYS = (

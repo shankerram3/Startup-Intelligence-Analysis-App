@@ -23,8 +23,12 @@ frontend/.vite/
 frontend/build/
 
 # Data (exclude from image, mount as volume)
+# Exclude data directory and JSON/CSV files within it
+# Note: frontend/package*.json are still needed for frontend builds (BUILD_FRONTEND=true)
+# They are copied explicitly in Dockerfile before the general COPY . . command
 data/
-*.json
+data/**/*.json
+data/**/*.csv
 *.csv
 
 # IDE

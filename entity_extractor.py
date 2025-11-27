@@ -421,9 +421,6 @@ def process_articles_directory(
     )
     progress_tracker.start(len(json_files))
 
-    # Process each article
-    all_extractions = []
-
     # Track if we actually process any new articles in this run
     new_articles_processed = 0
     

@@ -15,6 +15,7 @@ import asyncio
 import io
 import os
 import subprocess
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -288,6 +289,7 @@ app.add_middleware(PrometheusMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+
 # Add security headers middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -370,39 +372,113 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                     },
                 )
             
-            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
-            # _VERCEL_PREVIEW_PATTERN_ENABLED already indicates if a vercel.app domain is configured
+            # Allow Vercel preview deployments only if they start with configured project name prefix
+            # This ensures only previews from the same project are allowed, not all *.vercel.app domains
             if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                return Response(
-                    status_code=200,
-                    headers={
-                        "Access-Control-Allow-Origin": origin,
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Max-Age": "600",
-                    },
-                )
+                # Extract project name from preview domain using same logic as configuration
+                try:
+                    domain = origin.replace("https://", "").replace("http://", "").split("/")[0]
+                    if domain.endswith(".vercel.app"):
+                        preview_base_name = domain.replace(".vercel.app", "")
+                        # Extract project name from preview domain
+                        request_project_name = preview_base_name
+                        if "-projects" in request_project_name:
+                            request_project_name = request_project_name.rsplit("-projects", 1)[0]
+                            parts = request_project_name.split("-")
+                            # Remove username
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                if len(last) >= 5 and len(last) <= 20 and last.replace("-", "").replace("_", "").isalnum():
+                                    parts.pop()
+                                request_project_name = "-".join(parts)
+                            # Remove hash
+                            parts = request_project_name.split("-")
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                if len(last) >= 6 and len(last) <= 12 and last.isalnum():
+                                    parts.pop()
+                                request_project_name = "-".join(parts)
+                        # Remove -git- pattern
+                        if "-git-" in request_project_name:
+                            request_project_name = request_project_name.split("-git-")[0]
+                        elif request_project_name.endswith("-git"):
+                            request_project_name = request_project_name[:-4]
+                        
+                        # Check if extracted project name matches any configured project prefix
+                        for project_prefix in SecurityConfig._VERCEL_PROJECT_PREFIXES:
+                            if request_project_name == project_prefix or preview_base_name.startswith(project_prefix + "-"):
+                                return Response(
+                                    status_code=200,
+                                    headers={
+                                        "Access-Control-Allow-Origin": origin,
+                                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                                        "Access-Control-Allow-Credentials": "true",
+                                        "Access-Control-Max-Age": "600",
+                                    },
+                                )
+                except Exception:
+                    pass  # If parsing fails, deny access
             
             # If origin not allowed, return 403
             return Response(status_code=403, content="CORS not allowed")
         
-        # For non-OPTIONS requests, process normally and add CORS headers to response
-        response = await call_next(request)
-        
+        # For non-OPTIONS requests, check origin first before processing request
+        # This ensures consistent 403 status for disallowed origins (same as OPTIONS)
         if origin:
             # Check if origin is explicitly allowed
-            if origin in SecurityConfig.ALLOWED_ORIGINS:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                return response
+            origin_allowed = origin in SecurityConfig.ALLOWED_ORIGINS
             
-            # Allow ALL Vercel preview deployments (*.vercel.app) if any vercel.app domain is configured
-            # _VERCEL_PREVIEW_PATTERN_ENABLED already indicates if a vercel.app domain is configured
-            if origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                return response
+            # If not explicitly allowed, check Vercel preview pattern
+            if not origin_allowed and origin.endswith(".vercel.app") and SecurityConfig._VERCEL_PREVIEW_PATTERN_ENABLED:
+                try:
+                    domain = origin.replace("https://", "").replace("http://", "").split("/")[0]
+                    if domain.endswith(".vercel.app"):
+                        preview_base_name = domain.replace(".vercel.app", "")
+                        # Extract project name from preview domain using same logic as configuration
+                        request_project_name = preview_base_name
+                        if "-projects" in request_project_name:
+                            request_project_name = request_project_name.rsplit("-projects", 1)[0]
+                            parts = request_project_name.split("-")
+                            # Remove username
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                if len(last) >= 5 and len(last) <= 20 and last.replace("-", "").replace("_", "").isalnum():
+                                    parts.pop()
+                                request_project_name = "-".join(parts)
+                            # Remove hash
+                            parts = request_project_name.split("-")
+                            if len(parts) > 1:
+                                last = parts[-1]
+                                if len(last) >= 6 and len(last) <= 12 and last.isalnum():
+                                    parts.pop()
+                                request_project_name = "-".join(parts)
+                        # Remove -git- pattern
+                        if "-git-" in request_project_name:
+                            request_project_name = request_project_name.split("-git-")[0]
+                        elif request_project_name.endswith("-git"):
+                            request_project_name = request_project_name[:-4]
+                        
+                        # Check if extracted project name matches any configured project prefix
+                        for project_prefix in SecurityConfig._VERCEL_PROJECT_PREFIXES:
+                            if request_project_name == project_prefix or preview_base_name.startswith(project_prefix + "-"):
+                                origin_allowed = True
+                                break
+                except Exception:
+                    pass  # If parsing fails, deny access
+            
+            # If origin not allowed, return 403 before processing request (consistent with OPTIONS)
+            if not origin_allowed:
+                return Response(status_code=403, content="CORS not allowed")
+        
+        # Process request and add CORS headers for allowed origins
+        response = await call_next(request)
+        
+        # Add CORS headers if origin is present and was validated above
+        if origin:
+            # Origin was already validated above, so it's safe to add headers
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
         
         return response
 
@@ -549,19 +625,25 @@ def _parse_pipeline_logs_for_stats() -> Dict[str, Any]:
                     match = re.search(r'articles_extracted[":\s]+(\d+)', line, re.IGNORECASE)
                     if match:
                         count = int(match.group(1))
-                        stats["total_articles_extracted"] += count
-                        # Check if this is in extraction phase context
+                        # Check if this is in extraction phase context BEFORE incrementing stats
+                        # Only count as extracted if it's from the extraction phase, not scraping
                         if "extraction" in line.lower() or "phase" in line.lower() or last_extraction_stats.get("phase") == "extraction":
+                            # This is from extraction phase - count as extracted
+                            stats["total_articles_extracted"] += count
                             last_extraction_stats["articles_extracted"] = count
                         else:
-                            # Default to scraping stats if no clear context
+                            # This is from scraping phase - count as scraped, not extracted
+                            # Note: articles_scraped may already be counted elsewhere, so we only update last_scraping_stats
                             last_scraping_stats["articles_extracted"] = count
+                            # Don't increment total_articles_extracted for scraping phase articles
                 
                 # Also check for "New articles processed" pattern from entity_extractor
                 if "new articles processed" in line.lower():
                     match = re.search(r'new articles processed.*?:\s*(\d+)', line, re.IGNORECASE)
                     if match:
                         count = int(match.group(1))
+                        # This is from extraction phase - increment total and update tracking
+                        stats["total_articles_extracted"] += count
                         last_extraction_stats["articles_extracted"] = count
                 
                 if "entities extracted" in line.lower():
@@ -926,9 +1008,10 @@ async def start_pipeline(options: PipelineStartRequest):
     args = _build_pipeline_args(options)
     
     # Clear log file before starting new pipeline run
+    # Use binary mode to match how subprocess writes to the file
     if os.path.exists(pipeline_log_path):
-        with open(pipeline_log_path, "w") as f:
-            f.write("")
+        with open(pipeline_log_path, "wb") as f:
+            f.write(b"")
     
     # Prepare environment variables for subprocess
     # Inherit current environment and override LOG_LEVEL if debug is enabled
@@ -946,14 +1029,19 @@ async def start_pipeline(options: PipelineStartRequest):
     log_fh = None
     try:
         log_fh = open(pipeline_log_path, "ab")
-        pipeline_proc = subprocess.Popen(
-            args, 
-            stdout=log_fh, 
-            stderr=subprocess.STDOUT, 
-            cwd=os.getcwd(), 
-            env=env,
-            start_new_session=True  # Start in new session to survive parent termination
-        )
+        # start_new_session is Unix/Linux only - conditionally apply based on platform
+        # On Windows, this parameter would raise ValueError
+        popen_kwargs = {
+            "args": args,
+            "stdout": log_fh,
+            "stderr": subprocess.STDOUT,
+            "cwd": os.getcwd(),
+            "env": env,
+        }
+        # Only use start_new_session on Unix/Linux systems (not Windows)
+        if sys.platform != "win32":
+            popen_kwargs["start_new_session"] = True  # Start in new session to survive parent termination
+        pipeline_proc = subprocess.Popen(**popen_kwargs)
         # Close the file handle in parent process after Popen inherits it
         # The subprocess will keep the file open until it exits
         log_fh.close()
@@ -993,7 +1081,8 @@ async def pipeline_status():
         # Use asyncio timeout to prevent hanging
         try:
             # Run poll() in executor to avoid blocking, with timeout
-            loop = asyncio.get_event_loop()
+            # Use get_running_loop() instead of get_event_loop() for Python 3.10+ compatibility
+            loop = asyncio.get_running_loop()
             code = await asyncio.wait_for(
                 loop.run_in_executor(None, pipeline_proc.poll),
                 timeout=1.0  # 1 second max for poll()
@@ -2320,6 +2409,21 @@ if __name__ == "__main__":
         "*.temp",  # Temporary files
         "*.cache",  # Cache files
     ]
+    
+    # Configure uvicorn access logging to exclude health checks (reduces log noise)
+    # Docker healthcheck polls every 60s, so we filter these expected requests
+    import logging.config
+    
+    # Custom access log format that excludes health checks
+    class HealthCheckFilter(logging.Filter):
+        def filter(self, record):
+            # Suppress uvicorn access logs for /health endpoint
+            message = record.getMessage()
+            return "/health" not in message or "ERROR" in message or "WARNING" in message
+    
+    # Apply filter to uvicorn.access logger
+    uvicorn_access = logging.getLogger("uvicorn.access")
+    uvicorn_access.addFilter(HealthCheckFilter())
     
     uvicorn.run(
         "api:app",

@@ -71,9 +71,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 # Install other requirements, ensuring torch packages are not upgraded/reinstalled
 # Use --extra-index-url to make CPU index available for torch dependencies
-# Use --upgrade-strategy only-if-needed to prevent upgrading already-installed torch
+# Use --upgrade with --upgrade-strategy only-if-needed to prevent upgrading already-installed torch
 # This prevents sentence-transformers from installing CUDA-enabled PyTorch
-RUN pip install --no-cache-dir --upgrade-strategy only-if-needed --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+RUN pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Install Playwright browsers
 RUN playwright install chromium
