@@ -59,6 +59,7 @@ from utils.security import (
     optional_auth,
     require_api_key,
     sanitize_error_message,
+    verify_api_key,
     verify_token,
 )
 from utils.evaluation import (
@@ -288,6 +289,101 @@ app.add_middleware(PrometheusMiddleware)
 
 # Add Gzip compression for responses > 1KB (reduces response size by 70-90%)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+# Global API key authentication middleware (protects all endpoints except public ones)
+@app.middleware("http")
+async def global_api_key_auth(request: Request, call_next):
+    """
+    Global API key authentication middleware.
+    Protects all endpoints except public ones (health, docs, metrics, root).
+    
+    Public endpoints (no API key required):
+    - /health - Health check
+    - /docs - Swagger UI documentation
+    - /openapi.json - OpenAPI specification
+    - /redoc - ReDoc documentation
+    - /metrics - Prometheus metrics (optional: can be protected if needed)
+    - / - Root endpoint
+    """
+    # Public endpoints that don't require authentication
+    public_paths = [
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/",  # Root endpoint
+        # Uncomment the next line to protect metrics endpoint
+        # "/metrics",  # Protect metrics in production
+    ]
+    
+    # Check if this is a public endpoint
+    path = request.url.path.rstrip("/") if request.url.path != "/" else "/"
+    is_public = any(
+        path == public_path.rstrip("/") or path.startswith(public_path + "/")
+        for public_path in public_paths
+    ) or path.startswith("/docs") or path.startswith("/openapi") or path.startswith("/redoc")
+    
+    # Skip API key check for public endpoints
+    if is_public:
+        response = await call_next(request)
+        return response
+    
+    # For all other endpoints, require API key
+    # Check if API keys are configured
+    if not SecurityConfig.API_KEYS:
+        # Development mode: allow all requests if API_KEYS not configured
+        import warnings
+        warnings.warn(
+            "API_KEYS not configured. All requests are allowed. "
+            "Set API_KEYS in .env for production security.",
+            UserWarning,
+            stacklevel=2
+        )
+        response = await call_next(request)
+        return response
+    
+    # Get API key from various sources
+    api_key = None
+    
+    # 1. Check X-API-Key header (preferred)
+    api_key = request.headers.get("X-API-Key")
+    
+    # 2. Check Authorization header (Bearer token format)
+    if not api_key:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header.replace("Bearer ", "").strip()
+        elif auth_header.startswith("ApiKey "):
+            api_key = auth_header.replace("ApiKey ", "").strip()
+    
+    # 3. Check query parameter (less secure, for testing only)
+    if not api_key:
+        api_key = request.query_params.get("api_key")
+    
+    # Validate API key
+    if not api_key:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": "API key required. Provide it via X-API-Key header, Authorization header (Bearer token), or api_key query parameter."
+            },
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    # Verify the API key (already imported at top)
+    is_valid = await verify_api_key(api_key)
+    
+    if not is_valid:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Invalid API key. Access denied."},
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    # API key is valid, proceed with request
+    response = await call_next(request)
+    return response
 
 
 
@@ -1307,7 +1403,7 @@ async def multi_hop_reasoning(
 # =============================================================================
 
 
-@app.get("/api/articles", tags=["Articles"], dependencies=[Depends(require_api_key)])
+@app.get("/api/articles", tags=["Articles"])
 async def get_articles(
     page: int = Query(0, ge=0, description="Page number (0-indexed)"),
     limit: int = Query(20, ge=1, le=100, description="Number of articles per page"),
