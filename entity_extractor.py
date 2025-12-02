@@ -595,8 +595,8 @@ def process_articles_directory(
             all_extractions = existing_extractions
             # Save existing extractions to ensure file persistence
             # This prevents data loss if the file becomes corrupted or deleted
-            with open(all_extractions_file, "w", encoding="utf-8") as f:
-                json.dump(all_extractions, f, indent=2, ensure_ascii=False)
+    with open(all_extractions_file, "w", encoding="utf-8") as f:
+        json.dump(all_extractions, f, indent=2, ensure_ascii=False)
         else:
             # No existing extractions either - return empty list
             print("⚠️  No new articles processed and no existing extractions found.")

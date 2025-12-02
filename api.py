@@ -451,7 +451,7 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                     status_code=200,
                     headers={
                         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Request-ID, Accept",
                         "Access-Control-Max-Age": "600",
                     },
                 )
@@ -463,7 +463,7 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                     headers={
                         "Access-Control-Allow-Origin": origin,
                         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Request-ID, Accept",
                         "Access-Control-Allow-Credentials": "true",
                         "Access-Control-Max-Age": "600",
                     },
@@ -509,7 +509,7 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                                     headers={
                                         "Access-Control-Allow-Origin": origin,
                                         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID, Accept",
+                                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Request-ID, Accept",
                                         "Access-Control-Allow-Credentials": "true",
                                         "Access-Control-Max-Age": "600",
                                     },

@@ -9,6 +9,7 @@ services:
       dockerfile: Dockerfile
       args:
         BUILD_FRONTEND: false
+        INSTALL_PLAYWRIGHT: ${INSTALL_PLAYWRIGHT:-true}
     container_name: graphrag-api
     ports:
       - "8000:8000"

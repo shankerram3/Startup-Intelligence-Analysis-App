@@ -1,0 +1,63 @@
+# Base Image with Dependencies Pre-installed
+# Build this once, reuse for faster application builds
+# Usage: docker build -f Dockerfile.base -t graphrag-base:latest .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install all system dependencies in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl \
+    wget \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cloudflared
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+    -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install CPU-only PyTorch with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefer-binary --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install other requirements with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefer-binary --no-cache-dir \
+    --upgrade --upgrade-strategy only-if-needed \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
+
+# Install Playwright browsers (optional - can be skipped)
+ARG INSTALL_PLAYWRIGHT=true
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
+      playwright install chromium && \
+      playwright install-deps chromium; \
+    fi
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV CUDA_VISIBLE_DEVICES=""
+ENV TORCH_CUDA_ARCH_LIST=""
+

@@ -5,7 +5,7 @@ Provides common query patterns for knowledge graph exploration
 
 from typing import Any, Dict, List, Optional
 
-from neo4j import Driver
+from neo4j import Driver, READ_ACCESS
 
 
 class QueryTemplates:
@@ -567,7 +567,7 @@ class QueryTemplates:
 
     def get_communities(self, min_size: int = 3, limit: int = 50) -> List[Dict]:
         """Get all detected communities"""
-        with self.driver.session() as session:
+        with self.driver.session(default_access_mode=READ_ACCESS) as session:
             result = session.run(
                 """
                 MATCH (e)
@@ -629,7 +629,7 @@ class QueryTemplates:
     def get_community_statistics(self) -> Dict:
         """Get comprehensive community statistics"""
         try:
-            with self.driver.session() as session:
+            with self.driver.session(default_access_mode=READ_ACCESS) as session:
                 # Total communities
                 result = session.run(
                     """
@@ -1277,9 +1277,54 @@ class QueryTemplates:
     # TEMPORAL QUERIES
     # =========================================================================
 
+    def get_recent_articles(self, limit: int = 10) -> List[Dict]:
+        """Get most recent articles from the graph"""
+        with self.driver.session(default_access_mode=READ_ACCESS) as session:
+            # Try to get by created_at first (when article was added to graph)
+            result = session.run(
+                """
+                MATCH (a:Article)
+                WHERE a.created_at IS NOT NULL
+                RETURN a.id as id,
+                       a.title as title,
+                       a.url as url,
+                       a.published_date as published_date,
+                       a.author as author,
+                       datetime({epochMillis: a.created_at}) as created_at,
+                       size(a.categories) as category_count
+                ORDER BY a.created_at DESC
+                LIMIT $limit
+            """,
+                limit=limit,
+            )
+            
+            articles = [dict(record) for record in result]
+            
+            # If no articles with created_at, try published_date
+            if not articles:
+                result = session.run(
+                    """
+                    MATCH (a:Article)
+                    WHERE a.published_date IS NOT NULL
+                    RETURN a.id as id,
+                           a.title as title,
+                           a.url as url,
+                           a.published_date as published_date,
+                           a.author as author,
+                           null as created_at,
+                           size(a.categories) as category_count
+                    ORDER BY a.published_date DESC
+                    LIMIT $limit
+                """,
+                    limit=limit,
+                )
+                articles = [dict(record) for record in result]
+            
+            return articles
+
     def get_recent_entities(self, days: int = 30, limit: int = 10) -> List[Dict]:
         """Get recently mentioned entities"""
-        with self.driver.session() as session:
+        with self.driver.session(default_access_mode=READ_ACCESS) as session:
             cutoff_timestamp = (
                 days * 24 * 60 * 60 * 1000
             )  # Convert days to milliseconds
@@ -1348,7 +1393,7 @@ class QueryTemplates:
 
     def get_graph_statistics(self) -> Dict:
         """Get overall graph statistics"""
-        with self.driver.session() as session:
+        with self.driver.session(default_access_mode=READ_ACCESS) as session:
             result = session.run(
                 """
                 MATCH (n)

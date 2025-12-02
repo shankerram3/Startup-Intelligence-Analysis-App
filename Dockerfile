@@ -37,20 +37,12 @@ ARG BUILD_FRONTEND=false
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install all system dependencies in one layer (better caching)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     curl \
     wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install cloudflared for Cloudflare Tunnel
-RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared \
-    && chmod +x /usr/local/bin/cloudflared
-
-# Install Playwright dependencies (for company intelligence scraper)
-RUN apt-get update && apt-get install -y \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -67,23 +59,44 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-# Install CPU-only PyTorch first to avoid CUDA dependencies (important for AMD)
+# Install cloudflared for Cloudflare Tunnel
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared \
+    && chmod +x /usr/local/bin/cloudflared
+
+# Copy requirements FIRST for better layer caching
+# This layer only invalidates when requirements.txt changes
 COPY requirements.txt .
+
+# Install CPU-only PyTorch with BuildKit cache mount (faster rebuilds)
+# Use --prefer-binary to prefer pre-built wheels (faster than building from source)
 # Install CPU-only PyTorch to prevent CUDA dependencies on AMD architecture
-# This ensures sentence-transformers uses CPU-only PyTorch
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-# Install other requirements, ensuring torch packages are not upgraded/reinstalled
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefer-binary --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install other requirements with BuildKit cache mount
+# Use --prefer-binary for faster installs (uses pre-built wheels when available)
 # Use --extra-index-url to make CPU index available for torch dependencies
-# Use --upgrade with --upgrade-strategy only-if-needed to prevent upgrading already-installed torch
-# This prevents sentence-transformers from installing CUDA-enabled PyTorch
-RUN pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefer-binary --no-cache-dir \
+    --upgrade --upgrade-strategy only-if-needed \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps chromium
+# Install Playwright browsers with cache mount (browsers are large, cache helps)
+# Make Playwright optional for faster builds when not needed
+ARG INSTALL_PLAYWRIGHT=true
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
+      playwright install chromium && \
+      playwright install-deps chromium; \
+    else \
+      echo "Skipping Playwright installation (INSTALL_PLAYWRIGHT=false)"; \
+    fi
 
-# Copy application code (frontend folder excluded via .dockerignore)
+# Copy application code LAST (changes most frequently)
+# This invalidates cache only when code changes, not when deps change
 COPY . .
 
 # Make startup script executable

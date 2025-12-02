@@ -1,0 +1,112 @@
+# Optimized Multi-stage Dockerfile for GraphRAG Application
+# Key optimizations:
+# 1. Better layer caching (dependencies before code)
+# 2. Combined apt-get operations
+# 3. BuildKit cache mounts for pip/npm
+# 4. Parallel operations where possible
+
+ARG BUILD_FRONTEND=false
+
+# Stage 1: Frontend builder (only if needed)
+FROM node:20-alpine AS frontend-builder
+ARG BUILD_FRONTEND
+WORKDIR /app/frontend
+
+RUN mkdir -p dist
+
+# Copy package files first for better caching
+COPY frontend/package*.json ./
+
+# Use BuildKit cache mount for npm dependencies
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$BUILD_FRONTEND" = "true" ]; then \
+      npm ci --prefer-offline --no-audit; \
+    else \
+      echo "Backend-only mode: Skipping frontend build"; \
+    fi
+
+COPY frontend/ ./
+RUN if [ "$BUILD_FRONTEND" = "true" ]; then \
+      npm run build; \
+    fi
+
+# Stage 2: Python backend
+FROM python:3.11-slim
+ARG BUILD_FRONTEND=false
+
+WORKDIR /app
+
+# Combine all system dependencies into one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl \
+    wget \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cloudflared (cacheable layer)
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared \
+    && chmod +x /usr/local/bin/cloudflared
+
+# Copy requirements FIRST for better caching
+# This layer only changes when requirements.txt changes
+COPY requirements.txt .
+
+# Install PyTorch with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install other Python dependencies with cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
+
+# Install Playwright browsers (cacheable, but large)
+# Use BuildKit cache for browser downloads
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    playwright install chromium && \
+    playwright install-deps chromium
+
+# Copy application code LAST (changes most frequently)
+# This invalidates cache only when code changes
+COPY . .
+
+# Make startup script executable
+RUN chmod +x /app/scripts/start-api-with-tunnel.sh
+
+# Copy frontend dist (if built)
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+RUN if [ "$BUILD_FRONTEND" != "true" ]; then \
+      rm -rf ./frontend/dist || true; \
+    fi
+
+EXPOSE 8000
+
+ENV PYTHONUNBUFFERED=1
+ENV API_HOST=0.0.0.0
+ENV API_PORT=8000
+ENV CUDA_VISIBLE_DEVICES=""
+ENV TORCH_CUDA_ARCH_LIST=""
+ENV DISABLE_RELOAD="true"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["/app/scripts/start-api-with-tunnel.sh"]
+

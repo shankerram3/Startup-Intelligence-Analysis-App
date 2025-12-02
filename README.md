@@ -1100,6 +1100,314 @@ The redeploy script automatically preserves your Cloudflare Tunnel:
 
 ---
 
+## 🔍 Query & Chat System Improvements
+
+### Overview
+The query and chat system has been enhanced with multiple improvements to increase fidelity (accuracy) and flexibility.
+
+### Key Improvements Implemented
+
+#### 1. Enhanced Query Intent Classification
+- LLM-based intent classification with better pattern recognition
+- Detects article-related queries (e.g., "recent articles", "latest news")
+- Handles short follow-up queries by expanding them into full questions
+
+#### 2. Improved LLM Prompts
+- Structured prompts with examples, chain-of-thought reasoning, and citation requirements
+- Explicit company name extraction from context
+- Stronger instructions for LLM to use exact entity names (prevents placeholder names)
+
+#### 3. Query Expansion & Synonym Handling
+- Expands queries with synonyms and related terms
+- Domain-specific variations (e.g., "startup" → "company")
+- Better recall, handles user language variations
+
+#### 4. Hybrid Search Fusion
+- Reciprocal Rank Fusion (RRF) for combining semantic and keyword results
+- Better combination of multiple search sources
+- Improved ranking of relevant results
+
+#### 5. Query Refinement & Clarification
+- Detects ambiguous queries and asks clarifying questions
+- Skips ambiguity checks for queries with clear context (e.g., "funding", "companies", "articles")
+- Better answers to ambiguous queries
+
+#### 6. Context Enrichment
+- Enriches results with related entities
+- Adds temporal context (recent trends, time-based information)
+- More comprehensive answers
+
+### Implementation
+All enhancements are implemented in `utils/query_enhancements.py` and integrated into `rag_query.py`:
+- `QueryExpander`: Expands queries with synonyms
+- `ReciprocalRankFusion`: Combines ranked search results
+- `EnhancedPromptBuilder`: Creates structured prompts for LLMs
+- `QueryRefiner`: Detects ambiguous queries
+- `ContextEnricher`: Adds temporal and related entity context
+
+### Usage
+The enhancements are automatically applied when using the query system. No additional configuration needed.
+
+---
+
+## 🐳 Docker Build Optimizations
+
+### Current Performance
+- **Before optimizations:** 557.8s (9.3 min)
+- **After optimizations:** 472.0s (7.9 min) ✅ **15% faster**
+- **With cache (subsequent builds):** ~80-180s (1.3-3.0 min) 🚀
+
+### Optimizations Applied ✅
+
+1. **Combined apt-get Operations** - Saved ~24 seconds
+2. **BuildKit Cache Mounts** - Pip installs 10% faster, caches persist between builds
+3. **Better Layer Ordering** - Dependencies cached separately from code
+4. **--prefer-binary Flag** - 20-30% faster pip installs
+5. **Optional Playwright** - 38s saved when disabled
+
+### Quick Wins
+
+#### Redeploy Without Cache
+```bash
+# Use redeploy script with no cache
+USE_CACHE=false ./scripts/redeploy.sh
+
+# Or direct docker compose
+docker compose build --no-cache graphrag-api && docker compose up -d
+```
+
+#### Redeploy With Cache (Faster)
+```bash
+# Use redeploy script with cache (default)
+USE_CACHE=true ./scripts/redeploy.sh
+
+# Or direct docker compose
+docker compose build graphrag-api && docker compose up -d
+```
+
+### Advanced Optimizations Available
+
+#### 1. Base Image Strategy (Biggest Impact)
+Create a reusable base image with dependencies pre-installed:
+```bash
+# Build base image once (when requirements.txt changes)
+docker build -f Dockerfile.base -t graphrag-base:latest .
+
+# Then use fast Dockerfile (only copies code)
+docker build -f Dockerfile.fast -t graphrag-api:latest .
+```
+**Expected:** 60-70% faster on subsequent builds
+
+#### 2. Use `uv` Package Manager
+Replace pip with `uv` (10-100x faster):
+```dockerfile
+RUN pip install uv
+RUN uv pip install --system -r requirements.txt
+```
+**Expected:** 50-70% faster pip installs
+
+#### 3. Disable Attestations
+```bash
+docker build --provenance=false --sbom=false ...
+```
+**Expected:** 10-20s saved
+
+### Build Performance Matrix
+
+| Scenario | Current | With Base Image | With uv | Combined |
+|----------|---------|-----------------|---------|----------|
+| First build | 472s (7.9 min) | 472s | 350s | 350s |
+| Code-only change | ~400s | **~80s** | ~200s | **~60s** |
+| Requirements change | ~400s | ~250s | **~150s** | **~100s** |
+| Full rebuild (cached) | 472s | **~180s** | ~280s | **~120s** |
+
+### Monitoring Build Performance
+```bash
+# Time the build
+time docker compose build
+
+# See layer timings
+docker build --progress=plain 2>&1 | grep "RUN\|COPY"
+
+# Check cache hits
+docker build --progress=plain 2>&1 | grep "CACHED"
+```
+
+---
+
+## ⚡ Performance Optimizations
+
+### Caching Optimizations
+
+#### Current State
+- ✅ Redis caching for query results (1 hour TTL)
+- ✅ Connection pooling (Neo4j driver)
+- ✅ Rate limiting (30 requests/minute)
+
+#### Recommendations
+- Cache Neo4j overview stats (30 min TTL)
+- Cache community detection results (1 hour TTL)
+- Cache analytics dashboard (2 hour TTL)
+- Redis connection pooling (max 50 connections)
+
+### Database Query Optimizations
+
+#### Neo4j Indexes
+```cypher
+// Create indexes for frequently queried properties
+CREATE INDEX entity_id_index IF NOT EXISTS FOR (e:Entity) ON (e.id);
+CREATE INDEX entity_name_index IF NOT EXISTS FOR (e:Entity) ON (e.name);
+CREATE INDEX article_id_index IF NOT EXISTS FOR (a:Article) ON (a.id);
+CREATE INDEX company_name_index IF NOT EXISTS FOR (c:Company) ON (c.name);
+```
+
+#### Batch Operations
+Use batch transactions for multiple entities:
+```cypher
+UNWIND $ids as id
+MATCH (e {id: id})
+RETURN e
+```
+
+### API Performance
+
+#### Response Compression
+```python
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+```
+**Expected:** 70-90% response size reduction
+
+#### Parallel Processing
+```python
+# Use asyncio.gather() for parallel operations
+most_connected, importance = await asyncio.gather(
+    fetch_most_connected(),
+    fetch_importance()
+)
+```
+
+### Scraping & Pipeline Performance
+
+#### Quick Wins
+1. **Increase batch size** - 2-3x faster article extraction
+2. **Reduce rate limit delay** - 2x faster page discovery
+3. **Optimize browser config** - 30-50% faster page loads (disable images, reduce viewport)
+4. **Batch database operations** - 5-10x faster graph building
+
+#### Configuration Recommendations
+
+**For Development:**
+```python
+SCRAPER_CONFIG = {
+    "batch_size": 20,
+    "rate_limit_delay": 1.0,
+    "max_concurrent": 10,
+}
+```
+
+**For Production:**
+```python
+SCRAPER_CONFIG = {
+    "batch_size": 15,
+    "rate_limit_delay": 1.5,
+    "max_concurrent": 8,
+}
+```
+
+### Expected Performance Improvements
+
+| Optimization | Speed Improvement | Effort | Priority |
+|-------------|------------------|--------|----------|
+| Gzip compression | 70-90% response size reduction | Low | High |
+| Redis connection pooling | 20-30% faster cache operations | Low | High |
+| Caching Neo4j overview | 80-90% faster dashboard load | Low | High |
+| Batch DB operations | 5-10x faster | Medium | High |
+| Increase batch size | 2-3x faster | Low | High |
+| Query optimization | 20-40% faster queries | Medium | Medium |
+
+---
+
+## 🌐 Production CORS Configuration
+
+### Automatic Preview Deployment Support
+
+The backend automatically allows **all Vercel preview deployments** if you configure your **main production domain**.
+
+### Setup
+
+**Step 1: Configure Main Domain**
+
+In your `.env` file, set `ALLOWED_ORIGINS` to your main Vercel production domain:
+
+```bash
+ALLOWED_ORIGINS=https://startup-intelligence-analysis-app.vercel.app
+```
+
+**Step 2: Restart Backend**
+
+```bash
+docker-compose restart graphrag-api
+```
+
+### How It Works
+
+1. **Main Domain**: Configure your production domain (e.g., `https://my-app.vercel.app`)
+2. **Auto-Allow**: All preview deployments matching your project name are automatically allowed
+   - `https://my-app-abc123.vercel.app` ✅
+   - `https://my-app-xyz789.vercel.app` ✅
+   - `https://my-app-git-main.vercel.app` ✅
+   - `https://other-app-abc123.vercel.app` ❌ (different project)
+
+### Examples
+
+**Production Setup:**
+```bash
+# .env
+ALLOWED_ORIGINS=https://startup-intelligence-analysis-app.vercel.app
+```
+
+This automatically allows:
+- `https://startup-intelligence-analysis-app.vercel.app` (production)
+- `https://startup-intelligence-analysis-app-abc123.vercel.app` (preview)
+- `https://startup-intelligence-analysis-app-xyz789.vercel.app` (preview)
+- `https://startup-intelligence-analysis-app-git-main.vercel.app` (branch preview)
+
+**Multiple Domains:**
+```bash
+# If you have a custom domain too
+ALLOWED_ORIGINS=https://startup-intelligence-analysis-app.vercel.app,https://myapp.com
+```
+
+### Verification
+
+Test CORS is working:
+
+```bash
+# Test production domain
+curl -X OPTIONS "https://your-backend-url/query" \
+  -H "Origin: https://startup-intelligence-analysis-app.vercel.app" \
+  -H "Access-Control-Request-Method: POST" \
+  -v
+
+# Test preview deployment
+curl -X OPTIONS "https://your-backend-url/query" \
+  -H "Origin: https://startup-intelligence-analysis-app-abc123.vercel.app" \
+  -H "Access-Control-Request-Method: POST" \
+  -v
+```
+
+Both should return `access-control-allow-origin` headers.
+
+### Security Notes
+
+- ✅ Only preview deployments from the **same project** are allowed
+- ✅ Main domain must be explicitly configured
+- ✅ Custom domains must be explicitly added
+- ❌ Wildcard `*.vercel.app` is NOT used (too permissive)
+
+---
+
 ## 🚀 Future Enhancements
 
 ### ✅ Completed

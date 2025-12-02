@@ -1,9 +1,14 @@
 #!/bin/bash
 # Zero-downtime redeploy script for GraphRAG API
-# Builds new image with no cache, starts new container, health checks it,
+# Builds new image, starts new container, health checks it,
 # then switches over only if new container is healthy
+# Uses BuildKit for faster builds with cache
 
 set -e
+
+# Enable BuildKit for faster builds (if available)
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
 
 # Configuration
 COMPOSE_FILE="docker-compose.yml"
@@ -189,13 +194,25 @@ main() {
     fi
     
     echo ""
-    log_info "Step 1: Building new Docker image with --no-cache..."
+    # Allow cache usage for faster builds (set USE_CACHE=false to disable)
+    USE_CACHE="${USE_CACHE:-true}"
+    if [ "$USE_CACHE" = "true" ]; then
+        log_info "Step 1: Building new Docker image (using cache for faster builds)..."
+        BUILD_ARGS=""
+    else
+        log_info "Step 1: Building new Docker image with --no-cache..."
+        BUILD_ARGS="--no-cache"
+    fi
     log_warning "This may take several minutes..."
     echo ""
     
-    # Build new image with no cache
+    # Build new image with BuildKit optimizations
     log_info "Using: $DOCKER_COMPOSE"
-    if $DOCKER_COMPOSE build --no-cache "$SERVICE_NAME"; then
+    # Disable attestations for faster export (saves 10-20s)
+    BUILDKIT_PROGRESS="${BUILDKIT_PROGRESS:-plain}"
+    if $DOCKER_COMPOSE build $BUILD_ARGS \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        "$SERVICE_NAME"; then
         log_success "New image built successfully"
     else
         log_error "Failed to build new image"

@@ -12,6 +12,65 @@ from neo4j import Driver, GraphDatabase
 from query_templates import QueryTemplates
 from utils.embedding_generator import EmbeddingGenerator
 
+# Enhanced query capabilities
+try:
+    from utils.query_enhancements import (
+        QueryExpander,
+        ReciprocalRankFusion,
+        EnhancedPromptBuilder,
+        QueryRefiner,
+        ContextEnricher
+    )
+    ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    ENHANCEMENTS_AVAILABLE = False
+    # Fallback if enhancements not available
+    QueryExpander = None
+    ReciprocalRankFusion = None
+    EnhancedPromptBuilder = None
+    QueryRefiner = None
+    ContextEnricher = None
+
+
+def create_neo4j_driver(neo4j_uri: str, neo4j_user: str, neo4j_password: str) -> Driver:
+    """
+    Create a Neo4j driver with optimized settings for AuraDB
+    
+    Args:
+        neo4j_uri: Neo4j connection URI
+        neo4j_user: Neo4j username
+        neo4j_password: Neo4j password
+        
+    Returns:
+        Configured Neo4j driver instance
+    """
+    # Check if URI already indicates encryption (neo4j+s://, neo4j+ssc://, bolt+s://, bolt+ssc://)
+    # If so, don't set encrypted/trust parameters (they're inferred from the scheme)
+    uri_lower = neo4j_uri.lower()
+    has_encryption_scheme = any(
+        scheme in uri_lower 
+        for scheme in ['+s://', '+ssc://']
+    )
+    
+    # Base driver configuration
+    driver_config = {
+        "max_connection_lifetime": 30 * 60,  # 30 minutes
+        "max_connection_pool_size": 50,  # Allow up to 50 connections
+        "connection_acquisition_timeout": 60,  # 60 seconds to acquire connection
+    }
+    
+    # Only set encryption parameters for non-encrypted URI schemes
+    if not has_encryption_scheme:
+        # For bolt:// or neo4j://, explicitly set encryption
+        driver_config["encrypted"] = True
+        driver_config["trust"] = "TRUST_SYSTEM_CA_SIGNED_CERTIFICATES"
+    
+    return GraphDatabase.driver(
+        neo4j_uri,
+        auth=(neo4j_user, neo4j_password),
+        **driver_config
+    )
+
 
 class GraphRAGQuery:
     """
@@ -37,7 +96,8 @@ class GraphRAGQuery:
             openai_api_key: OpenAI API key (for embeddings and generation)
             embedding_model: Embedding model to use (openai or sentence_transformers)
         """
-        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+        # Initialize driver with optimized connection pool settings for AuraDB
+        self.driver = create_neo4j_driver(neo4j_uri, neo4j_user, neo4j_password)
         self.embedding_generator = EmbeddingGenerator(self.driver, embedding_model)
         self.query_templates = QueryTemplates(self.driver)
 
@@ -103,47 +163,72 @@ class GraphRAGQuery:
     ) -> List[Dict]:
         """
         Hybrid search combining semantic similarity and keyword matching
+        Enhanced with query expansion and RRF fusion when available
 
         Args:
             query: Search query
             top_k: Number of results
-            semantic_weight: Weight for semantic search (0-1)
+            semantic_weight: Weight for semantic search (0-1) - used as fallback
 
         Returns:
             Combined search results
         """
-        # Semantic search
-        semantic_results = self.semantic_search(query, top_k=top_k * 2)
+        # Use enhanced search if available
+        if ENHANCEMENTS_AVAILABLE and ReciprocalRankFusion:
+            # Expand query with synonyms
+            query_variations = QueryExpander.expand_query(query)
+            
+            # Get results from multiple sources
+            semantic_results = []
+            for variation in query_variations[:3]:  # Limit variations to avoid performance issues
+                results = self.semantic_search(variation, top_k=top_k)
+                semantic_results.extend(results)
+            
+            keyword_results = self.query_templates.search_entities_full_text(
+                query, limit=top_k * 2
+            )
+            
+            # Use RRF for better fusion
+            fused = ReciprocalRankFusion.fuse_results(
+                [semantic_results, keyword_results],
+                k=60
+            )
+            
+            return fused[:top_k]
+        else:
+            # Fallback to original implementation
+            # Semantic search
+            semantic_results = self.semantic_search(query, top_k=top_k * 2)
 
-        # Keyword search
-        keyword_results = self.query_templates.search_entities_full_text(
-            query, limit=top_k * 2
-        )
+            # Keyword search
+            keyword_results = self.query_templates.search_entities_full_text(
+                query, limit=top_k * 2
+            )
 
-        # Combine and re-rank
-        combined = {}
+            # Combine and re-rank
+            combined = {}
 
-        for result in semantic_results:
-            entity_id = result["id"]
-            combined[entity_id] = {
-                **result,
-                "score": result["similarity"] * semantic_weight,
-            }
+            for result in semantic_results:
+                entity_id = result["id"]
+                combined[entity_id] = {
+                    **result,
+                    "score": result["similarity"] * semantic_weight,
+                }
 
-        for result in keyword_results:
-            entity_id = result["id"]
-            if entity_id in combined:
-                # Boost entities found in both searches
-                combined[entity_id]["score"] += 1 - semantic_weight
-            else:
-                combined[entity_id] = {**result, "score": (1 - semantic_weight)}
+            for result in keyword_results:
+                entity_id = result["id"]
+                if entity_id in combined:
+                    # Boost entities found in both searches
+                    combined[entity_id]["score"] += 1 - semantic_weight
+                else:
+                    combined[entity_id] = {**result, "score": (1 - semantic_weight)}
 
-        # Sort by score
-        ranked_results = sorted(
-            combined.values(), key=lambda x: x["score"], reverse=True
-        )
+            # Sort by score
+            ranked_results = sorted(
+                combined.values(), key=lambda x: x["score"], reverse=True
+            )
 
-        return ranked_results[:top_k]
+            return ranked_results[:top_k]
 
     # =========================================================================
     # CONTEXT RETRIEVAL
@@ -335,6 +420,26 @@ class GraphRAGQuery:
             else:
                 return {"intent": "investor_info", "confidence": 0.7}
 
+        # Article/news queries - check before person queries
+        has_article_keywords = any(
+            word in query_lower
+            for word in ["article", "articles", "news", "story", "stories", "post", "posts"]
+        )
+        
+        if has_article_keywords or (
+            is_recent and any(
+                word in query_lower
+                for word in ["you have", "in your", "in the graph", "in context", "available"]
+            )
+        ):
+            if is_recent or any(
+                word in query_lower
+                for word in ["latest", "most recent", "newest", "last"]
+            ):
+                return {"intent": "recent_articles", "confidence": 0.9}
+            else:
+                return {"intent": "article_info", "confidence": 0.8}
+        
         # Person queries
         elif any(
             word in query_lower
@@ -444,89 +549,126 @@ class GraphRAGQuery:
     def route_query(self, query: str, intent: Dict) -> Any:
         """
         Route query to appropriate handler based on intent
+        Enhanced with context enrichment when available
 
         Args:
             query: User query
             intent: Intent classification with optional filters
 
         Returns:
-            Query results
+            Query results (optionally enriched with related entities)
         """
         intent_type = intent["intent"]
         filters = intent.get("filters", {})
 
+        # Route to appropriate handler
         if intent_type == "company_info":
             # Extract company name from query
             results = self.semantic_search(query, top_k=1, entity_type="Company")
             if results:
                 company = results[0]
-                return self.query_templates.get_company_profile(company["name"])
+                context = self.query_templates.get_company_profile(company["name"])
+            else:
+                context = None
 
         elif intent_type == "competitive_analysis":
             results = self.semantic_search(query, top_k=1, entity_type="Company")
             if results:
                 company = results[0]
-                return self.query_templates.get_competitive_landscape(company["name"])
+                context = self.query_templates.get_competitive_landscape(company["name"])
+            else:
+                context = None
 
         elif intent_type == "funding_info":
             results = self.semantic_search(query, top_k=1, entity_type="Company")
             if results:
                 company = results[0]
-                return self.query_templates.get_funding_timeline(company["name"])
+                context = self.query_templates.get_funding_timeline(company["name"])
+            else:
+                context = None
 
         elif intent_type == "list_funded_companies":
             # Get list of companies with funding, optionally filtered by sector and recency
             sector = filters.get("sector")
             is_recent = filters.get("recent", False)
 
-            if is_recent:
-                # Get recently funded companies (last 90 days)
-                return self.query_templates.get_recently_funded_companies(
-                    days=90, sector_keyword=sector
-                )
-            elif sector:
-                # Get companies in sector with funding info
-                companies = self.query_templates.get_companies_in_sector(sector)
-                # Enrich with funding information
-                funded_companies = [
-                    c for c in companies if c.get("investor_count", 0) > 0
-                ]
-                return funded_companies[:20]
-            else:
-                # Get all companies with funding
-                return self.query_templates.get_companies_by_funding(min_investors=1)
+            try:
+                if is_recent:
+                    # Get recently funded companies (last 90 days)
+                    context = self.query_templates.get_recently_funded_companies(
+                        days=90, sector_keyword=sector
+                    )
+                elif sector:
+                    # Get companies in sector with funding info
+                    companies = self.query_templates.get_companies_in_sector(sector)
+                    # Enrich with funding information
+                    funded_companies = [
+                        c for c in companies if c.get("investor_count", 0) > 0
+                    ]
+                    context = funded_companies[:20]
+                else:
+                    # Get all companies with funding
+                    context = self.query_templates.get_companies_by_funding(min_investors=1)
+            except Exception as e:
+                # Log error but return empty context to allow LLM to handle gracefully
+                import logging
+                logging.warning(f"Error in list_funded_companies routing: {e}")
+                context = []
 
         elif intent_type == "list_companies_in_sector":
             # Get companies in a specific sector
             sector = filters.get("sector")
             if sector:
-                return self.query_templates.get_companies_in_sector(sector)
+                context = self.query_templates.get_companies_in_sector(sector)
             else:
                 # Fallback to general search
-                return self.hybrid_search(query, top_k=10)
+                context = self.hybrid_search(query, top_k=10)
 
         elif intent_type == "investor_portfolio":
             results = self.semantic_search(query, top_k=1, entity_type="Investor")
             if results:
                 investor = results[0]
-                return self.query_templates.get_investor_portfolio(investor["name"])
+                context = self.query_templates.get_investor_portfolio(investor["name"])
+            else:
+                context = None
 
         elif intent_type == "person_info":
             results = self.semantic_search(query, top_k=1, entity_type="Person")
             if results:
                 person = results[0]
-                return self.query_templates.get_person_profile(person["name"])
+                context = self.query_templates.get_person_profile(person["name"])
+            else:
+                context = None
 
         elif intent_type == "technology_info":
-            results = self.semantic_search(query, top_k=5, entity_type="Technology")
-            return results
+            context = self.semantic_search(query, top_k=5, entity_type="Technology")
 
         elif intent_type == "trend_analysis":
-            return self.query_templates.get_trending_technologies(limit=10)
+            context = self.query_templates.get_trending_technologies(limit=10)
+
+        elif intent_type == "recent_articles":
+            # Get most recent articles
+            context = self.query_templates.get_recent_articles(limit=10)
+
+        elif intent_type == "article_info":
+            # General article search
+            context = self.query_templates.get_recent_articles(limit=5)
 
         else:
             # General semantic search
-            return self.hybrid_search(query, top_k=10)
+            context = self.hybrid_search(query, top_k=10)
+        
+        # Enrich context with related entities if enhancements available
+        if context and ENHANCEMENTS_AVAILABLE and ContextEnricher:
+            try:
+                context = ContextEnricher.enrich_with_related_entities(
+                    context, self.query_templates
+                )
+            except Exception:
+                # If enrichment fails, return original context
+                pass
+        
+        return context
 
     # =========================================================================
     # LLM GENERATION
@@ -537,6 +679,7 @@ class GraphRAGQuery:
     ) -> str:
         """
         Generate natural language answer using LLM and context
+        Enhanced with ambiguity detection and structured prompts when available
 
         Args:
             query: User question
@@ -549,6 +692,23 @@ class GraphRAGQuery:
         if not self.llm:
             return "LLM not initialized. Please provide OpenAI API key."
 
+        # Check for ambiguity first (if enhancements available)
+        # But only after intent classification - don't block clear article queries
+        if ENHANCEMENTS_AVAILABLE and QueryRefiner:
+            # Only check ambiguity for non-article queries
+            # Article queries are handled by intent classification
+            intent = self.classify_query_intent(query)
+            if intent.get("intent") not in ["recent_articles", "article_info"]:
+                is_ambiguous, _, questions = QueryRefiner.detect_ambiguity(query)
+                if is_ambiguous:
+                    return QueryRefiner.generate_clarification_response(query, questions)
+        
+        # Enrich context if enhancements available
+        if ENHANCEMENTS_AVAILABLE and ContextEnricher:
+            context = ContextEnricher.enrich_with_temporal_context(
+                context, query, self.query_templates
+            )
+
         # Format context for LLM
         context_str = self._format_context_for_llm(context)
 
@@ -559,9 +719,18 @@ class GraphRAGQuery:
             or len(context_str.strip()) < 50
         )
 
-        # Create prompt
-        if has_minimal_context:
-            prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
+        # Use enhanced prompts if available, otherwise fallback to original
+        if ENHANCEMENTS_AVAILABLE and EnhancedPromptBuilder:
+            prompt = EnhancedPromptBuilder.build_structured_prompt(
+                query=query,
+                context=context,
+                include_examples=True,
+                require_citations=True
+            )
+        else:
+            # Fallback to original prompt
+            if has_minimal_context:
+                prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
 
 User Question: {query}
 
@@ -575,21 +744,24 @@ Please provide a helpful response:
 Be helpful and informative, even if you can't provide a complete answer based on the graph data.
 
 Answer:"""
-        else:
-            prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
+            else:
+                prompt = f"""You are a knowledge graph assistant analyzing startup and tech industry data from TechCrunch articles.
 
 Context from Knowledge Graph:
 {context_str}
 
 User Question: {query}
 
-Instructions:
-1. Answer the question based on the provided context from the knowledge graph
-2. Be specific and cite entity names when possible
-3. If the context doesn't directly answer the question, you can make reasonable inferences based on the available data
-4. If there's no relevant data in the context, clearly state that the knowledge graph doesn't contain enough information to answer this question
-5. Provide insights by connecting related information
-6. Keep the answer concise but informative (2-4 paragraphs max)
+CRITICAL INSTRUCTIONS:
+1. **Use Exact Names**: You MUST use the exact company names, investor names, and entity names as they appear in the context above. NEVER use placeholder names like 'Startup A', 'Company X', or 'Entity Y'. If a company is named 'OpenAI' in the context, say 'OpenAI', not 'a company' or 'Startup A'.
+2. Answer the question based on the provided context from the knowledge graph
+3. Be specific and cite entity names when possible - use the EXACT names from the context
+4. If the context doesn't directly answer the question, you can make reasonable inferences based on the available data, but still use exact names
+5. If there's no relevant data in the context, clearly state that the knowledge graph doesn't contain enough information to answer this question
+6. Provide insights by connecting related information using exact entity names
+7. Keep the answer concise but informative (2-4 paragraphs max)
+
+Example: If the context shows companies named "Anthropic" and "OpenAI", say "Anthropic" and "OpenAI", NOT "Startup A" and "Startup B".
 
 Answer:"""
 
@@ -803,6 +975,18 @@ Answer:"""
         Returns:
             Query results with answer and/or context
         """
+        # Handle very short queries that might be follow-ups
+        question = question.strip()
+        if len(question.split()) <= 2:
+            # Check if it's a temporal follow-up
+            question_lower = question.lower()
+            if question_lower in ["newest", "latest", "most recent", "recent"]:
+                # Expand to full article query
+                question = "what is the most recent article you have"
+            elif question_lower in ["new", "recent"]:
+                # Could be about articles or companies
+                question = f"what are the most recent {question_lower} articles"
+        
         # Step 1: Classify intent
         intent = self.classify_query_intent(question)
 
@@ -821,16 +1005,25 @@ Answer:"""
             # Use empty dict if context is None/empty to ensure LLM still generates a response
             answer = self.generate_answer(question, context if context else {})
 
-        # Prepare response
-        response = {"question": question, "intent": intent, "answer": answer}
+        # Prepare response - ensure answer is always a string
+        if answer is None:
+            answer = "Unable to generate answer. Please try rephrasing your question."
+        
+        response = {"question": question, "intent": intent, "answer": str(answer)}
 
         if return_context:
             response["context"] = context
         
         # Extract traversal data for visualization
         if return_traversal and context:
-            traversal_data = self._extract_traversal_data(context)
-            response["traversal"] = traversal_data
+            try:
+                traversal_data = self._extract_traversal_data(context)
+                response["traversal"] = traversal_data
+            except Exception as e:
+                # Log but don't fail if traversal extraction fails
+                import logging
+                logging.warning(f"Failed to extract traversal data: {e}")
+                response["traversal"] = {"nodes": [], "edges": []}
 
         return response
 
@@ -881,15 +1074,36 @@ Answer:"""
         Returns:
             Comparison analysis
         """
-        # Get both entities
+        # Try semantic search first
         entity1_results = self.semantic_search(entity1_name, top_k=1)
         entity2_results = self.semantic_search(entity2_name, top_k=1)
-
-        if not entity1_results or not entity2_results:
-            return {"error": "One or both entities not found"}
-
-        entity1 = entity1_results[0]
-        entity2 = entity2_results[0]
+        
+        # Fallback to name-based lookup if semantic search fails
+        if not entity1_results or len(entity1_results) == 0:
+            entity1_data = self.query_templates.get_entity_by_name(entity1_name)
+            if entity1_data and entity1_data.get("entity"):
+                entity1 = {
+                    "id": entity1_data["entity"]["id"],
+                    "name": entity1_data["entity"]["name"],
+                    "type": entity1_data["entity"]["type"],
+                }
+            else:
+                return {"error": f"Entity '{entity1_name}' not found"}
+        else:
+            entity1 = entity1_results[0]
+        
+        if not entity2_results or len(entity2_results) == 0:
+            entity2_data = self.query_templates.get_entity_by_name(entity2_name)
+            if entity2_data and entity2_data.get("entity"):
+                entity2 = {
+                    "id": entity2_data["entity"]["id"],
+                    "name": entity2_data["entity"]["name"],
+                    "type": entity2_data["entity"]["type"],
+                }
+            else:
+                return {"error": f"Entity '{entity2_name}' not found"}
+        else:
+            entity2 = entity2_results[0]
 
         # Get contexts
         context1 = self.get_entity_context(entity1["id"], max_hops=2)
